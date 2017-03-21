@@ -1,0 +1,29 @@
+From 166a7ddbf64448c1fb1344d9f67dab9c054b66ca Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Mon, 20 Mar 2017 11:29:46 +0800
+Subject: [PATCH] mount mmcblk0p5 as user directory
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ rootfs-overlay/etc/fstab | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+ create mode 100644 rootfs-overlay/etc/fstab
+
+diff --git a/rootfs-overlay/etc/fstab b/rootfs-overlay/etc/fstab
+new file mode 100644
+index 0000000..dfc19ed
+--- /dev/null
++++ b/rootfs-overlay/etc/fstab
+@@ -0,0 +1,9 @@
++# <file system>	<mount pt>	<type>	<options>	<dump>	<pass>
++proc		/proc		proc	defaults	0	0
++devpts		/dev/pts	devpts	defaults,gid=5,mode=620	0	0
++tmpfs		/dev/shm	tmpfs	mode=0777	0	0
++tmpfs		/tmp		tmpfs	mode=1777	0	0
++tmpfs		/run		tmpfs	mode=0755,nosuid,nodev	0	0
++sysfs		/sys		sysfs	defaults	0	0
++debug		/sys/kernel/debug debugfs defaults	0		0
++/dev/mmcblk0p5	/user		ext4	defaults 	0       0
+-- 
+1.9.1
+

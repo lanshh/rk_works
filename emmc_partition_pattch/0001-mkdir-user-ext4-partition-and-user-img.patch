@@ -1,0 +1,45 @@
+From d966fc1b3e7b355c82730daab4d72a44e1a605eb Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Mon, 20 Mar 2017 11:28:58 +0800
+Subject: [PATCH] mkdir user ext4 partition and user img
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ mkrootfs.sh | 4 ++++
+ setting.ini | 7 +++++++
+ 2 files changed, 11 insertions(+)
+ mode change 100755 => 100644 mkrootfs.sh
+
+diff --git a/mkrootfs.sh b/mkrootfs.sh
+old mode 100755
+new mode 100644
+index af51b03..b229568
+--- a/mkrootfs.sh
++++ b/mkrootfs.sh
+@@ -194,4 +194,8 @@ dd if=$IMAGE_OUT_PATH/rootfs.tmp \
+ rm -f $IMAGE_OUT_PATH/rootfs.tmp
+ echo "done."
+ 
++echo -n "create user.img..."
++ make_ext4fs -l 256m $IMAGE_OUT_PATH/user.img
++echo "done."
++
+ #rm -rf $IMAGE_PATH/root
+diff --git a/setting.ini b/setting.ini
+index f9913eb..e46f99a 100644
+--- a/setting.ini
++++ b/setting.ini
+@@ -23,3 +23,10 @@ Flag=1
+ File=../rockimg/Image-cvr/rootfs.img
+ PartOffset=0x5000
+ PartSize=0x4800
++[UserPart3]
++Name=user
++Type=0x80000000
++Flag=1
++File=../rockimg/Image-cvr/user.img
++PartOffset=0x9800
++PartSize=0x80000
+-- 
+1.9.1
+

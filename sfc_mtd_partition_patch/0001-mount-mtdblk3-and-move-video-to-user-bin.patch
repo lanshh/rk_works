@@ -1,0 +1,43 @@
+From 38ed316bb77ec6fda161cb549b5b11602941f8fc Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 21 Mar 2017 13:50:29 +0800
+Subject: [PATCH] mount mtdblk3 and move video to user/bin
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ rootfs-overlay/etc/fstab           | 9 +++++++++
+ rootfs-overlay/etc/init.d/S95video | 2 +-
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+ create mode 100644 rootfs-overlay/etc/fstab
+
+diff --git a/rootfs-overlay/etc/fstab b/rootfs-overlay/etc/fstab
+new file mode 100644
+index 0000000..9fceb4a
+--- /dev/null
++++ b/rootfs-overlay/etc/fstab
+@@ -0,0 +1,9 @@
++# <file system>	<mount pt>	<type>	<options>	<dump>	<pass>
++proc		/proc		proc	defaults	0	0
++devpts		/dev/pts	devpts	defaults,gid=5,mode=620	0	0
++tmpfs		/dev/shm	tmpfs	mode=0777	0	0
++tmpfs		/tmp		tmpfs	mode=1777	0	0
++tmpfs		/run		tmpfs	mode=0755,nosuid,nodev	0	0
++sysfs		/sys		sysfs	defaults	0	0
++debug		/sys/kernel/debug debugfs defaults	0		0
++/dev/S95video	/user		jffs2	defaults 	0       0
+diff --git a/rootfs-overlay/etc/init.d/S95video b/rootfs-overlay/etc/init.d/S95video
+index 8d83747..cf34080 100755
+--- a/rootfs-overlay/etc/init.d/S95video
++++ b/rootfs-overlay/etc/init.d/S95video
+@@ -9,7 +9,7 @@ echo 1 > /sys/module/rockchip_pm/parameters/policy
+ case "$1" in
+   start)
+ 	printf "Starting app video : "
+-	start-stop-daemon -Sbmv -p /var/run/video.pid -x logwrapper -- -k video
++	start-stop-daemon -Sbmv -p /var/run/video.pid -x logwrapper -- -k /user/bin/video
+ 	[ $? = 0 ] && echo "OK" || echo "FAIL"
+ 	;;
+   stop)
+-- 
+1.9.1
+
