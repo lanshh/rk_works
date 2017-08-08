@@ -1,0 +1,55 @@
+From 43bb6699fe7f21e496d53ea6dc516c93bb893a10 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 21 Mar 2017 11:51:28 +0800
+Subject: [PATCH] setting.ini add user patition and mkdir user for sfc
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ build_all.sh | 0
+ mkrootfs.sh  | 5 +++++
+ setting.ini  | 7 +++++++
+ 3 files changed, 12 insertions(+)
+ mode change 100755 => 100644 build_all.sh
+
+diff --git a/build_all.sh b/build_all.sh
+old mode 100755
+new mode 100644
+diff --git a/mkrootfs.sh b/mkrootfs.sh
+index af51b03..a1f04b4 100755
+--- a/mkrootfs.sh
++++ b/mkrootfs.sh
+@@ -33,6 +33,7 @@ IMAGE_OUT_PATH=$(pwd)/rockimg/Image-cvr
+ 
+ rm -rf $IMAGE_PATH
+ mkdir -p $IMAGE_PATH/root
++mkdir -p $IMAGE_PATH/user
+ mkdir -p $IMAGE_PATH/root/system/etc/firmware
+ mkdir -p $RELEASE_SYSTEM_PATH
+ 
+@@ -194,4 +195,8 @@ dd if=$IMAGE_OUT_PATH/rootfs.tmp \
+ rm -f $IMAGE_OUT_PATH/rootfs.tmp
+ echo "done."
+ 
++echo -n "create user.img..."
++mkfs.jffs2 --root=$IMAGE_PATH/user --pad=0x900000 -o $IMAGE_OUT_PATH/user.img
++echo "done."
++
+ #rm -rf $IMAGE_PATH/root
+diff --git a/setting.ini b/setting.ini
+index af168d9..e3924e2 100644
+--- a/setting.ini
++++ b/setting.ini
+@@ -23,3 +23,10 @@ Flag=1
+ File=../rockimg/Image-cvr/rootfs.img
+ PartOffset=0x3200
+ PartSize=0x4800
++[UserPart3]
++Name=user
++Type=0x80000000
++Flag=1
++File=../rockimg/Image-cvr/user.img
++PartOffset=0x7A00
++PartSize=0x8600
+-- 
+1.9.1
+

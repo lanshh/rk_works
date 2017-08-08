@@ -1,0 +1,77 @@
+From 36931ac6fbac651c2410bddb68b4904128315a87 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Mon, 26 Sep 2016 18:36:30 +0800
+Subject: [PATCH] dts for nanoc screen and hdmi.h
+
+Change-Id: I7113fbe07e605c73de18e99240d4a67bb9ca68f4
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts | 6 ++++++
+ arch/arm64/boot/dts/rockchip/rk3399-evb-rev3.dtsi            | 5 +++++
+ drivers/video/rockchip/hdmi/rockchip-hdmi.h                  | 3 ++-
+ include/dt-bindings/display/screen-timing/lcd-F402.dtsi      | 2 ++
+ 4 files changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts
+index a8e053a..dfee0a0 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts
+@@ -82,6 +82,12 @@
+ 	status = "okay";
+ };
+ 
++&cdn_dp_fb {
++	status = "okay";
++	extcon = <&fusb0>, <&fusb1>;
++	dp_vop_sel = <DISPLAY_SOURCE_LCDC1>;
++};
++
+ &edp_rk_fb {
+ 	status = "okay";
+ };
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3.dtsi
+index 0714ea1..567cd3b 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3.dtsi
+@@ -65,6 +65,11 @@
+ 		regulator-always-on;
+ 		regulator-boot-on;
+ 	};
++	 mpu6500_hid {
++		 status = "okay";
++		 compatible = "inv-hid,mpu6500";
++	 };
++
+ };
+ 
+ &cluster0_opp {
+diff --git a/drivers/video/rockchip/hdmi/rockchip-hdmi.h b/drivers/video/rockchip/hdmi/rockchip-hdmi.h
+index a5e8dd5..81fc1c3 100644
+--- a/drivers/video/rockchip/hdmi/rockchip-hdmi.h
++++ b/drivers/video/rockchip/hdmi/rockchip-hdmi.h
+@@ -487,7 +487,8 @@ struct hdmi {
+ #define HDMI_AUTO_CONFIG		false
+ 
+ /* HDMI default vide mode */
+-#define HDMI_VIDEO_DEFAULT_MODE			HDMI_1280X720P_60HZ
++//#define HDMI_VIDEO_DEFAULT_MODE			HDMI_1280X720P_60HZ
++#define HDMI_VIDEO_DEFAULT_MODE                        (HDMI_VIDEO_DISCRETE_VR | 4)
+ 						/*HDMI_1920X1080P_60HZ*/
+ #define HDMI_VIDEO_DEFAULT_COLORMODE		HDMI_COLOR_AUTO
+ #define HDMI_VIDEO_DEFAULT_COLORDEPTH		8
+diff --git a/include/dt-bindings/display/screen-timing/lcd-F402.dtsi b/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
+index a3ad25f..56bdf8b 100644
+--- a/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
++++ b/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
+@@ -25,6 +25,8 @@ disp_timings: display-timings {
+ 		swap-rb = <0>;
+ 		swap-rg = <0>;
+ 		swap-gb = <0>;
++		screen-width = <68>;
++		screen-hight = <120>;
+ 		dsp-lut = <0x00000000 0x00010101 0x00020202 0x00030303 0x00040404 0x00050505 0x00060606 0x00070707 0x00080808 0x00090909
+ 				0x000a0a0a 0x000b0b0b 0x000c0c0c 0x000d0d0d 0x000e0e0e 0x000f0f0f 0x00101010 0x00111111 0x00121212 0x00131313
+ 				0x00141414 0x00151515 0x00161616 0x00171717 0x00181818 0x00191919 0x001a1a1a 0x001b1b1b 0x001c1c1c 0x001d1d1d
+-- 
+1.9.1
+

@@ -1,0 +1,754 @@
+From 857d075f680ecce2cbb6e06b80256db44bc95318 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 28 Sep 2016 16:12:21 +0800
+Subject: [PATCH 4/6] change_vop_clock
+
+Change-Id: I9f94a579bbc859fa98fc70483c9df735baa143f8
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm64/boot/dts/rockchip/rk3399-android.dtsi   | 54 ++++++-------
+ .../boot/dts/rockchip/rk3399-evb-rev1-android.dts  | 63 +++++++++------
+ .../dts/rockchip/rk3399-evb-rev3-android-edp.dts   | 64 +++++++++------
+ .../boot/dts/rockchip/rk3399-evb-rev3-android.dts  | 55 +++++++------
+ .../dts/rockchip/rk3399-excavator-sapphire.dtsi    |  2 +-
+ .../dts/rockchip/rk3399-sapphire-excavator-edp.dts | 53 +++++++------
+ drivers/clk/clk-conf.c                             |  2 +-
+ drivers/clk/clk.c                                  | 91 +++++++++++++++++++---
+ drivers/soc/rockchip/pm_domains.c                  |  0
+ drivers/video/rockchip/dp/rockchip_dp.c            |  2 +-
+ drivers/video/rockchip/hdmi/rockchip-hdmi.h        |  2 +-
+ .../display/screen-timing/lcd-F402.dtsi            |  2 +
+ .../screen-timing/lcd-tv080wum-nl0-mipi.dtsi       |  2 +
+ include/linux/clk.h                                |  9 +++
+ 14 files changed, 264 insertions(+), 137 deletions(-)
+ mode change 100644 => 100755 arch/arm64/boot/dts/rockchip/rk3399-android.dtsi
+ mode change 100644 => 100755 arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts
+ mode change 100644 => 100755 arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android.dts
+ mode change 100644 => 100755 arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
+ mode change 100644 => 100755 drivers/soc/rockchip/pm_domains.c
+ mode change 100644 => 100755 drivers/video/rockchip/dp/rockchip_dp.c
+ mode change 100644 => 100755 drivers/video/rockchip/hdmi/rockchip-hdmi.h
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-android.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-android.dtsi
+old mode 100644
+new mode 100755
+index cc7eab3..686539d
+--- a/arch/arm64/boot/dts/rockchip/rk3399-android.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-android.dtsi
+@@ -286,7 +286,7 @@
+ 		status = "okay";
+ 		compatible = "rockchip,rk-fb";
+ 		rockchip,disp-mode = <DUAL>;
+-		rockchip,uboot-logo-on = <1>;
++		rockchip,uboot-logo-on = <0>;
+ 		memory-region = <&rockchip_logo>;
+ 	};
+ 
+@@ -295,60 +295,60 @@
+ 		compatible = "rockchip,screen";
+ 	};
+ 
+-	vopb_rk_fb: vop-rk-fb@ff900000 {
++	vopl_rk_fb: vop-rk-fb@ff8f0000 {
+ 		status = "disabled";
+ 		compatible = "rockchip,rk3399-lcdc";
+ 		rockchip,prop = <PRMRY>;
+-		reg = <0x0 0xff900000 0x0 0x3efc>;
+-		interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH 0>;
+-		clocks = <&cru ACLK_VOP0>, <&cru DCLK_VOP0>, <&cru HCLK_VOP0>;
++		reg = <0x0 0xff8f0000 0x0 0x3efc>;
++		interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH 0>;
++		clocks = <&cru ACLK_VOP1>, <&cru DCLK_VOP1>, <&cru HCLK_VOP1>;
+ 		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
+-		resets = <&cru SRST_A_VOP0>, <&cru SRST_H_VOP0>, <&cru SRST_D_VOP0>;
++		resets = <&cru SRST_A_VOP1>, <&cru SRST_H_VOP1>, <&cru SRST_D_VOP1>;
+ 		reset-names = "axi", "ahb", "dclk";
+ 		rockchip,grf = <&grf>;
+ 		rockchip,pwr18 = <0>;
+ 		rockchip,iommu-enabled = <1>;
+-		power-domains = <&power RK3399_PD_VOPB>;
++		power-domains = <&power RK3399_PD_VOPL>;
+ 		devfreq = <&dmc>;
+-		assigned-clocks = <&cru DCLK_VOP0_DIV>;
+-		assigned-clock-parents = <&cru PLL_VPLL>;
++		assigned-clocks = <&cru DCLK_VOP1_DIV>;
++		assigned-clock-parents = <&cru PLL_CPLL>;
+ 	};
+ 
+-	vopb_mmu_rk_fb: vopb-mmu {
++	vopl_mmu_rk_fb: vopl-mmu {
+ 		status = "okay";
+ 		dbgname = "vop";
+-		compatible = "rockchip,vopb_mmu";
+-		reg = <0x0 0xff903f00 0x0 0x100>;
+-		interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH 0>;
+-		interrupt-names = "vopb_mmu";
++		compatible = "rockchip,vopl_mmu";
++		reg = <0x0 0xff8f3f00 0x0 0x100>;
++		interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH 0>;
++		interrupt-names = "vopl_mmu";
+ 	};
+ 
+-	vopl_rk_fb: vop-rk-fb@ff8f0000 {
++	vopb_rk_fb: vop-rk-fb@ff900000 {
+ 		status = "disabled";
+ 		compatible = "rockchip,rk3399-lcdc";
+ 		rockchip,prop = <EXTEND>;
+-		reg = <0x0 0xff8f0000 0x0 0x3efc>;
+-		interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH 0>;
+-		clocks = <&cru ACLK_VOP1>, <&cru DCLK_VOP1>, <&cru HCLK_VOP1>;
++		reg = <0x0 0xff900000 0x0 0x3efc>;
++		interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH 0>;
++		clocks = <&cru ACLK_VOP0>, <&cru DCLK_VOP0>, <&cru HCLK_VOP0>;
+ 		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
+-		resets = <&cru SRST_A_VOP1>, <&cru SRST_H_VOP1>, <&cru SRST_D_VOP1>;
++		resets = <&cru SRST_A_VOP0>, <&cru SRST_H_VOP0>, <&cru SRST_D_VOP0>;
+ 		reset-names = "axi", "ahb", "dclk";
+ 		rockchip,grf = <&grf>;
+ 		rockchip,pwr18 = <0>;
+ 		rockchip,iommu-enabled = <1>;
+-		power-domains = <&power RK3399_PD_VOPL>;
++		power-domains = <&power RK3399_PD_VOPB>;
+ 		devfreq = <&dmc>;
+-		assigned-clocks = <&cru DCLK_VOP1_DIV>;
+-		assigned-clock-parents = <&cru PLL_CPLL>;
++		assigned-clocks = <&cru DCLK_VOP0_DIV>;
++		assigned-clock-parents = <&cru PLL_VPLL>;
+ 	};
+ 
+-	vopl_mmu_rk_fb: vopl-mmu {
++	vopb_mmu_rk_fb: vopb-mmu {
+ 		status = "okay";
+ 		dbgname = "vop";
+-		compatible = "rockchip,vopl_mmu";
+-		reg = <0x0 0xff8f3f00 0x0 0x100>;
+-		interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH 0>;
+-		interrupt-names = "vopl_mmu";
++		compatible = "rockchip,vopb_mmu";
++		reg = <0x0 0xff903f00 0x0 0x100>;
++		interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH 0>;
++		interrupt-names = "vopb_mmu";
+ 	};
+ 
+ 	isp0: isp@ff910000 {
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev1-android.dts b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev1-android.dts
+index 105e7a4..ac2d85c 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev1-android.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev1-android.dts
+@@ -48,38 +48,43 @@
+ / {
+ 	model = "Rockchip RK3399 Evaluation Board v1 (Android)";
+ 	compatible = "rockchip,android", "rockchip,rk3399-evb-rev1", "rockchip,rk3399";
++        mpu6500_hid {
++                status = "okay";
++                compatible = "inv-hid,mpu6500";
++        };
+ };
+ 
+ &rk_screen {
+ 	#include <dt-bindings/display/screen-timing/lcd-tv080wum-nl0-mipi.dtsi>
+ };
+ 
+-&vopb_rk_fb {
+-	status = "okay";
+-	power_ctr: power_ctr {
+-		rockchip,debug = <0>;
+-		lcd_en: lcd-en {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
+-			rockchip,delay = <10>;
+-		};
+-
+-		/*lcd_cs: lcd-cs {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;//GPIO_C5 = 21
+-			rockchip,delay = <10>;
+-		};*/
+-
+-		/*lcd_rst: lcd-rst {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio3 GPIO_D6 GPIO_ACTIVE_HIGH>;
+-			rockchip,delay = <5>;
+-		};*/
+-	};
++&vopl_rk_fb {
++        status = "okay";
++        power_ctr: power_ctr {
++                rockchip,debug = <0>;
++                lcd_en: lcd-en {
++                        rockchip,power_type = <GPIO>;
++                        gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
++                        rockchip,delay = <10>;
++                };
++
++                /*lcd_cs: lcd-cs {
++                        rockchip,power_type = <GPIO>;
++                        gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;//GPIO_C5 = 21
++                        rockchip,delay = <10>;
++                };*/
++
++                /*lcd_rst: lcd-rst {
++                        rockchip,power_type = <GPIO>;
++                        gpios = <&gpio3 GPIO_D6 GPIO_ACTIVE_HIGH>;
++                        rockchip,delay = <5>;
++                };*/
++        };
+ };
+ 
+-&vopl_rk_fb {
++&vopb_rk_fb {
+ 	status = "okay";
++	rockchip,dsp_mode = <ONE_VOP_DUAL_MIPI_VER_SCAN>;
+ };
+ 
+ &mipi0_rk_fb {
+@@ -88,7 +93,17 @@
+ 
+ &hdmi_rk_fb {
+ 	status = "okay";
+-	rockchip,hdmi_video_source = <DISPLAY_SOURCE_LCDC1>;
++	rockchip,hdmi_video_source = <DISPLAY_SOURCE_LCDC0>;
++};
++
++&cdn_dp_sound {
++        status = "okay";
++};
++
++&cdn_dp_fb {
++        status = "okay";
++        extcon = <&fusb0>, <&fusb1>;
++        dp_vop_sel = <DISPLAY_SOURCE_LCDC0>;
+ };
+ 
+ &i2s2 {
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts
+old mode 100644
+new mode 100755
+index a8e053a..7583c87
+--- a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts
+@@ -48,38 +48,44 @@
+ / {
+ 	model = "Rockchip RK3399 Evaluation Board v3 edp (Android)";
+ 	compatible = "rockchip,android", "rockchip,rk3399-evb-rev3", "rockchip,rk3399";
++	
++	mpu6500_hid {
++		status = "okay";
++		compatible = "inv-hid,mpu6500";
++	};
+ };
+ 
+ &rk_screen {
+ 	#include <dt-bindings/display/screen-timing/lcd-F402.dtsi>
+ };
+ 
+-&vopb_rk_fb {
++&vopl_rk_fb {
+ 	status = "okay";
+-	power_ctr: power_ctr {
+-		rockchip,debug = <0>;
+-		lcd_en: lcd-en {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
+-			rockchip,delay = <10>;
+-		};
+-
+-		/*lcd_cs: lcd-cs {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;//GPIO_C5 = 21
+-			rockchip,delay = <10>;
+-		};*/
+-
+-		/*lcd_rst: lcd-rst {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio3 GPIO_D6 GPIO_ACTIVE_HIGH>;
+-			rockchip,delay = <5>;
+-		};*/
+-	};
++        power_ctr: power_ctr {
++                rockchip,debug = <0>;
++                lcd_en: lcd-en {
++                        rockchip,power_type = <GPIO>;
++                        gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
++                        rockchip,delay = <10>;
++                };
++
++                /*lcd_cs: lcd-cs {
++                        rockchip,power_type = <GPIO>;
++                        gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;//GPIO_C5 = 21
++                        rockchip,delay = <10>;
++                };*/
++
++                /*lcd_rst: lcd-rst {
++                        rockchip,power_type = <GPIO>;
++                        gpios = <&gpio3 GPIO_D6 GPIO_ACTIVE_HIGH>;
++                        rockchip,delay = <5>;
++                };*/
++        };
+ };
+ 
+-&vopl_rk_fb {
+-	status = "okay";
++&vopb_rk_fb {
++        status = "okay";
++	rockchip,dsp_mode = <ONE_VOP_DUAL_MIPI_VER_SCAN>;
+ };
+ 
+ &edp_rk_fb {
+@@ -88,7 +94,17 @@
+ 
+ &hdmi_rk_fb {
+ 	status = "okay";
+-	rockchip,hdmi_video_source = <DISPLAY_SOURCE_LCDC1>;
++	rockchip,hdmi_video_source = <DISPLAY_SOURCE_LCDC0>;
++};
++
++&cdn_dp_sound {
++	status = "okay";
++};
++
++&cdn_dp_fb {
++	status = "okay";
++	extcon = <&fusb0>, <&fusb1>;
++	dp_vop_sel = <DISPLAY_SOURCE_LCDC0>;
+ };
+ 
+ &i2s2 {
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android.dts b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android.dts
+old mode 100644
+new mode 100755
+index 8a09650..03beb86
+--- a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android.dts
+@@ -54,32 +54,33 @@
+ 	#include <dt-bindings/display/screen-timing/lcd-tv080wum-nl0-mipi.dtsi>
+ };
+ 
+-&vopb_rk_fb {
++&vopl_rk_fb {
+ 	status = "okay";
+-	power_ctr: power_ctr {
+-		rockchip,debug = <0>;
+-		lcd_en: lcd-en {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
+-			rockchip,delay = <10>;
+-		};
+-
+-		/*lcd_cs: lcd-cs {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;//GPIO_C5 = 21
+-			rockchip,delay = <10>;
+-		};*/
+-
+-		/*lcd_rst: lcd-rst {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio3 GPIO_D6 GPIO_ACTIVE_HIGH>;
+-			rockchip,delay = <5>;
+-		};*/
+-	};
++        power_ctr: power_ctr {
++                rockchip,debug = <0>;
++                lcd_en: lcd-en {
++                        rockchip,power_type = <GPIO>;
++                        gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
++                        rockchip,delay = <10>;
++                };
++
++                /*lcd_cs: lcd-cs {
++                        rockchip,power_type = <GPIO>;
++                        gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;//GPIO_C5 = 21
++                        rockchip,delay = <10>;
++                };*/
++
++                /*lcd_rst: lcd-rst {
++                        rockchip,power_type = <GPIO>;
++                        gpios = <&gpio3 GPIO_D6 GPIO_ACTIVE_HIGH>;
++                        rockchip,delay = <5>;
++                };*/
++        };
+ };
+ 
+-&vopl_rk_fb {
++&vopb_rk_fb {
+ 	status = "okay";
++	rockchip,dsp_mode = <ONE_VOP_DUAL_MIPI_HOR_SCAN>;
+ };
+ 
+ &mipi0_rk_fb {
+@@ -91,6 +92,16 @@
+ 	rockchip,hdmi_video_source = <DISPLAY_SOURCE_LCDC1>;
+ };
+ 
++&cdn_dp_sound {
++	status = "okay";
++};
++
++&cdn_dp_fb {
++	status = "okay";
++	extcon = <&fusb0>, <&fusb1>;
++	dp_vop_sel = <DISPLAY_SOURCE_LCDC0>;
++};
++
+ &i2s2 {
+ 	status = "okay";
+ };
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
+index cff2440..77abaad 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
+@@ -154,7 +154,7 @@
+ 	i2c-scl-falling-time-ns = <20>;
+ 
+ 	mpu6500@68 {
+-		status = "okay";
++		status = "disabled";
+ 		compatible = "invensense,mpu6500";
+ 		reg = <0x68>;
+ 		irq-gpio = <&gpio1 22 IRQ_TYPE_EDGE_RISING>;
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
+old mode 100644
+new mode 100755
+index e5d0b2d..c6c3e16
+--- a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
+@@ -52,6 +52,10 @@
+ 	test-power {
+ 		status = "okay";
+ 	};
++	mpu6500_hid {
++		status = "okay";
++		compatible = "inv-hid,mpu6500";
++	};
+ };
+ 
+ &backlight {
+@@ -61,7 +65,7 @@
+ &cdn_dp_fb {
+ 	status = "okay";
+ 	extcon = <&fusb0>;
+-	dp_vop_sel = <DISPLAY_SOURCE_LCDC1>;
++	dp_vop_sel = <DISPLAY_SOURCE_LCDC0>;
+ };
+ 
+ &cdn_dp_sound {
+@@ -78,7 +82,7 @@
+ 
+ &hdmi_rk_fb {
+ 	status = "okay";
+-	rockchip,hdmi_video_source = <DISPLAY_SOURCE_LCDC1>;
++	rockchip,hdmi_video_source = <DISPLAY_SOURCE_LCDC0>;
+ };
+ 
+ &hdmi_sound {
+@@ -108,30 +112,31 @@
+ 
+ &vopb_rk_fb {
+ 	status = "okay";
+-	power_ctr: power_ctr {
+-		rockchip,debug = <0>;
+-		lcd_en: lcd-en {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
+-			rockchip,delay = <10>;
+-		};
+-
+-		/*
+-		lcd_cs: lcd-cs {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;
+-			rockchip,delay = <10>;
+-		};
+-		*/
+-
+-		lcd_rst: lcd-rst {
+-			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio4 30 GPIO_ACTIVE_HIGH>;
+-			rockchip,delay = <5>;
+-		};
+-	};
++	rockchip,dsp_mode = <ONE_VOP_DUAL_MIPI_VER_SCAN>;
+ };
+ 
+ &vopl_rk_fb {
+ 	status = "okay";
++	power_ctr: power_ctr {
++	        rockchip,debug = <0>;
++	        lcd_en: lcd-en {
++	                rockchip,power_type = <GPIO>;
++	                gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
++	                rockchip,delay = <10>;
++	        };
++
++	        /*
++	        lcd_cs: lcd-cs {
++	                rockchip,power_type = <GPIO>;
++	                gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>;
++	                rockchip,delay = <10>;
++	        };
++	        */
++
++	        lcd_rst: lcd-rst {
++	                rockchip,power_type = <GPIO>;
++	                gpios = <&gpio4 30 GPIO_ACTIVE_HIGH>;
++	                rockchip,delay = <5>;
++	        };
++	};
+ };
+diff --git a/drivers/clk/clk-conf.c b/drivers/clk/clk-conf.c
+index 43a218f..42af16a 100644
+--- a/drivers/clk/clk-conf.c
++++ b/drivers/clk/clk-conf.c
+@@ -104,7 +104,7 @@ static int __set_clk_rates(struct device_node *node, bool clk_supplier)
+ 				return PTR_ERR(clk);
+ 			}
+ 
+-			rc = clk_set_rate(clk, rate);
++			rc = clk_set_rate_div(clk, rate);
+ 			if (rc < 0)
+ 				pr_err("clk: couldn't set %s clk rate to %d (%d), current rate: %ld\n",
+ 				       __clk_get_name(clk), rate, rc,
+diff --git a/drivers/clk/clk.c b/drivers/clk/clk.c
+index ba7d8e3..bec3c74 100644
+--- a/drivers/clk/clk.c
++++ b/drivers/clk/clk.c
+@@ -1599,6 +1599,51 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
+ EXPORT_SYMBOL_GPL(clk_set_rate);
+ 
+ /**
++ * clk_set_rate_div - If the clk is pll,set child clk div first.and than set clk rate
++ * @clk: the clk whose rate is being changed
++ * @rate: the new rate for clk
++ *
++ * Returns 0 on success, -EERROR otherwise.
++ */
++int clk_set_rate_div(struct clk *clk, unsigned long rate)
++{
++	unsigned long old_rate, child_rate;
++	struct hlist_node *tmp;
++	struct clk_core *core;
++	int div;
++	int ret;
++
++	if (!clk)
++		return 0;
++
++	old_rate = clk_get_rate(clk);
++	if ((clk->core->flags  == CLK_MUX_HIWORD_MASK) && (rate > old_rate)) {
++		hlist_for_each_entry_safe(core, tmp,
++					  &clk->core->children,
++					  child_node) {
++			if (strcmp(core->parent->name, clk->core->name) == 0) {
++				child_rate = core->rate;
++				div = rate / old_rate;
++				if (rate % old_rate)
++					div += 1;
++				pr_debug("%s: pllname=%s,childname=%s,pll_rate=%ld,pll_new_rate=%ld,child_rate=%ld,child_new_rate=%ld\n",
++					 __func__, clk->core->name,
++					 core->name, old_rate,
++					 rate, child_rate,
++					 child_rate / div);
++				core->rate = child_rate / div;
++				clk_change_rate(core);
++			} else {
++				continue;
++			}
++		}
++	}
++	ret = clk_set_rate(clk, rate);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(clk_set_rate_div);
++
++/**
+  * clk_set_rate_range - set a rate range for a clock source
+  * @clk: clock source
+  * @min: desired minimum clock rate in Hz, inclusive
+@@ -1993,6 +2038,7 @@ bool clk_is_match(const struct clk *p, const struct clk *q)
+ EXPORT_SYMBOL_GPL(clk_is_match);
+ 
+ /***        debugfs support        ***/
++#define debug_printk(s, fmt, args...) printk(fmt, ##args)
+ 
+ #ifdef CONFIG_DEBUG_FS
+ #include <linux/debugfs.h>
+@@ -2019,7 +2065,7 @@ static void clk_summary_show_one(struct seq_file *s, struct clk_core *c,
+ 	if (!c)
+ 		return;
+ 
+-	seq_printf(s, "%*s%-*s %11d %12d %11lu %10lu %-3d\n",
++	debug_printk(s, "%*s%-*s %11d %12d %11lu %10lu %-3d\n",
+ 		   level * 3 + 1, "",
+ 		   30 - level * 3, c->name,
+ 		   c->enable_count, c->prepare_count, clk_core_get_rate(c),
+@@ -2039,8 +2085,8 @@ static void clk_summary_show_subtree(struct seq_file *s, struct clk_core *c,
+ 	hlist_for_each_entry(child, &c->children, child_node)
+ 		clk_summary_show_subtree(s, child, level + 1);
+ }
+-
+-static int clk_summary_show(struct seq_file *s, void *data)
++#if 0
++ int clk_summary_show(struct seq_file *s, void *data)
+ {
+ 	struct clk_core *c;
+ 	struct hlist_head **lists = (struct hlist_head **)s->private;
+@@ -2058,8 +2104,28 @@ static int clk_summary_show(struct seq_file *s, void *data)
+ 
+ 	return 0;
+ }
++#else 
++ int clk_summary_show(struct seq_file *s, void *data)
++{
++	struct clk_core *c;
+ 
++	debug_printk(s, "   clock                        enable_cnt  prepare_cnt  rate\n");
++	debug_printk(s, "---------------------------------------------------------------------\n");
++
++	clk_prepare_lock();
+ 
++	hlist_for_each_entry(c, &clk_root_list, child_node)
++		clk_summary_show_subtree(s, c, 0);
++
++	hlist_for_each_entry(c, &clk_orphan_list, child_node)
++		clk_summary_show_subtree(s, c, 0);
++
++	clk_prepare_unlock();
++
++	return 0;
++}
++
++#endif
+ static int clk_summary_open(struct inode *inode, struct file *file)
+ {
+ 	return single_open(file, clk_summary_show, inode->i_private);
+@@ -2078,12 +2144,12 @@ static void clk_dump_one(struct seq_file *s, struct clk_core *c, int level)
+ 		return;
+ 
+ 	/* This should be JSON format, i.e. elements separated with a comma */
+-	seq_printf(s, "\"%s\": { ", c->name);
+-	seq_printf(s, "\"enable_count\": %d,", c->enable_count);
+-	seq_printf(s, "\"prepare_count\": %d,", c->prepare_count);
+-	seq_printf(s, "\"rate\": %lu,", clk_core_get_rate(c));
+-	seq_printf(s, "\"accuracy\": %lu,", clk_core_get_accuracy(c));
+-	seq_printf(s, "\"phase\": %d", clk_core_get_phase(c));
++	debug_printk(s, "\"%s\": { ", c->name);
++	debug_printk(s, "\"enable_count\": %d,", c->enable_count);
++	debug_printk(s, "\"prepare_count\": %d,", c->prepare_count);
++	debug_printk(s, "\"rate\": %lu,", clk_core_get_rate(c));
++	debug_printk(s, "\"accuracy\": %lu,", clk_core_get_accuracy(c));
++	debug_printk(s, "\"phase\": %d", clk_core_get_phase(c));
+ }
+ 
+ static void clk_dump_subtree(struct seq_file *s, struct clk_core *c, int level)
+@@ -2096,11 +2162,11 @@ static void clk_dump_subtree(struct seq_file *s, struct clk_core *c, int level)
+ 	clk_dump_one(s, c, level);
+ 
+ 	hlist_for_each_entry(child, &c->children, child_node) {
+-		seq_printf(s, ",");
++		debug_printk(s, ",");
+ 		clk_dump_subtree(s, child, level + 1);
+ 	}
+ 
+-	seq_printf(s, "}");
++	debug_printk(s, "}");
+ }
+ 
+ static int clk_dump(struct seq_file *s, void *data)
+@@ -2109,7 +2175,7 @@ static int clk_dump(struct seq_file *s, void *data)
+ 	bool first_node = true;
+ 	struct hlist_head **lists = (struct hlist_head **)s->private;
+ 
+-	seq_printf(s, "{");
++	debug_printk(s, "{");
+ 
+ 	clk_prepare_lock();
+ 
+@@ -3283,5 +3349,6 @@ void __init of_clk_init(const struct of_device_id *matches)
+ 		if (!is_init_done)
+ 			force = true;
+ 	}
++	clk_summary_show(NULL, NULL);
+ }
+ #endif
+diff --git a/drivers/soc/rockchip/pm_domains.c b/drivers/soc/rockchip/pm_domains.c
+old mode 100644
+new mode 100755
+diff --git a/drivers/video/rockchip/dp/rockchip_dp.c b/drivers/video/rockchip/dp/rockchip_dp.c
+old mode 100644
+new mode 100755
+index 18979b4..f078ed1
+--- a/drivers/video/rockchip/dp/rockchip_dp.c
++++ b/drivers/video/rockchip/dp/rockchip_dp.c
+@@ -193,7 +193,7 @@ int cdn_dp_fb_register(struct platform_device *pdev, void *dp)
+ 	rockchip_dp_dev_init_ops(rk_dp_ops);
+ 	rk_cdn_dp_prop->videosrc = dp_dev->disp_info.vop_sel;
+ 	rk_cdn_dp_prop->display = DISPLAY_MAIN;
+-	rk_cdn_dp_prop->defaultmode = HDMI_VIDEO_DEFAULT_MODE;
++	rk_cdn_dp_prop->defaultmode = HDMI_VIDEO_DISCRETE_VR | 4;
+ 	rk_cdn_dp_prop->name = (char *)pdev->name;
+ 	rk_cdn_dp_prop->priv = dp_dev;
+ 	rk_cdn_dp_prop->feature |=
+diff --git a/drivers/video/rockchip/hdmi/rockchip-hdmi.h b/drivers/video/rockchip/hdmi/rockchip-hdmi.h
+old mode 100644
+new mode 100755
+index a5e8dd5..33b9781
+--- a/drivers/video/rockchip/hdmi/rockchip-hdmi.h
++++ b/drivers/video/rockchip/hdmi/rockchip-hdmi.h
+@@ -487,7 +487,7 @@ struct hdmi {
+ #define HDMI_AUTO_CONFIG		false
+ 
+ /* HDMI default vide mode */
+-#define HDMI_VIDEO_DEFAULT_MODE			HDMI_1280X720P_60HZ
++#define HDMI_VIDEO_DEFAULT_MODE			(HDMI_VIDEO_DISCRETE_VR | 4)
+ 						/*HDMI_1920X1080P_60HZ*/
+ #define HDMI_VIDEO_DEFAULT_COLORMODE		HDMI_COLOR_AUTO
+ #define HDMI_VIDEO_DEFAULT_COLORDEPTH		8
+diff --git a/include/dt-bindings/display/screen-timing/lcd-F402.dtsi b/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
+index a3ad25f..a03fa61 100644
+--- a/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
++++ b/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
+@@ -8,6 +8,8 @@ disp_timings: display-timings {
+         native-mode = <&timing0>;
+         timing0: timing0 {
+ 		screen-type = <SCREEN_EDP>;
++		screen-width = <68>;
++		screen-hight = <120>;
+ 		out-face    = <OUT_P666>;
+ 		clock-frequency = <205000000>;
+ 		hactive = <1536>;
+diff --git a/include/dt-bindings/display/screen-timing/lcd-tv080wum-nl0-mipi.dtsi b/include/dt-bindings/display/screen-timing/lcd-tv080wum-nl0-mipi.dtsi
+index b408d65..bee61f3 100644
+--- a/include/dt-bindings/display/screen-timing/lcd-tv080wum-nl0-mipi.dtsi
++++ b/include/dt-bindings/display/screen-timing/lcd-tv080wum-nl0-mipi.dtsi
+@@ -89,6 +89,8 @@ disp_timings: display-timings {
+ 	compatible = "rockchip,display-timings";
+ 	timing0: timing0 {
+ 		screen-type = <SCREEN_MIPI>;
++		screen-width = <68>;
++		screen-hight = <120>;
+ 		lvds-format = <LVDS_8BIT_2>;
+ 		out-face    = <OUT_P888>;
+ 		clock-frequency = <160000000>;
+diff --git a/include/linux/clk.h b/include/linux/clk.h
+index 0df4a51..b17c5b4 100644
+--- a/include/linux/clk.h
++++ b/include/linux/clk.h
+@@ -334,6 +334,15 @@ long clk_round_rate(struct clk *clk, unsigned long rate);
+ int clk_set_rate(struct clk *clk, unsigned long rate);
+ 
+ /**
++ * clk_set_rate_div - If the clk is pll,set child clk div first.and than set clk rate
++ * @clk: the clk whose rate is being changed
++ * @rate: the new rate for clk
++ *
++ * Returns 0 on success, -EERROR otherwise.
++ */
++int clk_set_rate_div(struct clk *clk, unsigned long rate);
++
++/**
+  * clk_has_parent - check if a clock is a possible parent for another
+  * @clk: clock source
+  * @parent: parent clock source
+-- 
+1.9.1
+

@@ -1,0 +1,133 @@
+From 0a57e4d39d430eec261cbcf27402090c0ca02c7e Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 11 Jul 2017 15:31:27 +0800
+Subject: [PATCH 1/2] fix sd format error
+
+Change-Id: I6580af4c28b6fd8ece712ee24ab84bbfcbb03a0a
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ noui/camera_ui.c       | 40 ++++++++++++++++++++++++++++++++++++++++
+ noui/libvui/vgui_api.h | 30 ------------------------------
+ 2 files changed, 40 insertions(+), 30 deletions(-)
+
+diff --git a/noui/camera_ui.c b/noui/camera_ui.c
+index f7eb7c6..ee46404 100644
+--- a/noui/camera_ui.c
++++ b/noui/camera_ui.c
+@@ -873,6 +873,41 @@ void loadingWaitBmp(HWND hWnd)
+ 	return;
+ }
+ 
++static void proc_MSG_FS_INITFAIL(HWND hWnd, int param)
++{
++    int mesg = IDYES;
++    printf("FS_INITFAIL\n");
++    // no space
++#if 0
++    if (param == -1) {
++        if (parameter_get_video_lan() == 1)
++            mesg = MessageBox(hWnd, "sd卡剩余空间不足\n是否格式化sd卡?", "警告!!!", MB_YESNO | MB_DEFBUTTON2);
++        else if (parameter_get_video_lan() == 0)
++            mesg = MessageBox(hWnd, "sd card no enough free space ,\nformat the sd card ?",
++                              "Warning!!!", MB_YESNO);
++        // init fail
++    } else if (param == -2) {
++        if (parameter_get_video_lan() == 1)
++            mesg = MessageBox(hWnd, "sd卡初始化异常\n是否格式化sd卡?", "警告!!!", MB_YESNO | MB_DEFBUTTON2);
++        else if (parameter_get_video_lan() == 0)
++            mesg = MessageBox(hWnd, "sd card init fail ,\nformat the sd card ?",
++                              "Warning!!!", MB_YESNO);
++        // else error
++    } else {
++        if (parameter_get_video_lan() == 1)
++            MessageBox(hWnd, "sd卡初始化异常", "警告!!!", MB_OK);
++        else if (parameter_get_video_lan() == 0)
++            MessageBox(hWnd, "sd card init fail", "Warning!!!", MB_OK);
++        return;
++    }
++#endif
++    if (mesg == IDYES) {
++        api_sdcard_format(0);
++    }
++
++    return;
++}
++
+ static int CameraWinProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ {
+     switch (message) {
+@@ -882,6 +917,9 @@ static int CameraWinProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 	case MSG_HDMI: 
+ 		DBGMSG(NI, ("MSG_HDMI\n"));
+         break;
++    case MSG_FSINITFAIL:
++        proc_MSG_FS_INITFAIL(hWnd, -1);
++        break;
+     case MSG_SDCHANGE:
+         printf("MSG_SDCHANGE sdcard = %d\n", api_get_sd_mount_state());
+         if (SetMode == MODE_RECORDING) {
+@@ -955,12 +993,14 @@ void ui_deinit(void)
+ void ui_msg_manager_cb(void *msgData, void *msg0, void *msg1)
+ {
+     struct public_message msg;
++
+     if (NULL != msgData) {
+         msg.id = ((struct public_message *)msgData)->id;
+         msg.type = ((struct public_message *)msgData)->type;
+     }
+     if (msg.type != TYPE_LOCAL && msg.type != TYPE_BROADCAST)
+         return;
++	printf("%d ui_msg_manager_cb %d %d\n", msg.id, (int)msg0, (int)msg1);
+     switch (msg.id) {
+     case MSG_SET_LANGUAGE:
+         SetSystemLanguage(hMainWnd, (int)msg0);
+diff --git a/noui/libvui/vgui_api.h b/noui/libvui/vgui_api.h
+index 3f562a4..3443a92 100644
+--- a/noui/libvui/vgui_api.h
++++ b/noui/libvui/vgui_api.h
+@@ -172,42 +172,12 @@ int RegisterMainWindow (HWND hWnd);
+ 
+ /* message */
+ #define MSG_CREATE          0x0060
+-#define MSG_USER            0x0800
+ #define MSG_COMMAND         0x0120
+ 
+ #define SCANCODE_ESCAPE                 1
+ #define SCANCODE_ENTER                  28
+ #define SCANCODE_MENU                   127
+ 
+-
+-
+-#define MSG_SDCHANGE (MSG_USER + 1)
+-#define MSG_BATTERY (MSG_USER + 2)
+-#define MSG_CAMERA (MSG_USER + 3)
+-#define MSG_VIDEOREC (MSG_USER + 4)
+-#define MSG_VIDEOPLAY (MSG_USER + 5)
+-#define MSG_SDCARDFORMAT (MSG_USER + 6)
+-#define MSG_USBCHAGE (MSG_USER + 7)
+-#define MSG_FILTER (MSG_USER + 8)
+-#define MSG_SDMOUNTFAIL (MSG_USER + 9)
+-#define MSG_SDNOTFIT (MSG_USER + 10)
+-#define MSG_ADAS (MSG_USER + 11)
+-#define MSG_PHOTOEND (MSG_USER + 13)
+-#define MSG_REPAIR (MSG_USER + 14)
+-#define MSG_FSINITFAIL (MSG_USER + 15)
+-#define MSG_HDMI (MSG_USER + 16)
+-#define MSG_CVBSOUT (MSG_USER + 17)
+-#define MSG_USB_DISCONNECT (MSG_USER + 18)
+-#define MSG_RK_USER (MSG_USER + 30)
+-#define MSG_ATTACH_USER_MUXER (MSG_RK_USER + 0)
+-#define MSG_DETACH_USER_MUXER (MSG_RK_USER + 1)
+-#define MSG_ATTACH_USER_MDPROCESSOR (MSG_RK_USER + 2)
+-#define MSG_DETACH_USER_MDPROCESSOR (MSG_RK_USER + 3)
+-#define MSG_RECORD_RATE_CHANGE (MSG_RK_USER + 4)
+-#define MSG_COLLISION (MSG_RK_USER + 5)
+-
+-
+-
+ //DEBUG
+ #define REBOOT_TIME 10
+ #define RECOVERY_TIME 5
+-- 
+1.9.1
+

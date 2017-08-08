@@ -1,0 +1,30 @@
+From 5a8be15db72ed480ce367b2cc27150e5a59a27a5 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 28 Sep 2016 11:18:20 +0800
+Subject: [PATCH 6/9] arm64: rockchip: evb-rev3-android-edp: disable
+ uboot-logo-on
+
+Change-Id: I369ab98e5d3523398b627070de914e31c2872026
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts
+index a8e053a..3002c3d 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3-android-edp.dts
+@@ -54,6 +54,10 @@
+ 	#include <dt-bindings/display/screen-timing/lcd-F402.dtsi>
+ };
+ 
++&fb {
++	rockchip,uboot-logo-on = <0>;
++};
++
+ &vopb_rk_fb {
+ 	status = "okay";
+ 	power_ctr: power_ctr {
+-- 
+1.9.1
+

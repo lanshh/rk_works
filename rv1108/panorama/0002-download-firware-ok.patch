@@ -1,0 +1,173 @@
+From 8c0bd64cc548fdc26f27d0bff461daafaba95c04 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Mon, 8 May 2017 15:48:33 +0800
+Subject: [PATCH 2/2] download firware ok
+
+Change-Id: I5c03ea9566672c1268510bc95cba860631d38da6
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/boot/dts/rv1108-evb-v13.dts | 16 ++++++++++------
+ drivers/preisp_driver/spi-rkpreisp.c | 33 +++++++++++++++++++++++++++++++--
+ drivers/spi/spi-rockchip.c           |  1 +
+ 3 files changed, 42 insertions(+), 8 deletions(-)
+
+diff --git a/arch/arm/boot/dts/rv1108-evb-v13.dts b/arch/arm/boot/dts/rv1108-evb-v13.dts
+index db7338e..96273bb 100644
+--- a/arch/arm/boot/dts/rv1108-evb-v13.dts
++++ b/arch/arm/boot/dts/rv1108-evb-v13.dts
+@@ -343,7 +343,7 @@
+ };
+ 
+ &i2c1 {
+-	status = "okay";
++	status = "disabled";
+ 
+ //#include "rv1108-camb-v11.dtsi" /* camera board v11 */
+ //#include "rv1108-camb-v12.dtsi" /* camera board v12 */
+@@ -539,24 +539,28 @@
+ &tve {
+ 	status = "okay";
+ };
++
+ &spi0 {
+ 	status = "okay";
++	pinctrl-names = "default";
++	pinctrl-0 = <&spim0_clk &spim0_cs0 &spim0_tx &spim0_rx>;
+ 	spi_rk_preisp@00 {
+ 		compatible =  "rockchip,spi_rk_preisp";
+ 		reg = <0>;
+-		spi-max-frequency = <48000000>;
++		spi-max-frequency = <20000000>;
+ 		spi-min-frequency = <12000000>;
++		rockchip,grf = <&grf>;
+ 		//spi-cpol;
+ 		//spi-cpha;
+-		//reset-gpio = <&gpio6 GPIO_A0 GPIO_ACTIVE_HIGH>;
++		reset-gpio = <&gpio3 GPIO_A3 GPIO_ACTIVE_HIGH>;
+ 		irq-gpio = <&gpio3 GPIO_A4 GPIO_ACTIVE_HIGH>;
+ 		//sleepst-gpio = <&gpio6 GPIO_A1 GPIO_ACTIVE_HIGH>;
+ 		//wakeup-gpio = <&gpio6 GPIO_A4 GPIO_ACTIVE_HIGH>;
+ 		//powerdown-gpio = <&gpio8 GPIO_A0 GPIO_ACTIVE_HIGH>;
+-		clocks = <&clk_cif_out>;
++		clocks = <&clk_gates9 12>;
+ 		clock-names = "mclk";
+-		//pinctrl-names = "default";
+-		//pinctrl-0 = <&preisp_irq_gpios &preisp_wake_gpios &preisp_sleep_gpios>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&cam0_default_pins>;
+ 		//firmware-nowait-mode = <1>;
+ 		//TODO:
+ 		//regulator config...
+diff --git a/drivers/preisp_driver/spi-rkpreisp.c b/drivers/preisp_driver/spi-rkpreisp.c
+index ca16483..69b75b8 100644
+--- a/drivers/preisp_driver/spi-rkpreisp.c
++++ b/drivers/preisp_driver/spi-rkpreisp.c
+@@ -38,6 +38,9 @@
+ #include <linux/clk.h>
+ #include <linux/regulator/consumer.h>
+ #include <linux/wakelock.h>
++#include <linux/rockchip/grf.h>
++#include <linux/mfd/syscon.h>
++#include<linux/regmap.h>
+ 
+ #include "spi-rkpreisp.h"
+ #include "spi2apb.h"
+@@ -56,6 +59,8 @@
+ #define PREISP_WAKEUP_TIMEOUT_MS 100
+ #define PREISP_REQUEST_SLEEP_TIMEOUT_MS 100
+ 
++//#define RV1108_GRF_SOC_CON1 0x0404
++#define APIO1_18V (1 << 11 | 1 << 27)
+ typedef struct {
+     int8_t id;
+     struct msg_queue q;
+@@ -83,6 +88,7 @@ struct spi_rk_preisp_data {
+     int wakeup_gpio;
+     int wakeup_active;
+     struct clk *mclk;
++    struct regmap *grf_base;
+     atomic_t power_on_cnt;
+     atomic_t wake_sleep_cnt;
+     struct mutex send_msg_lock;
+@@ -196,6 +202,20 @@ void spi_cs_set_value(struct spi_rk_preisp_data *pdata, int value)
+     spi_sync(pdata->spi, &m);
+ }
+ 
++void spi_send_ff(struct spi_rk_preisp_data *pdata)
++{
++    int8_t ff_cmd = 0x55;
++    struct spi_transfer null_cmd_packet = {
++        .tx_buf = &ff_cmd,
++        .len    = sizeof(ff_cmd),
++    };
++    struct spi_message  m;
++
++    spi_message_init(&m);
++    spi_message_add_tail(&null_cmd_packet, &m);
++    spi_sync(pdata->spi, &m);
++}
++
+ void rkpreisp_hw_init(struct spi_device *spi)
+ {
+     spi2apb_safe_w32(spi, 0x12008098, 0xff004000);
+@@ -290,6 +310,7 @@ int rkpreisp_request_sleep(struct spi_rk_preisp_data *pdata, int32_t mode)
+ static int rkpreisp_download_fw(struct spi_rk_preisp_data *pdata, char *fw_name)
+ {
+     int ret;
++
+     //request rkpreisp enter slave mode
+     spi_cs_set_value(pdata, 0);
+     if (pdata->wakeup_gpio > 0) {
+@@ -1241,6 +1262,11 @@ static int rkpreisp_parse_dt_property(struct device *dev,
+         pdata->mclk = NULL;
+     }
+ 
++    pdata->grf_base = syscon_regmap_lookup_by_phandle(node, "rockchip,grf");
++    if (IS_ERR(pdata->grf_base)) {
++        dev_warn(dev, "can not find preisp grf property\n");
++        pdata->grf_base = NULL;
++    }
+     ret = of_get_named_gpio_flags(node, "reset-gpio", 0, &flags);
+     if (ret <= 0) {
+         dev_warn(dev, "can not find property reset-gpio, error %d\n", ret);
+@@ -1442,12 +1468,15 @@ static int spi_rk_preisp_probe(struct spi_device *spi)
+     data->misc.name = "rk_preisp";
+     data->misc.fops = &rkpreisp_fops;
+ 
++    if ( data->grf_base ) {
++        regmap_write(data->grf_base, RV1108_GRF_SOC_CON1, APIO1_18V);
++    }
+     err = misc_register(&data->misc);
+     if (err < 0) {
+         dev_err(data->dev, "Error: misc_register returned %d", err);
+     }
+ 
+-    cache_firmware(RKL_DEFAULT_FW_NAME);
++    /* cache_firmware(RKL_DEFAULT_FW_NAME); */
+     if (!data->fw_nowait_mode) {
+         return 0;
+     }
+@@ -1464,7 +1493,7 @@ static int spi_rk_preisp_probe(struct spi_device *spi)
+ static int spi_rk_preisp_remove(struct spi_device *spi)
+ {
+     struct spi_rk_preisp_data *data = spi_get_drvdata(spi);
+-    uncache_firmware(RKL_DEFAULT_FW_NAME);
++    /* uncache_firmware(RKL_DEFAULT_FW_NAME); */
+     spi_set_drvdata(spi, NULL);
+     misc_deregister(&data->misc);
+     return 0;
+diff --git a/drivers/spi/spi-rockchip.c b/drivers/spi/spi-rockchip.c
+index 257319b..2fffa41 100644
+--- a/drivers/spi/spi-rockchip.c
++++ b/drivers/spi/spi-rockchip.c
+@@ -204,6 +204,7 @@ static int rockchip_spi_probe(struct platform_device *pdev)
+ 	clk_set_rate(sdd->clk_spi, info->spi_freq);
+ 	
+ 	dws->max_freq = clk_get_rate(sdd->clk_spi);
++	printk("max freq:%u\n", dws->max_freq);
+ 	dws->parent_dev = &pdev->dev;
+ 	dws->bus_num = info->bus_num;
+ 	dws->num_cs = info->num_cs;
+-- 
+1.9.1
+

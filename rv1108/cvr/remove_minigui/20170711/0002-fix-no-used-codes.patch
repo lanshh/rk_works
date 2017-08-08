@@ -1,0 +1,843 @@
+From 3c08e607a51c127a71ded55ed91c14ce7a43ec70 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Mon, 10 Jul 2017 14:03:25 +0800
+Subject: [PATCH 2/5] fix no used codes
+
+Change-Id: I63fe46965219be335b9a0e390ac5b404193bb197
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ noui/camera_ui.c | 719 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 717 insertions(+), 2 deletions(-)
+
+diff --git a/noui/camera_ui.c b/noui/camera_ui.c
+index 6d96ed6..74a6874 100644
+--- a/noui/camera_ui.c
++++ b/noui/camera_ui.c
+@@ -20,6 +20,7 @@
+ #include <sys/time.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
++#include <sys/prctl.h>
+ #include <fcntl.h>
+ #include <unistd.h>
+ #include <dirent.h>
+@@ -749,6 +750,7 @@ int usb_disconnect_poweroff(void *arg)
+ void *usb_disconnect_process(void *arg)
+ {
+     printf ("usb_disconnect_process\n");
++    prctl(PR_SET_NAME, "usb_disconnect", 0, 0, 0);
+     usb_disconnect_poweroff(arg);
+     pthread_exit(NULL);
+ }
+@@ -1155,6 +1157,167 @@ static int UsbSDProc(HWND hDlg, int message, WPARAM wParam, LPARAM lParam)
+ 
+ void cmd_IDM_SETDATE(void)
+ {
++    DLGTEMPLATE DlgMyDate = {WS_VISIBLE,
++                             WS_EX_NONE,
++                             (WIN_W - 350) / 2,
++                             (WIN_H - 110) / 2,
++                             350,
++                             110,
++                             SetDate,
++                             0,
++                             0,
++                             14,
++                             NULL,
++                             0
++                            };
++
++    CTRLDATA CtrlMyDate[] = {
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 100, 8, 150, 30, IDC_STATIC,
++            "日期设置", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 0, 45, 350, 2, IDC_STATIC,
++            "-----", 0
++        },
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 60, 48,
++            80, 20, IDL_YEAR, "", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 140, 50, 20, 20, IDC_STATIC,
++            "年", 0
++        },
++
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 160,
++            48, 40, 20, IDL_MONTH, "", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 200, 50, 20, 20, IDC_STATIC,
++            "月", 0
++        },
++
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 220,
++            48, 40, 20, IDL_DAY, "", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 260, 50, 20, 20, IDC_STATIC,
++            "日", 0
++        },
++
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 75, 78,
++            40, 20, IDC_HOUR, "", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 115, 80, 20, 20, IDC_STATIC,
++            "时", 0
++        },
++
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 135,
++            78, 40, 20, IDC_MINUTE, "", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 175, 80, 20, 20, IDC_STATIC,
++            "分", 0
++        },
++
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 195,
++            78, 40, 20, IDL_SEC, "", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 235, 80, 20, 20, IDC_STATIC,
++            "秒", 0
++        },
++    };
++
++    CTRLDATA CtrlMyDate_en[] = {
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 100, 8, 150, 30, IDC_STATIC,
++            "Date Set", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 0, 45, 350, 2, IDC_STATIC,
++            "-----", 0
++        },
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 60, 48,
++            80, 20, IDL_YEAR, "", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 140, 50, 20, 20, IDC_STATIC,
++            "Y", 0
++        },
++
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 160,
++            48, 40, 20, IDL_MONTH, "", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 200, 50, 20, 20, IDC_STATIC,
++            "M", 0
++        },
++
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 220,
++            48, 40, 20, IDL_DAY, "", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 260, 50, 20, 20, IDC_STATIC,
++            "D", 0
++        },
++
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 75, 78,
++            40, 20, IDC_HOUR, "", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 115, 80, 20, 20, IDC_STATIC,
++            "H", 0
++        },
++
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 135,
++            78, 40, 20, IDC_MINUTE, "", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 175, 80, 20, 20, IDC_STATIC,
++            "MIN", 0
++        },
++
++        {
++            CTRL_COMBOBOX,
++            WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_AUTOSPIN | CBS_AUTOLOOP, 195,
++            78, 40, 20, IDL_SEC, "", 0
++        },
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 235, 80, 20, 20, IDC_STATIC,
++            "SEC", 0
++        },
++    };
++
++    if (parameter_get_video_lan() == 1)
++        DlgMyDate.controls = CtrlMyDate;
++    else if (parameter_get_video_lan() == 0)
++        DlgMyDate.controls = CtrlMyDate_en;
++    DialogBoxIndirectParam(&DlgMyDate, HWND_DESKTOP, MyDateBoxProc, 0L);
+ }
+ 
+ static void cmd_IDM_RECOVERY(HWND hWnd)
+@@ -1415,10 +1578,46 @@ static void cmd_IDM_RE_FORMAT(HWND hWnd)
+ 
+ static void cmd_IDM_FORMAT(HWND hWnd)
+ {
++    int mesg = 0;
++    if (api_get_sd_mount_state() != SD_STATE_OUT) {
++        if (parameter_get_video_lan() == 0) {
++            mesg = MessageBox(hWnd, "disk formatting", "Warning!!!", MB_YESNO | MB_DEFBUTTON2);
++        } else if (parameter_get_video_lan() == 1) {
++            mesg = MessageBox(hWnd, "磁盘格式化", "警告!!!", MB_YESNO | MB_DEFBUTTON2);
++        }
++        if (mesg == IDYES) {
++            if (api_get_sd_mount_state() != SD_STATE_OUT) {
++                api_sdcard_format(0);
++            } else {
++                if (parameter_get_video_lan() == 1)
++                    MessageBox(hWnd, "SD卡不存在!!", "警告!!!", MB_OK);
++                else if (parameter_get_video_lan() == 0)
++                    MessageBox(hWnd, "no SD card insertted!!!", "Warning!!!", MB_OK);
++            }
++        }
++    } else if (api_get_sd_mount_state() == SD_STATE_OUT) {
++        if (parameter_get_video_lan() == 1)
++            MessageBox(hWnd, "SD卡不存在!!", "警告!!!", MB_OK);
++        else if (parameter_get_video_lan() == 0)
++            MessageBox(hWnd, "no SD card insertted!!!", "Warning!!!", MB_OK);
++    }
+ }
+ 
+ static void cmd_IDM_BACKLIGHT(WPARAM wParam)
+ {
++    switch (wParam) {
++    case IDM_BACKLIGHT_L:
++        api_set_lcd_backlight(LCD_BACKLT_L);
++        break;
++    case IDM_BACKLIGHT_M:
++        api_set_lcd_backlight(LCD_BACKLT_M);
++        break;
++    case IDM_BACKLIGHT_H:
++        api_set_lcd_backlight(LCD_BACKLT_H);
++        break;
++    default:
++        break;
++    }
+ }
+ 
+ /* Chinese index */
+@@ -1706,6 +1905,131 @@ static int MyLicensePlateProc(HWND hDlg, int message, WPARAM wParam, LPARAM lPar
+ 
+ void cmd_IDM_SetLicensePlate(HWND hWnd)
+ {
++    DLGTEMPLATE DlgMyLiense = {WS_VISIBLE,
++                               WS_EX_NONE,
++                               (WIN_W - 400) / 2,
++                               (WIN_H - 220) / 2,
++                               400,
++                               220,
++                               SetLicense,
++                               0,
++                               0,
++                               10,
++                               NULL,
++                               0
++                              };
++
++    CTRLDATA CtrlMyLicense[] = {
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 20, 20, 370, 30, IDC_STATIC,
++            "车牌设置", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 100, 80, 20, 20, IDC_STATIC1,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 130, 80, 20, 20, IDC_STATIC2,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 160, 80, 20, 20, IDC_STATIC3,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 190, 80, 20, 20, IDC_STATIC4,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 220, 80, 20, 20, IDC_STATIC5,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 250, 80, 20, 20, IDC_STATIC6,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 280, 80, 20, 20, IDC_STATIC7,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 310, 80, 20, 20, IDC_STATIC8,
++            "*", 0
++        },
++
++        {
++            CTRL_BUTTON,
++            WS_VISIBLE | BS_DEFPUSHBUTTON | BS_PUSHBUTTON | WS_TABSTOP, 300, 180,
++            50, 20, IDC_BUTTON_OK, "OK", 0
++        },
++    };
++
++    CTRLDATA CtrlMyLicense_en[] = {
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE, 20, 20, 370, 30, IDC_STATIC,
++            "License Plate Setting", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 100, 80, 20, 20, IDC_STATIC1,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 130, 80, 20, 20, IDC_STATIC2,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 160, 80, 20, 20, IDC_STATIC3,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 190, 80, 20, 20, IDC_STATIC4,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 220, 80, 20, 20, IDC_STATIC5,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 250, 80, 20, 20, IDC_STATIC6,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 280, 80, 20, 20, IDC_STATIC7,
++            "*", 0
++        },
++
++        {
++            "static", WS_CHILD | SS_CENTER | WS_VISIBLE | WS_TABSTOP, 310, 80, 20, 20, IDC_STATIC8,
++            "*", 0
++        },
++
++        {
++            CTRL_BUTTON,
++            WS_VISIBLE | BS_DEFPUSHBUTTON | BS_PUSHBUTTON | WS_TABSTOP, 300, 180,
++            50, 20, IDC_BUTTON_OK, "OK", 0
++        },
++    };
++
++    if (parameter_get_video_lan() == 1)
++        DlgMyLiense.controls = CtrlMyLicense;
++    else if (parameter_get_video_lan() == 0)
++        DlgMyLiense.controls = CtrlMyLicense_en;
++    DialogBoxIndirectParam(&DlgMyLiense, HWND_DESKTOP, MyLicensePlateProc, 0L);
+ }
+ 
+ static void cmd_IDM_DEBUG_PHOTO_ON(HWND hWnd)
+@@ -1929,6 +2253,14 @@ static int commandEvent(HWND hWnd, WPARAM wParam, LPARAM lParam)
+     case IDM_ADAS_ON:
+         cmd_IDM_ADAS(hWnd, wParam);
+         break;
++    case IDM_ADAS_SETTING:
++        adasFlag |= ADASFLAG_SETTING;
++        MainMenuClean(hWnd);
++        if (SetMode == MODE_RECORDING) {
++            DestroyMainWindowMenu(hWnd);
++            menucreated = 0;
++        }
++        break;
+     case IDM_bright1:
+         api_set_white_balance(0);
+         break;
+@@ -5637,6 +5969,8 @@ void* explorer_update_thread(void* arg)
+     LVITEM item;
+     HWND hWnd = (HWND)arg;
+ 
++    prctl(PR_SET_NAME, "explorer_update", 0, 0, 0);
++
+     struct file_list* list;
+     while (explorer_update_run) {
+         if (explorer_update_reupdate == 0) {
+@@ -6191,7 +6525,85 @@ static void proc_MSG_USBCHAGE(HWND hWnd,
+                               WPARAM wParam,
+                               LPARAM lParam)
+ {
++#if USB_MODE
++    CTRLDATA UsbCtrl[] = {
++        {
++            CTRL_BUTTON, WS_VISIBLE | BS_DEFPUSHBUTTON | BS_PUSHBUTTON | WS_TABSTOP,
++            90, 80, 100, 40, IDUSB, " 磁  盘 ", 0
++        },
++        {
++            CTRL_BUTTON, WS_VISIBLE | BS_PUSHBUTTON | WS_TABSTOP, 90, 130, 100, 40,
++            USBBAT, " 充  电 ", 0
++        }
++    };
++    CTRLDATA UsbCtrl_en[] = {
++        {
++            CTRL_BUTTON, WS_VISIBLE | BS_DEFPUSHBUTTON | BS_PUSHBUTTON | WS_TABSTOP,
++            90, 80, 100, 40, IDUSB, " Disk ", 0
++        },
++        {
++            CTRL_BUTTON, WS_VISIBLE | BS_PUSHBUTTON | WS_TABSTOP, 90, 130, 100, 40,
++            USBBAT, " Charging ", 0
++        }
++    };
++    DLGTEMPLATE UsbDlg = {WS_VISIBLE, WS_EX_NONE, 0, 0, 300,  300,
++                          SetDate,    0,          0, 2, NULL, 0
++                         };
++#endif
++    int usb_sd_chage = (int)lParam;
++
++    printf("MSG_USBCHAGE : usb_sd_chage = ( %d )\n", usb_sd_chage);
++
++    if (usb_sd_chage == 1) {
++#if USB_MODE
++        changemode(hWnd, MODE_USBDIALOG);
++        UsbDlg.w = g_rcScr.right - g_rcScr.left;
++        UsbDlg.h = g_rcScr.bottom - g_rcScr.top;
++        if (parameter_get_video_lan() == 1) {
++            UsbCtrl[0].x = (UsbDlg.w - UsbCtrl[0].w) >> 1;
++            UsbCtrl[0].y = (UsbDlg.h - 50) >> 1;
++
++            UsbCtrl[1].x = (UsbDlg.w - UsbCtrl[1].w) >> 1;
++            UsbCtrl[1].y = (UsbDlg.h + 50) >> 1;
+ 
++            UsbDlg.controls = UsbCtrl;
++        } else if (parameter_get_video_lan() == 0) {
++            UsbCtrl_en[0].x = (UsbDlg.w - UsbCtrl_en[0].w) >> 1;
++            UsbCtrl_en[0].y = (UsbDlg.h - 50) >> 1;
++
++            UsbCtrl_en[1].x = (UsbDlg.w - UsbCtrl_en[1].w) >> 1;
++            UsbCtrl_en[1].y = (UsbDlg.h + 50) >> 1;
++
++            UsbDlg.controls = UsbCtrl_en;
++        }
++
++        DialogBoxIndirectParam(&UsbDlg, HWND_DESKTOP, UsbSDProc, 0L);
++#else
++        printf("usb_sd_chage == 1:USB_MODE==0\n");
++        if (api_get_sd_mount_state() == SD_STATE_IN) {
++            cvr_usb_sd_ctl(USB_CTRL, 1);
++        } else if (api_get_sd_mount_state() == SD_STATE_OUT) {
++            //  EndDialog(hDlg, wParam);
++            if (parameter_get_video_lan() == 1)
++                MessageBox(hWnd, "SD卡不存在!!!", "警告!!!", MB_OK);
++            else if (parameter_get_video_lan() == 0)
++                MessageBox(hWnd, "no SD card insertted!!!", "Warning!!!", MB_OK);
++        }
++#endif
++    } else if (usb_sd_chage == 0) {
++#if USB_MODE
++        if (hWndUSB) {
++            cvr_usb_sd_ctl(USB_CTRL, 0);
++            EndDialog(hWndUSB, wParam);
++            InvalidateRect(hWnd, &USB_rc, TRUE);
++            hWndUSB = 0;
++            changemode(hWnd, MODE_RECORDING);
++        }
++#else
++        cvr_usb_sd_ctl(USB_CTRL, 0);
++        printf("usb_sd_chage == 0:USB_MODE==0\n");
++#endif
++    }
+ }
+ 
+ static void proc_record_SCANCODE_CURSORBLOCKRIGHT(HWND hWnd)
+@@ -6222,6 +6634,18 @@ static void ui_takephoto(HWND hWnd)
+ 
+ static void proc_MSG_SDMOUNTFAIL(HWND hWnd)
+ {
++    int mesg = 0;
++
++    printf("MSG_SDMOUNTFAIL\n");
++    if (parameter_get_video_lan() == 1)
++        mesg =
++            MessageBox(hWnd, "加载sd卡失败，\n是否格式化sd卡?", "警告!!!", MB_YESNO | MB_DEFBUTTON2);
++    else if (parameter_get_video_lan() == 0)
++        mesg = MessageBox(hWnd, "sd card loading failed, \nformat the sd card ?",
++                          "Warning!!!", MB_YESNO);
++    if (mesg == IDYES) {
++        api_sdcard_format(0);
++    }
+ }
+ 
+ static void proc_MSG_FS_INITFAIL(HWND hWnd, int param)
+@@ -6636,7 +7060,11 @@ static int CameraWinProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+         if (lParam == EVENT_SDCARDFORMAT_FINISH) {
+             printf("sd card format finish\n");
+         } else if (lParam == EVENT_SDCARDFORMAT_FAIL) {
+-			printf("sd card format fail\n");
++            int formatfail = MessageBox(hWnd, "sd卡格式话失败，是否重新格式化！", "警告!!!", MB_YESNO);
++            if (formatfail == IDYES)
++                cmd_IDM_RE_FORMAT(hWnd);
++            else if (api_get_sd_mount_state() == SD_STATE_IN)
++                cvr_sd_ctl(0);
+         }
+         break;
+     case MSG_VIDEOPLAY:
+@@ -6726,7 +7154,11 @@ static int CameraWinProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+             if (api_get_sd_mount_state() == SD_STATE_IN) {
+                 if (parameter_get_video_autorec())
+                     api_start_rec();
+-            }
++            }// else {
++            //api_stop_rec();
++            //}
++            InvalidateRect(hWnd, &msg_rcSD, FALSE);
++            InvalidateRect(hWnd, &msg_rcSDCAP, FALSE);
+         } else if (SetMode == MODE_EXPLORER) {
+             if (explorer_path == 0)
+                 explorer_path = calloc(1, 256);
+@@ -6775,8 +7207,13 @@ static int CameraWinProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+             }
+         }
+         last_battery = battery;
++
++        //printf("battery level=%d\n", battery);
++        InvalidateRect(hWnd, &msg_rcBtt, FALSE);
+         break;
++
+     case MSG_TIMER:
++        /* gparking_gs_active (0: gsensor negative 1: gsneosr active) */
+         if (SetMode == MODE_RECORDING) {
+             parking_monitor_mode_switch(hWnd);
+         }
+@@ -6809,7 +7246,145 @@ static int CameraWinProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 
+         break;
+     case MSG_PAINT:
++        hdc = BeginPaint(hWnd);
++
++        if (SetMode == MODE_USBCONNECTION) {
++            FillBoxWithBitmap(hdc, USB_IMG_X, USB_IMG_Y, USB_IMG_W, USB_IMG_H,
++                              &usb_bmap);
++        } else {
++            if (SetMode < MODE_PLAY) {
++                char tf_cap[20];
++                long long tf_free;
++                long long tf_total;
++                FillBoxWithBitmap(hdc, TOPBK_IMG_X, TOPBK_IMG_Y, g_rcScr.right,
++                                  TOPBK_IMG_H, &topbk_bmap);
++                FillBoxWithBitmap(hdc, BATT_IMG_X, BATT_IMG_Y, BATT_IMG_W, BATT_IMG_H,
++                                  &batt_bmap[battery]);
++                FillBoxWithBitmap(hdc, TF_IMG_X, TF_IMG_Y, TF_IMG_W, TF_IMG_H,
++                                  &tf_bmap[api_get_sd_mount_state() == SD_STATE_IN ? 1 : 0]);
++                FillBoxWithBitmap(hdc, MODE_IMG_X, MODE_IMG_Y, MODE_IMG_W, MODE_IMG_H,
++                                  &mode_bmap[SetMode]);
++                SetBkColor(hdc, GetWindowElementPixel(hMainWnd, WE_BGC_TOOLTIP));
++                SetTextColor(hdc, PIXEL_lightwhite);
++                SelectFont(hdc, (PLOGFONT)GetWindowElementAttr(hWnd, WE_FONT_MENU));
++                if (api_get_sd_mount_state() == SD_STATE_IN) {
++                    fs_manage_getsdcardcapacity(&tf_free, &tf_total);
++                    snprintf(tf_cap, sizeof(tf_cap), "%4.1fG/%4.1fG", (float)tf_free / 1024,
++                             (float)tf_total / 1024);
++                    TextOut(hdc, TFCAP_STR_X, TFCAP_STR_Y, tf_cap);
++                }
++
++                PaintADAS(hdc);
++
++                {
++                    char systime[128] = {0};
++                    time_t ltime;
++                    struct tm* today;
++                    time(&ltime);
++                    today = localtime(&ltime);
++                    snprintf(systime, sizeof(systime), "%04d-%02d-%02d %02d:%02d:%02d\n",
++                             1900 + today->tm_year, today->tm_mon + 1, today->tm_mday,
++                             today->tm_hour, today->tm_min, today->tm_sec);
++
++                    SetTextColor(hdc, PIXEL_lightwhite);
++                    SetBkColor (hdc, bkcolor);
++                    TextOut (hdc, WATERMARK_TIME_X, WATERMARK_TIME_Y, systime);
++
++#ifdef USE_WATERMARK
++                    if (((SetMode == MODE_RECORDING) || (SetMode == MODE_PHOTO)) &&
++                        parameter_get_video_mark()) {
++                        uint32_t show_time[MAX_TIME_LEN] = { 0 };
++                        watermark_get_show_time(show_time, today, MAX_TIME_LEN);
++                        video_record_update_time(show_time, MAX_TIME_LEN);
++                        FillBoxWithBitmap(hdc, WATERMARK_IMG_X, WATERMARK_TIME_Y + WATERMARK_TIME_H, WATERMARK_IMG_W,
++                                          WATERMARK_IMG_H, (BITMAP*)&watermark_bmap[0]);
++
++                        /* Show license plate */
++                        if (parameter_get_licence_plate_flag()) {
++                            if (licenseplate_str[0] == 0) {
++                                watermart_get_licenseplate_str((char(*)[3])parameter_get_licence_plate(), 8, licenseplate_str);
++                                get_licenseplate_and_pos();
++                            }
++
++                            TextOut(hdc, WATERMARK_LICN_X, WATERMARK_LICN_Y, licenseplate_str);
++                            FillBoxWithBitmap(hdc, WATERMARK_IMG_X, WATERMARK_IMG_Y, WATERMARK_IMG_W,
++                                              WATERMARK_IMG_H, (BITMAP*)&watermark_bmap[0]);
++                        }
++                    }
++#endif
++                }
++
++                if(parameter_get_gps_mark())
++                    gps_info_show(hdc);
++            }
++
++            if (SetMode == MODE_RECORDING) {
++                FillBoxWithBitmap(hdc, MOVE_IMG_X, MOVE_IMG_Y, MOVE_IMG_W, MOVE_IMG_H,
++                                  &move_bmap[parameter_get_video_de()]);
++                FillBoxWithBitmap(hdc, MIC_IMG_X, MIC_IMG_Y, MIC_IMG_W, MIC_IMG_H,
++                                  &mic_bmap[parameter_get_video_audio()]);
++                if (parameter_get_wifi_en() == 1) {
++                    FillBoxWithBitmap(hdc, WIFI_IMG_X, WIFI_IMG_Y, WIFI_IMG_W, WIFI_IMG_H,
++                                      &wifi_bmap[4]);
++                } else {
++                    SetBrushColor(hdc, bkcolor);
++                    SetBkColor(hdc, bkcolor);
++                    FillBox(hdc, WIFI_IMG_X, WIFI_IMG_Y, WIFI_IMG_W, WIFI_IMG_H);
++                }
++#if 0
++                {
++                    char ab[3][3] = {"A", "B", "AB"};
++                    char resolution[3][6] = {"720P", "1080P", "1440P"};
++                    SetBkColor(hdc, GetWindowElementPixel(hMainWnd, WE_BGC_TOOLTIP));
++                    SetTextColor(hdc, PIXEL_lightwhite);
++                    SelectFont(hdc, (PLOGFONT)GetWindowElementAttr(hWnd, WE_FONT_MENU));
++                    TextOut(hdc, A_IMG_X, A_IMG_Y, ab[parameter_get_abmode()]);
++                    TextOut(hdc, RESOLUTION_IMG_X, RESOLUTION_IMG_Y, resolution[parameter_get_vcamresolution()]);
++                }
++#else
++                FillBoxWithBitmap(hdc, A_IMG_X, A_IMG_Y, A_IMG_W, A_IMG_H,
++                                  &A_bmap[parameter_get_abmode()]);
++                FillBoxWithBitmap(hdc, RESOLUTION_IMG_X, RESOLUTION_IMG_Y,
++                                  RESOLUTION_IMG_W, RESOLUTION_IMG_H,
++                                  &resolution_bmap[parameter_get_vcamresolution()]);
++#endif
++            } else if (SetMode == MODE_PLAY) {
++                SetBrushColor(hdc, bkcolor);
++                FillBox(hdc, g_rcScr.left, g_rcScr.top, g_rcScr.right - g_rcScr.left,
++                        g_rcScr.bottom - g_rcScr.top);
++            } else if (SetMode == MODE_PREVIEW) {
++                int x = g_rcScr.left;
++                int y = g_rcScr.top + TOPBK_IMG_H;
++                int w = g_rcScr.right - g_rcScr.left;
++                int h = g_rcScr.bottom - y;
++                SetBrushColor(hdc, bkcolor);
++                SetBkColor(hdc, bkcolor);
++                FillBox(hdc, x, y, w, h);
++                TextOut(hdc, FILENAME_STR_X, FILENAME_STR_Y, previewname);
++                if (preview_isvideo)
++                    FillBoxWithBitmap(hdc, (w - PLAY_IMG_W) / 2,
++                                      (h - PLAY_IMG_H) / 2 + TOPBK_IMG_H, PLAY_IMG_W,
++                                      PLAY_IMG_H, &play_bmap);
++            }
++
++            if ((api_video_get_record_state() == VIDEO_STATE_RECORD) || video_play_state) {
++                char strtime[20];
++
++                FillBoxWithBitmap(hdc, REC_IMG_X, REC_IMG_Y, REC_IMG_W, REC_IMG_H,
++                                  &recimg_bmap);
++                snprintf(strtime, sizeof(strtime), "%02ld:%02ld:%02ld", (long int)(sec / 3600),
++                         (long int)((sec / 60) % 60), (long int)(sec % 60));
++                collision_rec_time = (long int)(sec % 60);
++                SetBkColor(hdc, bkcolor);
++                SetTextColor(hdc, PIXEL_lightwhite);
++                SelectFont(hdc, (PLOGFONT)GetWindowElementAttr(hWnd, WE_FONT_MENU));
++                TextOut(hdc, REC_TIME_X, REC_TIME_Y, strtime);
++            }
++        }
++        EndPaint(hWnd, hdc);
+ 		break;
++
++        //处理MSG_COMMAND消息,处理各个菜单明令
+     case MSG_COMMAND:
+         commandEvent(hWnd, wParam, lParam);
+         break;
+@@ -7488,6 +8063,146 @@ void ui_msg_manager_cb(void *msgData, void *msg0, void *msg1)
+         break;
+     }
+ }
++
++int MiniGUIMain(int argc, const char* argv[])
++{
++    MSG Msg;
++    MAINWINCREATE CreateInfo;
++    HDC sndHdc;
++    struct color_key key;
++    char collision_level = 0;
++    char parkingrec = 0;
++
++    printf("camera run\n");
++
++    set_display_cvr_window();
++
++    if (0 != audio_dev_init()) {
++        printf("audio_dev_init failed\n");
++    }
++
++    if (loadres())
++        printf("loadres fail\n");
++
++    pthread_mutex_init(&set_mutex, NULL);
++
++    memset(&CreateInfo, 0, sizeof(MAINWINCREATE));
++    CreateInfo.dwStyle = WS_VISIBLE | WS_HIDEMENUBAR | WS_WITHOUTCLOSEMENU;
++    CreateInfo.dwExStyle = WS_EX_NONE | WS_EX_AUTOSECONDARYDC;
++    CreateInfo.spCaption = "camera";
++    CreateInfo.hCursor = GetSystemCursor(0);
++    CreateInfo.hIcon = 0;
++    CreateInfo.MainWindowProc = CameraWinProc;
++    CreateInfo.lx = 0;
++    CreateInfo.ty = 0;
++    CreateInfo.rx = g_rcScr.right;
++    CreateInfo.by = g_rcScr.bottom;
++    CreateInfo.dwAddData = 0;
++    CreateInfo.hHosting = HWND_DESKTOP;
++    CreateInfo.language = parameter_get_video_lan();
++    hMainWnd = CreateMainWindow(&CreateInfo);
++
++    if (hMainWnd == HWND_INVALID)
++        return -1;
++    RegisterMainWindow(hMainWnd);
++
++    api_poweron_init(ui_msg_manager_cb);
++    parameter_save_isp_max_resolution(1920, 1080);
++
++    gsensor_init();
++    gsensor_use_interrupt(GSENSOR_INT2, GSENSOR_INT_STOP);
++
++    if (parameter_get_gps_mark()) {
++        if (gps_init(gps_send_callback, &ggps_send) == 0) {
++            memset(&ggps_info, 0, sizeof(struct gps_info));
++            gps_ui_control(hMainWnd, FALSE);
++        } else {
++            parameter_save_gps_mark(0);
++        }
++    }
++
++    /* register collision get data function */
++    collision_level = parameter_get_collision_level();
++    collision_init();
++    if (collision_level != 0)
++        collision_register();
++    collision_regeventcallback(collision_event_callback);
++
++    /* register parkingrec get data function */
++    /* register parkingrec get data function */
++    gparking = parameter_get_parkingmonitor();
++    parking_init();
++    if (gparking != PARKINGMONITOR_OFF)
++        parking_register();
++    parking_regeventcallback(parking_event_callback);
++
++    rk_fb_set_lcd_backlight(parameter_get_video_backlt());
++    rk_fb_set_flip(parameter_get_video_flip());
++
++    screenoff_time = parameter_get_screenoff_time();
++
++    bkcolor = GetWindowElementPixel(hMainWnd, WE_BGC_DESKTOP);
++    SetWindowBkColor(hMainWnd, bkcolor);
++
++    /*
++     * Blit uses software surface, avoid to pop menu can not be hide
++     * after we close them. The value 0 is dummy paramter in function.
++     */
++    sndHdc = GetSecondaryDC((HWND)hMainWnd);
++    SetMemDCAlpha(sndHdc, MEMDC_FLAG_SWSURFACE, 0);
++
++    key.blue = (bkcolor & 0x1f) << 3;
++    key.green = ((bkcolor >> 5) & 0x3f) << 2;
++    key.red = ((bkcolor >> 11) & 0x1f) << 3;
++
++    switch (rkfb_get_pixel_format()) {
++    case UI_FORMAT_RGB_565:
++        key.enable = 1;
++        break;
++    case UI_FORMAT_BGRA_8888:
++    default:
++        key.enable = 0;
++        break;
++    }
++
++    if (rkfb_set_color_key(&key) == -1) {
++        printf("rkfb_set_color_key err\n");
++    }
++
++    ShowWindow(hMainWnd, SW_SHOWNORMAL);
++
++    initrec(hMainWnd);
++
++    while (GetMessage(&Msg, hMainWnd)) {
++        TranslateMessage(&Msg);
++        DispatchMessage(&Msg);
++    }
++
++    api_poweroff_deinit();
++
++    collision_unregister();
++    parking_unregister();
++    parkingrec = parameter_get_parkingmonitor();
++    if (parkingrec != 0) {
++        gsensor_enable(1);
++        gsensor_use_interrupt(GSENSOR_INT2, GSENSOR_INT_START);
++    }
++    gsensor_release();
++
++    if(parameter_get_gps_mark())
++        gps_deinit(&ggps_send);
++
++    UnregisterMainWindow(hMainWnd);
++    MainWindowThreadCleanup(hMainWnd);
++    unloadres();
++
++    printf("camera exit\n");
++    return 0;
++}
++
++#ifdef _MGRM_THREADS
++#include <minigui/dti.c>
++#endif
+ #else
+ 
+ struct bitmap watermark_bmap[7];
+-- 
+1.9.1
+

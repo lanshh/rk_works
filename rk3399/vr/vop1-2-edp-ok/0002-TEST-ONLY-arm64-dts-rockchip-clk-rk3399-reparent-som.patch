@@ -1,0 +1,213 @@
+From b25587eb06ed0265080ddba76619c16ad4c9c488 Mon Sep 17 00:00:00 2001
+From: Elaine Zhang <zhangqing@rock-chips.com>
+Date: Mon, 12 Sep 2016 10:02:54 +0800
+Subject: [PATCH 2/6] TEST-ONLY: arm64: dts: rockchip: clk: rk3399: reparent
+ some clks parent
+
+1.reparent vop's parent to vpll which vop is for hdmi.
+2.reparent the other vop to cpll.
+3.reparent others clk and set clk rate,
+  to slove some clks is dummy.
+
+Change-Id: Ibfd05172c93f885f66deea9cec64d64e22174078
+Signed-off-by: Elaine Zhang <zhangqing@rock-chips.com>
+---
+ arch/arm64/boot/dts/rockchip/rk3399-android.dtsi |  4 ++
+ arch/arm64/boot/dts/rockchip/rk3399.dtsi         | 84 +++++++++++++++++++-----
+ 2 files changed, 71 insertions(+), 17 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-android.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-android.dtsi
+index 28e4d5d..cc7eab3 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-android.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-android.dtsi
+@@ -310,6 +310,8 @@
+ 		rockchip,iommu-enabled = <1>;
+ 		power-domains = <&power RK3399_PD_VOPB>;
+ 		devfreq = <&dmc>;
++		assigned-clocks = <&cru DCLK_VOP0_DIV>;
++		assigned-clock-parents = <&cru PLL_VPLL>;
+ 	};
+ 
+ 	vopb_mmu_rk_fb: vopb-mmu {
+@@ -336,6 +338,8 @@
+ 		rockchip,iommu-enabled = <1>;
+ 		power-domains = <&power RK3399_PD_VOPL>;
+ 		devfreq = <&dmc>;
++		assigned-clocks = <&cru DCLK_VOP1_DIV>;
++		assigned-clock-parents = <&cru PLL_CPLL>;
+ 	};
+ 
+ 	vopl_mmu_rk_fb: vopl-mmu {
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399.dtsi b/arch/arm64/boot/dts/rockchip/rk3399.dtsi
+index 5319b88..19aae8c 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399.dtsi
+@@ -372,7 +372,7 @@
+ 		clocks = <&cru SCLK_EMMC>, <&cru ACLK_EMMC>;
+ 		clock-names = "clk_xin", "clk_ahb";
+ 		assigned-clocks = <&cru SCLK_EMMC>;
+-		assigned-clock-parents = <&cru PLL_CPLL>;
++		assigned-clock-parents = <&cru PLL_GPLL>;
+ 		assigned-clock-rates = <200000000>;
+ 		phys = <&emmc_phy>;
+ 		phy-names = "phy_arasan";
+@@ -633,6 +633,8 @@
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&uart0_xfer &uart0_cts &uart0_rts>;
+ 		status = "disabled";
++		assigned-clocks = <&cru SCLK_UART0_SRC>;
++		assigned-clock-parents = <&cru PLL_GPLL>;
+ 	};
+ 
+ 	uart1: serial@ff190000 {
+@@ -646,6 +648,8 @@
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&uart1_xfer>;
+ 		status = "disabled";
++		assigned-clocks = <&cru SCLK_UART_SRC>;
++		assigned-clock-parents = <&cru PLL_GPLL>;
+ 	};
+ 
+ 	uart2: serial@ff1a0000 {
+@@ -659,6 +663,8 @@
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&uart2c_xfer>;
+ 		status = "disabled";
++		assigned-clocks = <&cru SCLK_UART_SRC>;
++		assigned-clock-parents = <&cru PLL_GPLL>;
+ 	};
+ 
+ 	uart3: serial@ff1b0000 {
+@@ -672,6 +678,8 @@
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&uart3_xfer &uart3_cts &uart3_rts>;
+ 		status = "disabled";
++		assigned-clocks = <&cru SCLK_UART_SRC>;
++		assigned-clock-parents = <&cru PLL_GPLL>;
+ 	};
+ 
+ 	spi0: spi@ff1c0000 {
+@@ -1125,6 +1133,8 @@
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&uart4_xfer>;
+ 		status = "disabled";
++		assigned-clocks = <&cru SCLK_UART_SRC>;
++		assigned-clock-parents = <&cru PLL_GPLL>;
+ 	};
+ 
+ 	i2c4: i2c@ff3d0000 {
+@@ -1332,27 +1342,59 @@
+ 		#clock-cells = <1>;
+ 		#reset-cells = <1>;
+ 		assigned-clocks =
+-			<&cru ACLK_VOP0>, <&cru HCLK_VOP0>,
+-			<&cru ACLK_VOP1>, <&cru HCLK_VOP1>,
+ 			<&cru ARMCLKL>, <&cru ARMCLKB>,
+-			<&cru PLL_GPLL>, <&cru PLL_CPLL>,
+-			<&cru PLL_NPLL>,
+-			<&cru ACLK_PERIHP>, <&cru HCLK_PERIHP>,
+-			<&cru PCLK_PERIHP>,
++			<&cru PLL_GPLL>, /*<&cru PLL_CPLL>,*/
++			<&cru PLL_NPLL>, <&cru ACLK_PERIHP>,
++			<&cru HCLK_PERIHP>, <&cru PCLK_PERIHP>,
+ 			<&cru ACLK_PERILP0>, <&cru HCLK_PERILP0>,
+-			<&cru PCLK_PERILP0>,
+-			<&cru HCLK_PERILP1>, <&cru PCLK_PERILP1>;
++			<&cru PCLK_PERILP0>, <&cru HCLK_PERILP1>,
++			<&cru PCLK_PERILP1>, <&cru ACLK_VOP0>,
++			<&cru HCLK_VOP0>, <&cru ACLK_VOP1>,
++			<&cru HCLK_VOP1>, <&cru SCLK_I2C1>,
++			<&cru SCLK_I2C2>, <&cru SCLK_I2C3>,
++			<&cru SCLK_I2C5>, <&cru SCLK_I2C6>,
++			<&cru SCLK_I2C7>, <&cru SCLK_SPI0>,
++			<&cru SCLK_SPI1>, <&cru SCLK_SPI2>,
++			<&cru SCLK_SPI4>, <&cru SCLK_SPI5>,
++			<&cru ACLK_GIC>, <&cru ACLK_ISP0>,
++			<&cru ACLK_ISP1>, <&cru SCLK_VOP0_PWM>,
++			<&cru SCLK_VOP1_PWM>, <&cru PCLK_EDP>,
++			<&cru ACLK_HDCP>, <&cru ACLK_VIO>,
++			<&cru HCLK_SD>, <&cru SCLK_CRYPTO0>,
++			<&cru SCLK_CRYPTO1>, <&cru SCLK_EMMC>,
++			<&cru ACLK_EMMC>, <&cru ACLK_CENTER>,
++			<&cru ACLK_IEP>, <&cru ACLK_RGA>,
++			<&cru SCLK_RGA_CORE>, <&cru ACLK_VDU>,
++			<&cru ACLK_VCODEC>, <&cru PCLK_DDR>,
++			<&cru ACLK_GMAC>, <&cru SCLK_VDU_CA>,
++			<&cru SCLK_VDU_CORE>;
+ 		assigned-clock-rates =
+-			 <400000000>,  <200000000>,
+-			 <400000000>,  <200000000>,
+ 			 <816000000>, <816000000>,
+-			 <594000000>,  <800000000>,
+-			<1000000000>,
+-			 <150000000>,   <75000000>,
+-			  <37500000>,
++			 <1200000000>,  /*<400000000>,*/
++			 <1000000000>, <150000000>,
++			 <75000000>, <37500000>,
+ 			 <100000000>,  <100000000>,
+-			  <50000000>,
+-			 <100000000>,   <50000000>;
++			 <50000000>, <100000000>,
++			 <50000000>, <400000000>,
++			 <200000000>, <400000000>,
++			 <200000000>, <100000000>,
++			 <100000000>, <100000000>,
++			 <100000000>, <100000000>,
++			 <100000000>, <50000000>,
++			 <50000000>, <50000000>,
++			 <50000000>, <50000000>,
++			 <200000000>, <400000000>,
++			 <400000000>, <100000000>,
++			 <100000000>, <100000000>,
++			 <400000000>, <400000000>,
++			 <200000000>, <100000000>,
++			 <200000000>, <200000000>,
++			 <100000000>, <400000000>,
++			 <400000000>, <400000000>,
++			 <400000000>, <300000000>,
++			 <400000000>, <200000000>,
++			 <400000000>, <300000000>,
++			 <300000000>;
+ 	};
+ 
+ 	grf: syscon@ff770000 {
+@@ -1487,6 +1529,8 @@
+ 		pinctrl-0 = <&spdif_bus>;
+ 		power-domains = <&power RK3399_PD_SDIOAUDIO>;
+ 		status = "disabled";
++		assigned-clocks = <&cru SCLK_SPDIF_DIV>;
++		assigned-clock-parents = <&cru PLL_GPLL>;
+ 	};
+ 
+ 	i2s0: i2s@ff880000 {
+@@ -1502,6 +1546,8 @@
+ 		pinctrl-0 = <&i2s0_8ch_bus>;
+ 		power-domains = <&power RK3399_PD_SDIOAUDIO>;
+ 		status = "disabled";
++		assigned-clocks = <&cru SCLK_I2S0_DIV>;
++		assigned-clock-parents = <&cru PLL_GPLL>;
+ 	};
+ 
+ 	i2s1: i2s@ff890000 {
+@@ -1516,6 +1562,8 @@
+ 		pinctrl-0 = <&i2s1_2ch_bus>;
+ 		power-domains = <&power RK3399_PD_SDIOAUDIO>;
+ 		status = "disabled";
++		assigned-clocks = <&cru SCLK_I2S1_DIV>;
++		assigned-clock-parents = <&cru PLL_GPLL>;
+ 	};
+ 
+ 	i2s2: i2s@ff8a0000 {
+@@ -1528,6 +1576,8 @@
+ 		clocks = <&cru SCLK_I2S2_8CH>, <&cru HCLK_I2S2_8CH>;
+ 		power-domains = <&power RK3399_PD_SDIOAUDIO>;
+ 		status = "disabled";
++		assigned-clocks = <&cru SCLK_I2S2_DIV>;
++		assigned-clock-parents = <&cru PLL_GPLL>;
+ 	};
+ 
+ 	gpu: gpu@ff9a0000 {
+-- 
+1.9.1
+

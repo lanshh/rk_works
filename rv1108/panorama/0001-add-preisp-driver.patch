@@ -1,0 +1,3446 @@
+From f5b08403dd464943046f087a3183e15eb81e2bb6 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 4 May 2017 09:53:44 +0800
+Subject: [PATCH 1/2] add preisp driver
+
+Change-Id: Ic51bd3893d1a559fd5cb159cdc1070b3f40e7ca5
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/boot/dts/rv1108-evb-v13.dts  |   25 +-
+ arch/arm/configs/rv1108_ipc_defconfig |    4 +-
+ drivers/Makefile                      |    1 +
+ drivers/preisp_driver/Makefile        |   11 +
+ drivers/preisp_driver/ap-i2c.c        |   72 ++
+ drivers/preisp_driver/ap-i2c.h        |   21 +
+ drivers/preisp_driver/isp-fw.c        |  149 ++++
+ drivers/preisp_driver/isp-fw.h        |   83 ++
+ drivers/preisp_driver/msg-queue.c     |  468 ++++++++++
+ drivers/preisp_driver/msg-queue.h     |  243 ++++++
+ drivers/preisp_driver/spi-rkpreisp.c  | 1550 +++++++++++++++++++++++++++++++++
+ drivers/preisp_driver/spi-rkpreisp.h  |   51 ++
+ drivers/preisp_driver/spi2apb.c       |  420 +++++++++
+ drivers/preisp_driver/spi2apb.h       |  196 +++++
+ 14 files changed, 3290 insertions(+), 4 deletions(-)
+ create mode 100644 drivers/preisp_driver/Makefile
+ create mode 100644 drivers/preisp_driver/ap-i2c.c
+ create mode 100644 drivers/preisp_driver/ap-i2c.h
+ create mode 100644 drivers/preisp_driver/isp-fw.c
+ create mode 100644 drivers/preisp_driver/isp-fw.h
+ create mode 100644 drivers/preisp_driver/msg-queue.c
+ create mode 100644 drivers/preisp_driver/msg-queue.h
+ create mode 100644 drivers/preisp_driver/spi-rkpreisp.c
+ create mode 100644 drivers/preisp_driver/spi-rkpreisp.h
+ create mode 100644 drivers/preisp_driver/spi2apb.c
+ create mode 100644 drivers/preisp_driver/spi2apb.h
+
+diff --git a/arch/arm/boot/dts/rv1108-evb-v13.dts b/arch/arm/boot/dts/rv1108-evb-v13.dts
+index c293594..db7338e 100644
+--- a/arch/arm/boot/dts/rv1108-evb-v13.dts
++++ b/arch/arm/boot/dts/rv1108-evb-v13.dts
+@@ -202,7 +202,7 @@
+ 		/*lkg(mA)  volt(uV)*/
+ 		60         25000
+ 		>;
+-	status = "okay";
++	status = "disable";
+ };
+ 
+ &watchdog {
+@@ -539,3 +539,26 @@
+ &tve {
+ 	status = "okay";
+ };
++&spi0 {
++	status = "okay";
++	spi_rk_preisp@00 {
++		compatible =  "rockchip,spi_rk_preisp";
++		reg = <0>;
++		spi-max-frequency = <48000000>;
++		spi-min-frequency = <12000000>;
++		//spi-cpol;
++		//spi-cpha;
++		//reset-gpio = <&gpio6 GPIO_A0 GPIO_ACTIVE_HIGH>;
++		irq-gpio = <&gpio3 GPIO_A4 GPIO_ACTIVE_HIGH>;
++		//sleepst-gpio = <&gpio6 GPIO_A1 GPIO_ACTIVE_HIGH>;
++		//wakeup-gpio = <&gpio6 GPIO_A4 GPIO_ACTIVE_HIGH>;
++		//powerdown-gpio = <&gpio8 GPIO_A0 GPIO_ACTIVE_HIGH>;
++		clocks = <&clk_cif_out>;
++		clock-names = "mclk";
++		//pinctrl-names = "default";
++		//pinctrl-0 = <&preisp_irq_gpios &preisp_wake_gpios &preisp_sleep_gpios>;
++		//firmware-nowait-mode = <1>;
++		//TODO:
++		//regulator config...
++	};
++};
+diff --git a/arch/arm/configs/rv1108_ipc_defconfig b/arch/arm/configs/rv1108_ipc_defconfig
+index c74bdb0..e0a82bf 100644
+--- a/arch/arm/configs/rv1108_ipc_defconfig
++++ b/arch/arm/configs/rv1108_ipc_defconfig
+@@ -108,7 +108,6 @@ CONFIG_BLK_DEV_LOOP=y
+ CONFIG_UID_STAT=y
+ CONFIG_SRAM=y
+ CONFIG_UID_CPUTIME=y
+-CONFIG_MOTOR_GPIO=y
+ CONFIG_NETDEVICES=y
+ # CONFIG_NET_CADENCE is not set
+ # CONFIG_NET_VENDOR_BROADCOM is not set
+@@ -125,7 +124,7 @@ CONFIG_NETDEVICES=y
+ # CONFIG_NET_VENDOR_WIZNET is not set
+ CONFIG_RK_VMAC_ETH=y
+ CONFIG_RK_GMAC_ETH=y
+-CONFIG_RTL8189FS=y
++CONFIG_RTL8723CS=y
+ # CONFIG_SSV6051_P2P is not set
+ # CONFIG_SSV6051_SDIO is not set
+ # CONFIG_INPUT_MOUSEDEV is not set
+@@ -189,7 +188,6 @@ CONFIG_VIDEO_RK_CIF_ISP11=y
+ CONFIG_VIDEO_OV2710=y
+ CONFIG_VIDEO_OV4689=y
+ CONFIG_VIDEO_IMX323=y
+-CONFIG_CAMERA_IRCUTTER=y
+ # CONFIG_CAMSYS_DRV is not set
+ # CONFIG_ROCK_CHIP_SOC_CAMERA is not set
+ CONFIG_FB=y
+diff --git a/drivers/Makefile b/drivers/Makefile
+index b762c9c..cad2056 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -166,3 +166,4 @@ obj-$(CONFIG_CORESIGHT)		+= coresight/
+ obj-$(CONFIG_ANDROID)		+= android/
+ obj-$(CONFIG_RK_FLASH)		+= rkflash/
+ obj-y                           += rk_nand/
++obj-y				+= preisp_driver/
+diff --git a/drivers/preisp_driver/Makefile b/drivers/preisp_driver/Makefile
+new file mode 100644
+index 0000000..8c33866
+--- /dev/null
++++ b/drivers/preisp_driver/Makefile
+@@ -0,0 +1,11 @@
++#
++# Makefile for the RockChip PreIsp device drivers.
++#
++#EXTRA_CFLAGS += -Wno-unused-variable
++#EXTRA_CFLAGS += -Wno-unused-label
++#EXTRA_CFLAGS += -Wno-unused-value
++#EXTRA_CFLAGS += -Wno-unused-parameter
++#EXTRA_CFLAGS += -Wno-unused-function
++#EXTRA_CFLAGS += -Wno-unused
++rkpreisp-objs := spi-rkpreisp.o isp-fw.o spi2apb.o msg-queue.o ap-i2c.o
++obj-y += rkpreisp.o
+diff --git a/drivers/preisp_driver/ap-i2c.c b/drivers/preisp_driver/ap-i2c.c
+new file mode 100644
+index 0000000..d6c23d2
+--- /dev/null
++++ b/drivers/preisp_driver/ap-i2c.c
+@@ -0,0 +1,72 @@
++/*
++ * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ * Author: Tusson <dusong@rock-chips.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++#include "ap-i2c.h"
++#include "linux/i2c.h"
++
++int ap_i2c_do_xfer(struct spi_device *spi, msg_do_i2c_t *i2c_msg)
++{
++    struct i2c_adapter *i2c;
++    struct i2c_msg msg[2];
++    int err = 0;
++    int i;
++    MSG(msg_do_i2c_ret_t, ret_msg);
++
++    i2c = i2c_get_adapter(i2c_msg->head.nr);
++    if (i2c == NULL) {
++        dev_err(&spi->dev, "i2c get adapter(%d) error!", i2c_msg->head.nr);
++        return -1;
++    }
++
++    if (i2c_msg->head.num_msg > AP_I2C_ONCE_MAX_NUM) {
++        i2c_msg->head.num_msg = AP_I2C_ONCE_MAX_NUM;
++        dev_warn(&spi->dev, "ap i2c once msg num too large %d > %d",
++                i2c_msg->head.num_msg, AP_I2C_ONCE_MAX_NUM);
++    }
++
++    for (i = 0; i < i2c_msg->head.num_msg; i++) {
++        int msg_num = 1;
++        msg[0].addr = i2c_msg->msg[i].addr;
++        msg[0].len = i2c_msg->msg[i].len;
++        msg[0].buf = i2c_msg->msg[i].buf;
++        msg[0].flags = i2c_msg->msg[i].flags;
++
++        if (i < (i2c_msg->head.num_msg - 1) &&
++            (i2c_msg->msg[i+1].flags & I2C_M_RD)) {
++            msg_num = 2;
++            i++;
++            msg[1].addr = i2c_msg->msg[i].addr;
++            msg[1].len = i2c_msg->msg[i].len;
++            msg[1].buf = i2c_msg->msg[i].buf;
++            msg[1].flags = i2c_msg->msg[i].flags;
++        }
++
++        err = i2c_transfer(i2c, msg, msg_num);
++
++        if (err < 0) {
++            dev_err(&spi->dev, "i2c transfer(addr:0x%x,len:%d, msg_num:%d) error(%d)!",
++                    msg[0].addr, msg[0].len, msg_num, err);
++        } else if (msg_num == 2) {
++            ret_msg.nr = i2c_msg->head.nr;
++            ret_msg.addr = i2c_msg->msg[i].addr;
++            memcpy(ret_msg.buf, i2c_msg->msg[i].buf, sizeof(i2c_msg->msg[i].len));
++
++            dsp_msq_send_msg(spi, (msg_t*)&ret_msg);
++        }
++    }
++
++
++    i2c_put_adapter(i2c);
++
++    return err;
++}
+diff --git a/drivers/preisp_driver/ap-i2c.h b/drivers/preisp_driver/ap-i2c.h
+new file mode 100644
+index 0000000..9e2daac
+--- /dev/null
++++ b/drivers/preisp_driver/ap-i2c.h
+@@ -0,0 +1,21 @@
++/*
++ * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ * Author: Tusson <dusong@rock-chips.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++#ifndef __RK_PREISP_AP_I2C_H__
++#define __RK_PREISP_AP_I2C_H__
++
++#include "msg-queue.h"
++
++int ap_i2c_do_xfer(struct spi_device *spi, msg_do_i2c_t *msg);
++
++#endif
+diff --git a/drivers/preisp_driver/isp-fw.c b/drivers/preisp_driver/isp-fw.c
+new file mode 100644
+index 0000000..53a5ac9
+--- /dev/null
++++ b/drivers/preisp_driver/isp-fw.c
+@@ -0,0 +1,149 @@
++/*
++ * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ * Author: Tusson <dusong@rock-chips.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <linux/firmware.h>
++#include <linux/delay.h>
++
++#include "isp-fw.h"
++#include "spi2apb.h"
++
++static int spi_read_wait(struct spi_device *spi,
++        const struct rkl_section *sec)
++{
++    int32_t value = 0;
++    int try = 0;
++    int ret = 0;
++
++    do {
++        ret = spi2apb_safe_r32(spi, sec->wait_addr, &value);
++
++        if (!ret && value == sec->wait_value)
++            break;
++
++        if (try++ == sec->timeout) {
++            ret = -1;
++            dev_err(&spi->dev, "read 0x%x is %x != %x timeout\n",
++                    sec->wait_addr, value, sec->wait_value);
++            break;
++        }
++        mdelay(sec->wait_time);
++    } while (1);
++
++    return ret;
++}
++
++static int spi_boot_request(struct spi_device *spi,
++        const struct rkl_section * sec)
++{
++    struct rkl_boot_request boot_req;
++    int try = 0;
++    int ret = 0;
++
++    //send boot request to dsp for ddr init
++    boot_req.flag = sec->flag;
++    boot_req.loadAddr = sec->load_addr;
++    boot_req.bootLen = sec->size;
++    boot_req.status = 1;
++    boot_req.cmd = 2;
++
++    ret = spi2apb_safe_write(spi, BOOT_REQUEST_ADDR,
++            (int32_t*)&boot_req, sizeof(boot_req));
++    if (ret)
++        return ret;
++
++    if (sec->flag & BOOT_FLAG_READ_WAIT) {
++        //waitting for dsp init ddr done
++        do {
++            ret = spi2apb_safe_read(spi, BOOT_REQUEST_ADDR,
++                    (int32_t*)&boot_req, sizeof(boot_req));
++
++            if (!ret && boot_req.status == 0)
++                break;
++
++            if (try++ == sec->timeout) {
++                ret = -1;
++                dev_err(&spi->dev, "boot_request timeout\n");
++                break;
++            }
++            mdelay(sec->wait_time);
++        } while (1);
++    }
++
++    return ret;
++}
++
++static int spi_download_section(struct spi_device *spi,
++        const uint8_t *data, const struct rkl_section *sec)
++{
++    int ret = 0;
++
++    dev_info(&spi->dev, "offset:%x,size:%x,addr:%x,"
++            "wait_time:%x,timeout:%x,crc:%x,flag:%x,type:%x",
++            sec->offset, sec->size, sec->load_addr, sec->wait_time,
++            sec->timeout, sec->crc_16, sec->flag, sec->type);
++    if (sec->size > 0) {
++        ret = spi2apb_safe_write(spi, sec->load_addr,
++                (int32_t*)(data + sec->offset), sec->size);
++        if (ret)
++            return ret;
++    }
++
++    if (sec->flag & BOOT_FLAG_BOOT_REQUEST) {
++        ret = spi_boot_request(spi, sec);
++    } else if (sec->flag & BOOT_FLAG_READ_WAIT) {
++        ret = spi_read_wait(spi, sec);
++    }
++
++    return ret;
++}
++
++/**
++ * spi_download_fw: - rk preisp firmware download through spi
++ *
++ * @spi: spi device
++ * @fw_name: name of firmware file, NULL for default firmware name
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ **/
++int spi_download_fw(struct spi_device *spi, const char *fw_name)
++{
++    const struct rkl_header * head;
++    const struct firmware *fw;
++    int i = 0;
++    int ret = 0;
++
++    if (fw_name == NULL)
++        fw_name = RKL_DEFAULT_FW_NAME;
++
++    dev_info(&spi->dev, "before request firmware");
++    ret = request_firmware(&fw, fw_name, &spi->dev);
++    if (ret) {
++        dev_err(&spi->dev, "request firmware %s failed!", fw_name);
++        return ret;
++    }
++
++    head = (const struct rkl_header *) fw->data;
++
++    dev_info(&spi->dev, "request firmware %s (version:%s) success!", fw_name, head->version);
++
++    for (i = 0; i < head->section_count; i++) {
++        ret = spi_download_section(spi, fw->data, &head->sections[i]);
++        if (ret)
++            break;
++    }
++
++    release_firmware(fw);
++    return ret;
++}
+diff --git a/drivers/preisp_driver/isp-fw.h b/drivers/preisp_driver/isp-fw.h
+new file mode 100644
+index 0000000..bb52eaa
+--- /dev/null
++++ b/drivers/preisp_driver/isp-fw.h
+@@ -0,0 +1,83 @@
++/*
++ * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ * Author: Tusson <dusong@rock-chips.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef __ISP_FIRMWARE_H__
++#define __ISP_FIRMWARE_H__
++
++#include <linux/types.h>
++#include <linux/firmware.h>
++#include "spi2apb.h"
++
++#define RKL_MAX_SECTION_NUM 10
++
++struct rkl_section {
++    union {
++        uint32_t offset;
++        uint32_t wait_value;
++    };
++    uint32_t size;
++    union {
++        uint32_t load_addr;
++        uint32_t wait_addr;
++    };
++    uint16_t wait_time;
++    uint16_t timeout;
++    uint16_t crc_16;
++    uint8_t  flag;
++    uint8_t  type;
++};
++
++struct rkl_header {
++    char version[32];
++    uint32_t header_size;
++    uint32_t section_count;
++    struct rkl_section sections[RKL_MAX_SECTION_NUM];
++};
++
++#define BOOT_FLAG_CRC           (1<<0)
++#define BOOT_FLAG_EXE           (1<<1)
++#define BOOT_FLAG_LOAD_PMEM     (1<<2)
++#define BOOT_FLAG_ACK           (1<<3)
++#define BOOT_FLAG_READ_WAIT     (1<<4)
++#define BOOT_FLAG_BOOT_REQUEST  (1<<5)
++
++struct rkl_boot_request {
++    uint32_t flag;
++    uint32_t loadAddr;
++    uint32_t bootLen;
++    uint8_t status;
++    uint8_t dummy[2];
++    uint8_t cmd;
++};
++
++#define BOOT_REQUEST_ADDR 0x18000010
++#define BOOT_REQUEST_WAIT_DELAY_MS 1
++#define BOOT_REQUEST_TIMEOUT 10
++
++#define DSP_HEAD_ADDR 0x60000000
++
++#define RKL_DEFAULT_FW_NAME "preisp.rkl"
++
++/**
++ * spi_download_fw: - rk preisp firmware download through spi
++ *
++ * @spi: spi device
++ * @fw_name: name of firmware file, NULL for default firmware name
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ **/
++int spi_download_fw(struct spi_device *spi, const char *fw_name);
++
++#endif
+diff --git a/drivers/preisp_driver/msg-queue.c b/drivers/preisp_driver/msg-queue.c
+new file mode 100644
+index 0000000..7d4de80
+--- /dev/null
++++ b/drivers/preisp_driver/msg-queue.c
+@@ -0,0 +1,468 @@
++/*
++ * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ * Author: Tusson <dusong@rock-chips.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include "msg-queue.h"
++
++/**
++ * msq_init - Initialize msg queue
++ *
++ * @q: the msg queue to initialize
++ * @size: size of msg queue buf
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int msq_init(struct msg_queue *q, int size)
++{
++    uint32_t *buf = kmalloc(size, GFP_KERNEL);
++
++    q->buf_head = buf;
++    q->buf_tail = buf + size / sizeof(uint32_t);
++    q->cur_send = buf;
++    q->cur_recv = buf;
++
++    return 0;
++}
++
++/**
++ * msq_release - release msg queue buf
++ *
++ * @q: the msg queue to release
++ */
++void msq_release(struct msg_queue *q)
++{
++    kfree(q->buf_head);
++    q->buf_head = NULL;
++    q->buf_tail = NULL;
++    q->cur_send = NULL;
++    q->cur_recv = NULL;
++}
++
++/**
++ * msq_is_empty - tests whether a msg queue is empty
++ *
++ * @q: the msg queue to test
++ *
++ * It returns true on msg queue is empty, else false.
++ */
++int msq_is_empty(const struct msg_queue *q)
++{
++    return q->cur_send == q->cur_recv;
++}
++
++/**
++ * msq_total_size - get msg queue buf total size
++ *
++ * @q: msg queue
++ *
++ * It returns size of msg queue buf, unit 4 bytes.
++ */
++uint32_t msq_total_size(const struct msg_queue *q)
++{
++    return q->buf_tail - q->buf_head;
++}
++
++/**
++ * msq_tail_free_size - get msg queue tail unused buf size
++ *
++ * @q: msg queue
++ *
++ * It returns size of msg queue tail unused buf size, unit 4 bytes
++ */
++uint32_t msq_tail_free_size(const struct msg_queue *q)
++{
++    if (q->cur_send >= q->cur_recv) {
++        return (q->buf_tail - q->cur_send);
++    }
++
++    return q->cur_recv - q->cur_send;
++}
++
++/**
++ * msq_head_free_size - get msg queue head unused buf size
++ *
++ * @q: msg queue
++ *
++ * It returns size of msg queue head unused buf size, unit 4 bytes
++ */
++uint32_t msq_head_free_size(const struct msg_queue *q)
++{
++    if (q->cur_send >= q->cur_recv) {
++        return (q->cur_recv - q->buf_head);
++    }
++
++    return 0;
++}
++
++/**
++ * msq_send_msg - send a msg to msg queue
++ *
++ * @q: msg queue
++ * @m: a msg to queue
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int msq_send_msg(struct msg_queue *q, const struct msg *m)
++{
++    int ret = 0;
++    if (msq_tail_free_size(q) > m->size) {
++        uint32_t * next_send;
++
++        memcpy(q->cur_send, m, m->size * sizeof(uint32_t));
++        next_send = q->cur_send + m->size;
++        if (next_send == q->buf_tail) {
++            next_send = q->buf_head;
++        }
++        q->cur_send = next_send;
++    } else if (msq_head_free_size(q) > m->size) {
++        *q->cur_send = 0; //set size to 0 for skip to head mark
++        memcpy(q->buf_head, m, m->size * sizeof(uint32_t));
++        q->cur_send = q->buf_head + m->size;
++    } else {
++        ret = -1;
++    }
++
++    return ret;
++}
++
++/**
++ * msq_recv_msg - receive a msg from msg queue
++ *
++ * @q: msg queue
++ * @m: a msg pointer buf [out]
++ *
++ * need call msq_recv_msg_free to free msg after msg use done
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int msq_recv_msg(struct msg_queue *q, struct msg **m)
++{
++    *m = NULL;
++    if (msq_is_empty(q))
++        return -1;
++
++    //skip to head when size is 0
++    if (*q->cur_recv == 0) {
++        *m = (struct msg*)q->buf_head;
++    } else {
++        *m = (struct msg*)q->cur_recv;
++    }
++
++    return 0;
++}
++
++/**
++ * msq_free_received_msg - free a received msg to msg queue
++ *
++ * @q: msg queue
++ * @m: a msg
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int msq_free_received_msg(struct msg_queue *q, const struct msg *m)
++{
++    //skip to head when size is 0
++    if (*q->cur_recv == 0) {
++        q->cur_recv = q->buf_head + m->size;
++    } else {
++        uint32_t *next_recv;
++
++        next_recv = q->cur_recv + m->size;
++        if (next_recv == q->buf_tail) {
++            next_recv = q->buf_head;
++        }
++        q->cur_recv = next_recv;
++    }
++
++    return 0;
++}
++
++/**
++ * dsp_msq_init - init AP <-> DSP msg queue
++ *
++ * @spi: spi device
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_init(struct spi_device *spi)
++{
++    int err = 0;
++    struct dsp_msg_queue queue;
++    queue.buf_head = (DSP_R_MSG_QUEUE_ADDR + sizeof(queue));
++    queue.buf_tail = (DSP_R_MSG_QUEUE_ADDR + sizeof(queue) + 16*1024);
++    queue.cur_recv = queue.buf_head;
++    queue.cur_send = queue.buf_head;
++
++    err = spi2apb_safe_write(spi, DSP_R_MSG_QUEUE_ADDR,
++            (int32_t*)&queue, sizeof(queue));
++
++    queue.buf_head = DSP_S_MSG_QUEUE_ADDR + sizeof(queue);
++    queue.buf_tail = DSP_S_MSG_QUEUE_ADDR + sizeof(queue) + 16*1024;
++    queue.cur_recv = queue.buf_head;
++    queue.cur_send = queue.buf_head;
++
++    err = spi2apb_safe_write(spi, DSP_S_MSG_QUEUE_ADDR,
++            (int32_t*)&queue, sizeof(queue));
++    return err;
++}
++
++/**
++ * dsp_msq_is_empty - tests whether a msg queue is empty
++ *
++ * @q: the msg queue to test
++ *
++ * It returns true on msg queue is empty, else false.
++ */
++int dsp_msq_is_empty(const struct dsp_msg_queue *q)
++{
++    return q->cur_send == q->cur_recv;
++}
++
++/**
++ * dsp_msq_total_size - get msg queue buf total size
++ *
++ * @q: msg queue
++ *
++ * It returns size of msg queue buf, unit byte.
++ */
++uint32_t dsp_msq_total_size(const struct dsp_msg_queue *q)
++{
++    return q->buf_tail - q->buf_head;
++}
++
++/**
++ * dsp_msq_tail_free_size - get msg queue tail unused buf size
++ *
++ * @q: msg queue
++ *
++ * It returns size of msg queue tail unused buf size, unit byte
++ */
++uint32_t dsp_msq_tail_free_size(const struct dsp_msg_queue *q)
++{
++    if (q->cur_send >= q->cur_recv) {
++        return (q->buf_tail - q->cur_send);
++    }
++
++    return q->cur_recv - q->cur_send;
++}
++
++/**
++ * dsp_msq_head_free_size - get msg queue head unused buf size
++ *
++ * @q: msg queue
++ *
++ * It returns size of msg queue head unused buf size, unit byte
++ */
++uint32_t dsp_msq_head_free_size(const struct dsp_msg_queue *q)
++{
++    if (q->cur_send >= q->cur_recv) {
++        return (q->cur_recv - q->buf_head);
++    }
++
++    return 0;
++}
++
++/**
++ * dsp_msq_read_head - read dsp msg queue head
++ *
++ * @spi: spi device
++ * @addr: msg queue head addr
++ * @m: msg queue pointer
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_read_head(struct spi_device *spi,
++        uint32_t addr, struct dsp_msg_queue *q)
++{
++    int err = 0;
++    int32_t reg;
++
++    err = spi2apb_safe_r32(spi, DSP_PMU_SYS_REG0, &reg);
++
++    if (err || ((reg & DSP_MSG_QUEUE_OK_MASK) != DSP_MSG_QUEUE_OK_TAG)) {
++        //dev_warn(&spi->dev, "dsp msg queue head not init!\n");
++        return -1;
++    }
++
++    err = spi2apb_safe_read(spi, addr, (int32_t*)q, sizeof(*q));
++    return err;
++}
++
++/**
++ * dsp_msq_send_msg - send a msg to AP -> DSP msg queue
++ *
++ * @spi: spi device
++ * @m: a msg to send
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_send_msg(struct spi_device *spi, const struct msg *m)
++{
++    int err = 0;
++    struct dsp_msg_queue queue;
++    struct dsp_msg_queue *q = &queue;
++    uint32_t msg_size = m->size * sizeof(uint32_t);
++
++    err = dsp_msq_read_head(spi, DSP_R_MSG_QUEUE_ADDR, q);
++    if (err)
++        return err;
++
++    if (dsp_msq_tail_free_size(q) > msg_size) {
++        uint32_t next_send;
++
++        err = spi2apb_safe_write(spi, q->cur_send, (int32_t*)m, msg_size);
++        next_send = q->cur_send + msg_size;
++        if (next_send == q->buf_tail) {
++            next_send = q->buf_head;
++        }
++        q->cur_send = next_send;
++    } else if (dsp_msq_head_free_size(q) > msg_size) {
++        //set size to 0 for skip to head mark
++        err = spi2apb_safe_w32(spi, q->cur_send, 0);
++        if (err)
++            return err;
++
++        err = spi2apb_safe_write(spi, q->buf_head, (int32_t*)m, msg_size);
++
++        q->cur_send = q->buf_head + msg_size;
++    } else {
++        return -1;
++    }
++
++    if (err)
++        return err;
++
++    err = spi2apb_safe_w32(spi, DSP_R_MSG_QUEUE_ADDR +
++            (uint8_t*)&q->cur_send - (uint8_t*)q, q->cur_send);
++
++    spi2apb_interrupt_request(spi, PREISP_IRQ_TYPE_MSG);
++
++    return err;
++}
++
++/**
++ * dsp_msq_recv_query - query next msg size from DSP -> AP msg queue
++ *
++ * @q: msg queue
++ * @size: msg size buf [out]
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_recv_query(struct spi_device *spi, int32_t *size)
++{
++    struct dsp_msg_queue queue;
++    struct dsp_msg_queue *q = &queue;
++    int err = 0;
++
++    err = dsp_msq_read_head(spi, DSP_S_MSG_QUEUE_ADDR, q);
++    if (err)
++        return err;
++
++    *size = 0;
++    if (dsp_msq_is_empty(q))
++        return 0;
++
++    //skip to head when size is 0
++    err = spi2apb_safe_r32(spi, q->cur_recv, size);
++    if (err)
++        return err;
++
++    if (*size == 0) {
++        err = spi2apb_safe_r32(spi, (int32_t)q->buf_head, size);
++    }
++
++    return err;
++}
++
++/**
++ * dsp_msq_recv_msg - receive a msg from DSP -> AP msg queue
++ *
++ * @q: msg queue
++ * @m: a msg pointer buf [out]
++ *
++ * need call dsp_msq_recv_msg_free to free msg after msg use done
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_recv_msg(struct spi_device *spi, struct msg **m)
++{
++    struct dsp_msg_queue queue;
++    struct dsp_msg_queue *q = &queue;
++    uint32_t size = 0, msg_size = 0;
++    uint32_t recv_addr = 0;
++    uint32_t next_recv_addr = 0;
++    int err = 0;
++
++    *m = NULL;
++
++    err = dsp_msq_read_head(spi, DSP_S_MSG_QUEUE_ADDR, q);
++    if (err)
++        return err;
++
++    if (dsp_msq_is_empty(q))
++        return -1;
++
++    //skip to head when size is 0
++    err = spi2apb_safe_r32(spi, (int32_t)q->cur_recv, (int32_t*)&size);
++    if (err)
++        return err;
++    if (size == 0) {
++        err = spi2apb_safe_r32(spi, (int32_t)q->buf_head,
++                (int32_t*)&size);
++        if (err)
++            return err;
++
++        msg_size = size * sizeof(uint32_t);
++        recv_addr = q->buf_head;
++        next_recv_addr = q->buf_head + msg_size;
++    } else {
++        msg_size = size * sizeof(uint32_t);
++        recv_addr = q->cur_recv;
++        next_recv_addr = q->cur_recv + msg_size;
++        if (next_recv_addr == q->buf_tail) {
++            next_recv_addr = q->buf_head;
++        }
++    }
++
++    if (msg_size > dsp_msq_total_size(q))
++        return -2;
++
++    *m = (struct msg*)kmalloc(msg_size, GFP_KERNEL);
++    err = spi2apb_safe_read(spi, recv_addr, (int32_t*)*m, msg_size);
++    if (err == 0) {
++        err = spi2apb_safe_w32(spi, DSP_S_MSG_QUEUE_ADDR +
++            (uint8_t*)&q->cur_recv - (uint8_t*)q,next_recv_addr);
++    }
++
++    if (err) {
++        kfree(*m);
++    }
++
++    return err;
++}
++
++/**
++ * dsp_msq_free_received_msg - free a received msg
++ *
++ * @q: msg queue
++ * @m: a msg
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_free_received_msg(const struct msg *m)
++{
++    if (m != NULL)
++        kfree(m);
++
++    return 0;
++}
+diff --git a/drivers/preisp_driver/msg-queue.h b/drivers/preisp_driver/msg-queue.h
+new file mode 100644
+index 0000000..ab24cba
+--- /dev/null
++++ b/drivers/preisp_driver/msg-queue.h
+@@ -0,0 +1,243 @@
++/*
++ * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ * Author: Tusson <dusong@rock-chips.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++#ifndef __RK_PREISP_MSG_H__
++#define __RK_PREISP_MSG_H__
++
++#include <linux/types.h>
++#include <linux/string.h>
++#include "spi2apb.h"
++
++#define DSP_R_MSG_QUEUE_ADDR 0x60050000
++#define DSP_S_MSG_QUEUE_ADDR 0x60050010
++
++#define MSG_QUEUE_DEFAULT_SIZE 8*1024
++
++typedef struct msg_queue {
++    uint32_t* buf_head; //msg buffer head
++    uint32_t* buf_tail; //msg buffer tail
++    uint32_t* cur_send; //current msg send postition
++    uint32_t* cur_recv; //current msg receive position
++} msg_queue_t;
++
++#define DSP_PMU_SYS_REG0            0x120000f0
++#define DSP_MSG_QUEUE_OK_MASK       0xffff0001
++#define DSP_MSG_QUEUE_OK_TAG        0x16080001
++
++typedef struct dsp_msg_queue {
++    uint32_t buf_head; //msg buffer head
++    uint32_t buf_tail; //msg buffer tail
++    uint32_t cur_send; //current msg send postition
++    uint32_t cur_recv; //current msg receive position
++} dsp_msg_queue_t;
++
++typedef struct msg {
++    uint32_t size; // unit 4 bytes
++    uint16_t type; // msg identification
++    int8_t  camera_id;
++    int8_t  sync;
++} msg_t;
++
++enum {
++    id_msg_set_sys_mode_bypass_t = 0x0200,
++    id_msg_set_sys_mode_standby_t,
++
++    id_msg_set_log_level_t = 0x0250,
++
++    //dsp -> ap
++    id_msg_do_i2c_t = 0x0390,
++    //ap -> dsp
++    id_msg_do_i2c_ret_t,
++
++    id_msg_dsp_log_t = 0x0400,
++};
++
++typedef msg_t msg_set_sys_mode_standby_t;
++
++enum {
++    LOG_ERROR,
++    LOG_WARN,
++    LOG_INFO,
++    LOG_DEBUG,
++};
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t  core_id;
++    int8_t  log_level;
++} msg_dsp_log_t;
++
++typedef msg_dsp_log_t msg_set_log_level_t;
++
++//dsp -> ap
++typedef struct {
++    uint16_t addr;
++    uint16_t flags;
++    uint16_t len;
++    uint8_t  buf[6];
++} do_i2c_msg_t;
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int16_t  nr;
++    uint16_t scl_rate;
++    uint16_t num_msg;
++} msg_do_i2c_head_t;
++
++#define AP_I2C_ONCE_MAX_NUM 20
++typedef struct {
++    msg_do_i2c_head_t head;
++    do_i2c_msg_t msg[AP_I2C_ONCE_MAX_NUM];
++} msg_do_i2c_t;
++
++//ap -> dsp
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int16_t  nr;
++    uint16_t addr;
++    uint16_t len;
++    uint8_t  buf[8];
++} msg_do_i2c_ret_t;
++
++
++#define MSG(TYPE, var) TYPE var; \
++    var.size = sizeof(TYPE)/4;\
++    var.type = id_ ## TYPE;
++
++#define PREISP_IRQ_TYPE_MSG 0x12345678
++
++/**
++ * msq_init - Initialize msg queue
++ *
++ * @q: the msg queue to initialize
++ * @size: size of msg queue buf
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int msq_init(struct msg_queue *q, int size);
++
++/**
++ * msq_release - release msg queue buf
++ *
++ * @q: the msg queue to release
++ */
++void msq_release(struct msg_queue *q);
++
++/**
++ * msq_is_empty - tests whether a msg queue is empty
++ *
++ * @q: the msg queue to test
++ *
++ * It returns true on msg queue is empty, else false.
++ */
++int msq_is_empty(const struct msg_queue *q);
++
++/**
++ * msq_send_msg - send a msg to msg queue
++ *
++ * @q: msg queue
++ * @m: a msg to queue
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int msq_send_msg(struct msg_queue *q, const struct msg *m);
++
++/**
++ * msq_recv_msg - receive a msg from msg queue
++ *
++ * @q: msg queue
++ * @m: a msg pointer buf [out]
++ *
++ * need call msq_free_received_msg to free msg after msg use done
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int msq_recv_msg(struct msg_queue *q, struct msg **m);
++
++/**
++ * msq_free_received_msg - free a received msg
++ *
++ * @q: msg queue
++ * @m: a msg
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int msq_free_received_msg(struct msg_queue *q, const struct msg *m);
++
++/**
++ * dsp_msq_init - init AP <-> DSP msg queue
++ *
++ * @spi: spi device
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_init(struct spi_device *spi);
++
++/**
++ * dsp_msq_read_head - read dsp msg queue head
++ *
++ * @spi: spi device
++ * @addr: msg queue head addr
++ * @m: msg queue pointer
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_read_head(struct spi_device *spi,
++        uint32_t addr, struct dsp_msg_queue *q);
++
++/**
++ * dsp_msq_send_msg - send a msg to AP -> DSP msg queue
++ *
++ * @spi: spi device
++ * @m: a msg to send
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_send_msg(struct spi_device *spi, const struct msg *m);
++
++/**
++ * dsp_msq_recv_query - query next msg size from DSP -> AP msg queue
++ *
++ * @q: msg queue
++ * @size: msg size buf [out]
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_recv_query(struct spi_device *spi, int32_t *size);
++
++/**
++ * dsp_msq_recv_msg - receive a msg from DSP -> AP msg queue
++ *
++ * @q: msg queue
++ * @m: a msg pointer buf [out]
++ *
++ * need call dsp_msq_free_received_msg to free msg after msg use done
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_recv_msg(struct spi_device *spi, struct msg **m);
++
++/**
++ * dsp_msq_free_received_msg - free a received msg
++ *
++ * @q: msg queue
++ * @m: a msg
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int dsp_msq_free_received_msg(const struct msg *m);
++
++#endif
+diff --git a/drivers/preisp_driver/spi-rkpreisp.c b/drivers/preisp_driver/spi-rkpreisp.c
+new file mode 100644
+index 0000000..ca16483
+--- /dev/null
++++ b/drivers/preisp_driver/spi-rkpreisp.c
+@@ -0,0 +1,1550 @@
++/*
++ * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ * Author: Tusson <dusong@rock-chips.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/poll.h>
++#include <linux/ioctl.h>
++#include <linux/fs.h>
++#include <linux/interrupt.h>
++#include <linux/irq.h>
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/list.h>
++#include <linux/errno.h>
++#include <linux/mutex.h>
++#include <linux/slab.h>
++#include <linux/compat.h>
++#include <linux/of.h>
++#include <linux/of_device.h>
++#include <linux/miscdevice.h>
++#include <asm/uaccess.h>
++#include <linux/random.h>
++#include <linux/delay.h>
++#include <linux/ctype.h>
++#include <linux/gpio.h>
++#include <linux/of_gpio.h>
++#include <linux/clk.h>
++#include <linux/regulator/consumer.h>
++#include <linux/wakelock.h>
++
++#include "spi-rkpreisp.h"
++#include "spi2apb.h"
++#include "msg-queue.h"
++#include "isp-fw.h"
++#include "ap-i2c.h"
++
++#define DEBUG_DUMP_ALL_SEND_RECV_MSG 0
++
++#define DEBUG_MSG_LOOP_TEST 0
++
++#define INVALID_ID -1
++
++#define PREISP_MCLK_RATE 24*1000*1000ul
++
++#define PREISP_WAKEUP_TIMEOUT_MS 100
++#define PREISP_REQUEST_SLEEP_TIMEOUT_MS 100
++
++typedef struct {
++    int8_t id;
++    struct msg_queue q;
++    struct list_head list;
++    wait_queue_head_t wait;
++    void *private_data;
++} preisp_client;
++
++typedef struct {
++    struct mutex mutex;
++    struct list_head list;
++} preisp_client_list;
++
++struct spi_rk_preisp_data {
++    struct miscdevice misc;
++    struct spi_device *spi;
++    struct device *dev;
++    preisp_client_list clients;
++    int reset_gpio;
++    int reset_active;
++    int irq_gpio;
++    int irq;
++    int sleepst_gpio;
++    int sleepst_irq;
++    int wakeup_gpio;
++    int wakeup_active;
++    struct clk *mclk;
++    atomic_t power_on_cnt;
++    atomic_t wake_sleep_cnt;
++    struct mutex send_msg_lock;
++    struct mutex power_lock;
++    struct wake_lock resume_wake_lock;
++    uint32_t max_speed_hz;
++    uint32_t min_speed_hz;
++    uint32_t fw_nowait_mode;
++    struct regulator *pdvdd_regu;
++    struct regulator *vdd_core_regu;
++    int log_level;
++    int sleep_state_flag;
++    bool is_resume_processing;
++};
++
++enum {
++    AUTO_ARG_TYPE_STR,
++    AUTO_ARG_TYPE_INT32,
++};
++
++struct auto_arg {
++    int type;
++    union {
++        int32_t m_int32;
++        const char * m_str;
++    };
++};
++
++struct auto_args {
++    int argc;
++    struct auto_arg *argv;
++};
++
++void preisp_set_spi_speed(struct spi_rk_preisp_data *pdata, uint32_t hz)
++{
++    pdata->spi->max_speed_hz = hz;
++}
++
++void preisp_client_list_init(preisp_client_list *s)
++{
++    mutex_init(&s->mutex);
++    INIT_LIST_HEAD(&s->list);
++}
++
++preisp_client * preisp_client_new(void)
++{
++    preisp_client *c =
++        (preisp_client *)kzalloc(sizeof(preisp_client), GFP_KERNEL);
++    c->id = INVALID_ID;
++    INIT_LIST_HEAD(&c->list);
++    msq_init(&c->q, MSG_QUEUE_DEFAULT_SIZE);
++    init_waitqueue_head(&c->wait);
++    return c;
++}
++
++void preisp_client_release(preisp_client *c)
++{
++    msq_release(&c->q);
++    kfree(c);
++}
++
++preisp_client* preisp_client_find(preisp_client_list *s, preisp_client *c)
++{
++    preisp_client *client = NULL;
++
++    list_for_each_entry(client, &s->list, list) {
++        if (c == client) {
++            return c;
++        }
++    }
++    return NULL;
++}
++
++int preisp_client_connect(struct spi_rk_preisp_data *pdata, preisp_client *c)
++{
++    preisp_client_list *s = &pdata->clients;;
++    mutex_lock(&s->mutex);
++    if (preisp_client_find(s, c)) {
++        mutex_unlock(&s->mutex);
++        return -1;
++    }
++
++    list_add_tail(&c->list, &s->list);
++    mutex_unlock(&s->mutex);
++
++    return 0;
++}
++
++void preisp_client_disconnect(struct spi_rk_preisp_data *pdata, preisp_client *c)
++{
++    preisp_client_list *s = &pdata->clients;;
++    mutex_lock(&s->mutex);
++    if (preisp_client_find(s, c)) {
++        list_del_init(&c->list);
++    }
++    mutex_unlock(&s->mutex);
++}
++
++void spi_cs_set_value(struct spi_rk_preisp_data *pdata, int value)
++{
++    int8_t null_cmd = 0;
++    struct spi_transfer null_cmd_packet = {
++        .tx_buf = &null_cmd,
++        .len    = sizeof(null_cmd),
++        .cs_change = !value,
++    };
++    struct spi_message  m;
++
++    spi_message_init(&m);
++    spi_message_add_tail(&null_cmd_packet, &m);
++    spi_sync(pdata->spi, &m);
++}
++
++void rkpreisp_hw_init(struct spi_device *spi)
++{
++    spi2apb_safe_w32(spi, 0x12008098, 0xff004000);
++}
++
++int preisp_send_msg_to_dsp(struct spi_rk_preisp_data *pdata, const struct msg *m)
++{
++    int ret = -1;
++
++    mutex_lock(&pdata->power_lock);
++    if (atomic_read(&pdata->power_on_cnt) > 0 &&
++        atomic_read(&pdata->wake_sleep_cnt) > 0) {
++        mutex_lock(&pdata->send_msg_lock);
++        ret = dsp_msq_send_msg(pdata->spi, m);
++        mutex_unlock(&pdata->send_msg_lock);
++    }
++    mutex_unlock(&pdata->power_lock);
++
++    return ret;
++}
++
++int rkpreisp_set_log_level(struct spi_rk_preisp_data *pdata, int level)
++{
++    int ret = 0;
++    MSG(msg_set_log_level_t, m);
++
++    m.log_level = level;
++    ret = preisp_send_msg_to_dsp(pdata, (struct msg*)&m);
++    return ret;
++}
++
++int rkpreisp_request_sleep_nolock(struct spi_rk_preisp_data *pdata, int32_t mode)
++{
++    int ret;
++    int try = 0;
++
++    MSG(msg_set_sys_mode_standby_t, m);
++
++    if (atomic_dec_return(&pdata->wake_sleep_cnt) == 0) {
++        if (mode >= PREISP_SLEEP_MODE_MAX || mode < 0) {
++            dev_warn(pdata->dev, "Unkown sleep mode %d\n", mode);
++            return -1;
++        }
++        dev_info(pdata->dev,"request sleep\n");
++
++        if (mode == PREISP_SLEEP_MODE_BYPASS) {
++            m.type = id_msg_set_sys_mode_bypass_t;
++        }
++
++        if (pdata->wakeup_gpio > 0) {
++            gpio_set_value(pdata->wakeup_gpio, !pdata->wakeup_active);
++        }
++        mutex_lock(&pdata->send_msg_lock);
++        ret = dsp_msq_send_msg(pdata->spi, (struct msg*)&m);
++        mutex_unlock(&pdata->send_msg_lock);
++
++        do {
++            if (pdata->sleep_state_flag) {
++                ret = 0;
++                pdata->sleep_state_flag = 0;
++                mdelay(5);
++                break;
++            }
++            if (try++ == PREISP_REQUEST_SLEEP_TIMEOUT_MS) {
++                ret = -1;
++                dev_err(pdata->dev, "request sleep timeout\n");
++                break;
++            }
++            mdelay(1);
++        } while (1);
++
++        dev_info(pdata->dev, "request dsp enter %s mode. ret:%d",
++                mode == PREISP_SLEEP_MODE_BYPASS ? "bypass" : "sleep", ret);
++    } else if (atomic_read(&pdata->wake_sleep_cnt) < 0) {
++        atomic_set(&pdata->wake_sleep_cnt, 0);
++    }
++
++    return ret;
++}
++
++int rkpreisp_request_sleep(struct spi_rk_preisp_data *pdata, int32_t mode)
++{
++    int ret;
++
++    mutex_lock(&pdata->power_lock);
++    ret = rkpreisp_request_sleep_nolock(pdata, mode);
++    mutex_unlock(&pdata->power_lock);
++
++    return ret;
++}
++
++static int rkpreisp_download_fw(struct spi_rk_preisp_data *pdata, char *fw_name)
++{
++    int ret;
++    //request rkpreisp enter slave mode
++    spi_cs_set_value(pdata, 0);
++    if (pdata->wakeup_gpio > 0) {
++        gpio_set_value(pdata->wakeup_gpio, pdata->wakeup_active);
++    }
++    mdelay(3);
++    if (pdata->reset_gpio > 0) {
++        gpio_set_value(pdata->reset_gpio, pdata->reset_active);
++    }
++    mdelay(5);
++    spi_cs_set_value(pdata, 1);
++    preisp_set_spi_speed(pdata, pdata->min_speed_hz);
++    spi2apb_switch_to_msb(pdata->spi);
++    rkpreisp_hw_init(pdata->spi);
++
++    preisp_set_spi_speed(pdata, pdata->max_speed_hz);
++    //download system firmware
++    ret = spi_download_fw(pdata->spi, fw_name);
++    if (ret) {
++        dev_err(pdata->dev, "download firmware failed!");
++    } else {
++        dev_info(pdata->dev, "download firmware success!");
++    }
++
++    uncache_firmware(RKL_DEFAULT_FW_NAME);
++
++    enable_irq(pdata->irq);
++    if (pdata->sleepst_irq > 0) {
++        enable_irq(pdata->sleepst_irq);
++    }
++
++    return ret;
++}
++
++static int rkpreisp_reset(struct spi_rk_preisp_data *pdata, char *fw_name)
++{
++    int ret = 0;
++    disable_irq(pdata->irq);
++    if (pdata->sleepst_irq > 0) {
++        disable_irq(pdata->sleepst_irq);
++    }
++    if (pdata->reset_gpio > 0) {
++        gpio_set_value(pdata->reset_gpio, !pdata->reset_active);
++    }
++    mdelay(3);
++    ret = rkpreisp_download_fw(pdata, fw_name);
++
++    return ret;
++}
++
++int rkpreisp_wakeup_nolock(struct spi_rk_preisp_data *pdata)
++{
++    int32_t reg = 0;
++    int try = 0, ret = 0;
++
++    if (atomic_inc_return(&pdata->wake_sleep_cnt) == 1) {
++        /* enable vdd core regulator */
++        if (!IS_ERR(pdata->vdd_core_regu)) {
++            if (regulator_is_enabled(pdata->vdd_core_regu) <= 0) {
++                ret = regulator_enable(pdata->vdd_core_regu);
++            }
++        }
++        if (pdata->wakeup_gpio > 0) {
++            gpio_set_value(pdata->wakeup_gpio, pdata->wakeup_active);
++        } else {
++            dev_info(pdata->dev, "please config wakeup gpio first!");
++        }
++
++        //waiting for dsp wakeup
++        mdelay(10);
++
++        do {
++            ret = spi2apb_safe_r32(pdata->spi, DSP_PMU_SYS_REG0, &reg);
++
++            if (!ret && ((reg & DSP_MSG_QUEUE_OK_MASK) == DSP_MSG_QUEUE_OK_TAG)) {
++                dev_info(pdata->dev, "wakeup dsp.");
++                break;
++            }
++
++            if (try++ == PREISP_WAKEUP_TIMEOUT_MS) {
++                dev_err(pdata->dev, "wakeup timeout, restart preisp\n");
++                ret = rkpreisp_reset(pdata, RKL_DEFAULT_FW_NAME);
++                break;
++            }
++            mdelay(1);
++        } while (1);
++    }
++
++    return ret;
++}
++
++int rkpreisp_wakeup(struct spi_rk_preisp_data *pdata)
++{
++    int ret = 0;
++
++    mutex_lock(&pdata->power_lock);
++    ret = rkpreisp_wakeup_nolock(pdata);
++    mutex_unlock(&pdata->power_lock);
++
++    return ret;
++}
++
++static int rkpreisp_power_on(struct spi_rk_preisp_data *pdata)
++{
++    int ret = 0;
++    mutex_lock(&pdata->power_lock);
++
++    if (atomic_inc_return(&pdata->power_on_cnt) == 1) {
++        dev_info(pdata->dev, "dsp power on!");
++        //do power/clk on
++        if (pdata->mclk != NULL) {
++            clk_prepare_enable(pdata->mclk);
++            clk_set_rate(pdata->mclk, PREISP_MCLK_RATE);
++        }
++
++        /* enable pvdd-regulator */
++        if (!IS_ERR(pdata->pdvdd_regu)) {
++            if (regulator_is_enabled(pdata->pdvdd_regu) <= 0) {
++                ret = regulator_enable(pdata->pdvdd_regu);
++            }
++        }
++        /* enable vdd-core-regulator */
++        if (!IS_ERR(pdata->vdd_core_regu)) {
++            if (regulator_is_enabled(pdata->vdd_core_regu) <= 0) {
++                ret = regulator_enable(pdata->vdd_core_regu);
++            }
++        }
++        /* download fw and start run */
++        ret = rkpreisp_download_fw(pdata, RKL_DEFAULT_FW_NAME);
++
++        pdata->sleep_state_flag = 0;
++        atomic_set(&pdata->wake_sleep_cnt, 1);
++    } else {
++        ret = rkpreisp_wakeup_nolock(pdata);
++    }
++    mutex_unlock(&pdata->power_lock);
++
++    if (!ret)
++        rkpreisp_set_log_level(pdata, pdata->log_level);
++
++    return ret;
++}
++
++static int rkpreisp_power_off(struct spi_rk_preisp_data *pdata)
++{
++    int ret = 0;
++    mutex_lock(&pdata->power_lock);
++
++    if (atomic_dec_return(&pdata->power_on_cnt) == 0) {
++        cache_firmware(RKL_DEFAULT_FW_NAME);
++        //do power/clk off
++        dev_info(pdata->dev, "dsp power off!");
++        disable_irq(pdata->irq);
++        if (pdata->sleepst_irq > 0) {
++            disable_irq(pdata->sleepst_irq);
++        }
++
++        /* disable vdd-core-regulator */
++        if (!IS_ERR(pdata->vdd_core_regu)) {
++            if (regulator_is_enabled(pdata->vdd_core_regu) > 0) {
++                regulator_disable(pdata->vdd_core_regu);
++            }
++        }
++        /* disable pdvdd-regulator */
++        if (!IS_ERR(pdata->pdvdd_regu)) {
++            if (regulator_is_enabled(pdata->pdvdd_regu) > 0) {
++                regulator_disable(pdata->pdvdd_regu);
++            }
++        }
++        if (pdata->wakeup_gpio > 0) {
++            gpio_set_value(pdata->wakeup_gpio, !pdata->wakeup_active);
++        }
++        if (pdata->reset_gpio > 0) {
++            gpio_set_value(pdata->reset_gpio, !pdata->reset_active);
++        }
++        spi_cs_set_value(pdata, 0);
++        if (pdata->mclk != NULL) {
++            clk_disable_unprepare(pdata->mclk);
++        }
++        atomic_set(&pdata->wake_sleep_cnt, 0);
++    } else if (atomic_read(&pdata->power_on_cnt) < 0) {
++        atomic_set(&pdata->power_on_cnt, 0);
++    } else {
++        ret = rkpreisp_request_sleep_nolock(pdata, PREISP_SLEEP_MODE_STANDBY);
++    }
++    mutex_unlock(&pdata->power_lock);
++
++    return ret;
++}
++
++static void fw_nowait_power_on(const struct firmware *fw, void *context)
++{
++    int ret = 0;
++    struct spi_rk_preisp_data *pdata = context;
++
++    ret = rkpreisp_power_on(pdata);
++    if (!ret) {
++        mdelay(10); /*delay for dsp boot*/
++        rkpreisp_request_sleep(pdata, PREISP_SLEEP_MODE_STANDBY);
++    }
++    if (fw) {
++        release_firmware(fw);
++    }
++    if(pdata->is_resume_processing == true)
++    {
++        dev_info(pdata->dev,"resume done!\n");
++        wake_unlock(&pdata->resume_wake_lock);
++        pdata->is_resume_processing = false;
++    }
++}
++
++int parse_arg(const char *s, struct auto_arg *arg)
++{
++    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
++        long v;
++        v = simple_strtol(s, NULL, 16);
++        arg->type = AUTO_ARG_TYPE_INT32;
++        arg->m_int32 = v;
++    } else if (isdigit(s[0])) {
++        long v;
++        v = simple_strtol(s, NULL, 10);
++        arg->type = AUTO_ARG_TYPE_INT32;
++        arg->m_int32 = v;
++    } else {
++        arg->type = AUTO_ARG_TYPE_STR;
++        arg->m_str = s;
++    }
++
++    return 0;
++}
++
++int parse_auto_args(char *s, struct auto_args *args)
++{
++    int i = 0;
++    char c = 0;
++    int last_is_arg_flag = 0;
++    const char *last_arg;
++
++    args->argc = 0;
++
++    i = -1;
++    do {
++        c = s[++i];
++        if (c == ' ' || c == ',' || c == '\n' || c == '\r' || c == 0) {
++            if (last_is_arg_flag) {
++                args->argc++;
++            }
++            last_is_arg_flag = 0;
++        } else {
++            last_is_arg_flag = 1;
++        }
++    } while(c != 0 && c != '\n' && c != '\r');
++
++    args->argv = (struct auto_arg*)kmalloc(
++            args->argc * sizeof(struct auto_arg), GFP_KERNEL);
++
++    i = -1;
++    last_is_arg_flag = 0;
++    last_arg = s;
++    args->argc = 0;
++    do {
++        c = s[++i];
++        if (c == ' ' || c == ',' || c == '\n' || c == '\r' || c == 0) {
++            if (last_is_arg_flag) {
++                parse_arg(last_arg, args->argv + args->argc++);
++                s[i] = 0;
++            }
++            last_is_arg_flag = 0;
++        } else {
++            if (last_is_arg_flag == 0) {
++                last_arg = s + i;
++            }
++            last_is_arg_flag = 1;
++        }
++    } while(c != 0 && c != '\n' && c != '\r');
++
++    return c == 0 ? i : i+1;
++}
++
++void free_auto_args(struct auto_args *args)
++{
++    kfree(args->argv);
++    args->argc = 0;
++}
++
++void int32_hexdump(const char *prefix, int32_t *data, int len)
++{
++    pr_err("%s\n", prefix);
++    print_hex_dump(KERN_ERR, "offset ", DUMP_PREFIX_OFFSET,
++            16, 4, data, len, false);
++    pr_err("\n");
++}
++
++int do_cmd_write(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    int32_t addr;
++    int32_t len = (args->argc - 2) * sizeof(int32_t);
++    int32_t *data;
++    int i;
++
++    if (args->argc < 3 && args->argv[1].type != AUTO_ARG_TYPE_INT32) {
++        dev_err(pdata->dev, "Mis or unknown args!");
++        return -1;
++    }
++
++    len = MIN(len, APB_MAX_OP_BYTES);
++
++    addr = args->argv[1].m_int32;
++    data = (int32_t*)kmalloc(len, GFP_KERNEL);
++    for (i = 0; i < len/4; i++) {
++        if (args->argv[i+2].type != AUTO_ARG_TYPE_INT32) {
++            dev_err(pdata->dev, "Unknown args!");
++            kfree(data);
++            return -1;
++        }
++
++        data[i] = args->argv[i+2].m_int32;
++    }
++
++    spi2apb_write(pdata->spi, addr, data, len);
++
++    kfree(data);
++
++    dev_info(pdata->dev, "write addr: 0x%x, len: %d bytes", addr, len);
++    return 0;
++}
++
++int do_cmd_read(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    int32_t addr;
++    int32_t len;
++    int32_t *data;
++
++    if (args->argc < 3 && args->argv[1].type != AUTO_ARG_TYPE_INT32) {
++        dev_err(pdata->dev, "Mis or unknown args!");
++        return -1;
++    }
++
++    addr = args->argv[1].m_int32;
++    if (args->argc == 2) {
++        len = 32;
++    } else {
++        if (args->argv[2].type != AUTO_ARG_TYPE_INT32) {
++            dev_err(pdata->dev, "Unknown args!");
++            return -1;
++        }
++        len = args->argv[2].m_int32 * sizeof(int32_t);
++        len = MIN(len, APB_MAX_OP_BYTES);
++    }
++
++    data = (int32_t*)kmalloc(len, GFP_KERNEL);
++
++    dev_info(pdata->dev, "\nread addr: %x, len: %d bytes", addr, len);
++    spi2apb_read(pdata->spi, addr, data, len);
++    int32_hexdump("read data:", data, len);
++    kfree(data);
++
++    return 0;
++}
++
++int do_cmd_set_spi_rate(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    if (args->argc < 2 && args->argv[1].type != AUTO_ARG_TYPE_INT32) {
++        dev_err(pdata->dev, "Mis or unknown args!");
++        return -1;
++    }
++
++    pdata->max_speed_hz = args->argv[1].m_int32;
++    dev_info(pdata->dev, "set spi max speed to %d!", pdata->max_speed_hz);
++
++    if (args->argc == 3 && args->argv[2].type == AUTO_ARG_TYPE_INT32) {
++        pdata->min_speed_hz = args->argv[2].m_int32;
++        dev_info(pdata->dev, "set spi min speed to %d!", pdata->min_speed_hz);
++    }
++
++    return 0;
++}
++
++int do_cmd_query(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    int32_t state;
++
++    spi2apb_operation_query(pdata->spi, &state);
++    dev_info(pdata->dev, "state %x", state);
++    return 0;
++}
++
++int do_cmd_download_fw(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    int ret = 0;
++    const char *fw_name = NULL;
++
++    if (args->argc == 2 && args->argv[1].type == AUTO_ARG_TYPE_STR) {
++        fw_name = args->argv[1].m_str;
++    }
++
++    ret = spi_download_fw(pdata->spi, fw_name);
++    if (ret)
++        dev_err(pdata->dev, "download firmware failed!");
++    else
++        dev_info(pdata->dev, "download firmware success!");
++    return 0;
++}
++
++int do_cmd_fast_write(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    int ret = 0;
++    int32_t reg;
++
++    if (args->argc != 2 && args->argv[1].type != AUTO_ARG_TYPE_INT32) {
++        dev_err(pdata->dev, "Mis or unknown args!");
++        return -1;
++    }
++
++    reg = args->argv[1].m_int32;
++
++    ret = spi2apb_interrupt_request(pdata->spi, reg);
++    dev_info(pdata->dev, "interrupt request reg1:%x ret:%x", reg, ret);
++
++    return 0;
++}
++
++int do_cmd_fast_read(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    int32_t state;
++    spi2apb_state_query(pdata->spi, &state);
++    dev_info(pdata->dev, "dsp state %x", state);
++
++    return 0;
++}
++
++int do_cmd_queue_init(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    int state = 0;
++    state = dsp_msq_init(pdata->spi);
++    dev_info(pdata->dev, "message queue init state: %d", state);
++
++    return 0;
++}
++
++int do_cmd_send_msg(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    struct msg *m;
++    int ret = 0;
++    int msg_len;
++    int i = 0;
++
++    if (args->argc < 2) {
++        dev_err(pdata->dev, "need more args");
++        return -1;
++    }
++
++    msg_len = args->argc * sizeof(uint32_t);
++
++    m = (struct msg *)kmalloc(msg_len, GFP_KERNEL);
++    m->size = msg_len / 4;
++    for (i = 1; i < m->size; i++) {
++        if (args->argv[i].type != AUTO_ARG_TYPE_INT32) {
++            dev_err(pdata->dev, "Unknown args!");
++            kfree(m);
++            return -1;
++        }
++
++        *((int32_t*)m + i) = args->argv[i].m_int32;
++    }
++
++    ret = preisp_send_msg_to_dsp(pdata, m);
++
++    dev_info(pdata->dev, "send msg len: %d, ret: %x",
++            m->size, ret);
++
++    kfree(m);
++
++    return 0;
++}
++
++int do_cmd_recv_msg(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    struct msg *m;
++    char buf[256] = "";
++    int ret = 0;
++
++    ret = dsp_msq_recv_msg(pdata->spi, &m);
++    if (ret || m == NULL)
++        return 0;
++
++    dev_info(pdata->dev, "\nrecv msg len: %d, ret: %x",
++            m->size, ret);
++    int32_hexdump("recv msg:", (int32_t*)m, m->size * 4);
++
++    dev_info(pdata->dev, buf);
++
++    dsp_msq_free_received_msg(m);
++
++    return 0;
++}
++
++int do_cmd_power_on(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    int ret;
++    ret = rkpreisp_power_on(pdata);
++    dev_info(pdata->dev, "do cmd power on, count++");
++    return ret;
++}
++
++int do_cmd_power_off(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    int ret;
++    ret = rkpreisp_power_off(pdata);
++    dev_info(pdata->dev, "do cmd power off, count--");
++    return ret;
++}
++
++int do_cmd_set_dsp_log_level(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    int ret;
++
++    if (args->argc != 2 && args->argv[1].type != AUTO_ARG_TYPE_INT32) {
++        dev_err(pdata->dev, "Mis or unknown args!");
++        return -1;
++    }
++
++    pdata->log_level = args->argv[1].m_int32;
++    ret = rkpreisp_set_log_level(pdata, pdata->log_level);
++
++    dev_info(pdata->dev, "set dsp log level %d, ret: %d",
++            pdata->log_level, ret);
++
++    return ret;
++}
++
++int do_cmd_request_bypass(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    return rkpreisp_request_sleep(pdata, PREISP_SLEEP_MODE_BYPASS);
++}
++
++int do_cmd_request_sleep(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    return rkpreisp_request_sleep(pdata, PREISP_SLEEP_MODE_STANDBY);
++}
++
++int do_cmd_version(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    dev_info(pdata->dev, "driver version: %s", RKPREISP_VERSION);
++    return 0;
++}
++
++int do_cmd_wakeup(struct spi_rk_preisp_data *pdata,
++        const struct auto_args *args)
++{
++    return rkpreisp_wakeup(pdata);
++}
++
++int do_cmd(struct spi_rk_preisp_data *pdata,
++    const struct auto_args *args)
++{
++    const char * s;
++    if (args->argv->type != AUTO_ARG_TYPE_STR)
++        return 0;
++
++    s = args->argv->m_str;
++    //echo bypass > /dev/rk_preisp
++    if (!strcmp(s, "bypass")) return do_cmd_request_bypass(pdata, args);
++    //echo c > /dev/rk_preisp
++    if (!strcmp(s, "c")) return do_cmd_recv_msg(pdata, args);
++    //echo f [fw_name] > /dev/rk_preisp
++    if (!strcmp(s, "f")) return do_cmd_download_fw(pdata, args);
++    //echo fw reg1 > /dev/rk_preisp
++    if (!strcmp(s, "fw")) return do_cmd_fast_write(pdata, args);
++    //echo fr > /dev/rk_preisp
++    if (!strcmp(s, "fr")) return do_cmd_fast_read(pdata, args);
++    //echo i > /dev/rk_preisp
++    if (!strcmp(s, "i")) return do_cmd_queue_init(pdata, args);
++    //echo log level > /dev/rk_preisp
++    if (!strcmp(s, "log")) return do_cmd_set_dsp_log_level(pdata, args);
++    //echo on > /dev/rk_preisp
++    if (!strcmp(s, "on")) return do_cmd_power_on(pdata, args);
++    //echo off > /dev/rk_preisp
++    if (!strcmp(s, "off")) return do_cmd_power_off(pdata, args);
++    //echo q > /dev/rk_preisp
++    if (!strcmp(s, "q")) return do_cmd_query(pdata, args);
++    //echo r addr [length] > /dev/rk_preisp
++    if (!strcmp(s, "r")) return do_cmd_read(pdata, args);
++    //echo rate > /dev/rk_preisp
++    if (!strcmp(s, "rate")) return do_cmd_set_spi_rate(pdata, args);
++    //echo s type,... > /dev/rk_preisp
++    if (!strcmp(s, "s")) return do_cmd_send_msg(pdata, args);
++    //echo sleep > /dev/rk_preisp
++    if (!strcmp(s, "sleep")) return do_cmd_request_sleep(pdata, args);
++    //echo v > /dev/rk_preisp
++    if (!strcmp(s, "v")) return do_cmd_version(pdata, args);
++    //echo w addr value,... > /dev/rk_preisp
++    if (!strcmp(s, "w")) return do_cmd_write(pdata, args);
++    //echo wake > /dev/rk_preisp
++    if (!strcmp(s, "wake")) return do_cmd_wakeup(pdata, args);
++
++    return 0;
++}
++
++static int rkpreisp_open(struct inode *inode, struct file *file)
++{
++    struct spi_rk_preisp_data *pdata =
++        container_of(file->private_data, struct spi_rk_preisp_data, misc);
++
++    preisp_client *client = preisp_client_new();
++    client->private_data = pdata;
++    file->private_data = client;
++    rkpreisp_power_on(pdata);
++    return 0;
++}
++
++static int rkpreisp_release(struct inode *inode, struct file *file)
++{
++    preisp_client *client = file->private_data;
++    struct spi_rk_preisp_data *pdata = client->private_data;
++
++    preisp_client_disconnect(pdata, client);
++    preisp_client_release(client);
++    rkpreisp_power_off(pdata);
++    return 0;
++}
++
++static ssize_t rkpreisp_write(struct file *file,
++        const char __user *user_buf, size_t count, loff_t *ppos)
++{
++    char *buf;
++    struct auto_args args;
++    int i;
++    preisp_client *client = file->private_data;
++    struct spi_rk_preisp_data *pdata = client->private_data;
++
++    buf = (char *)kmalloc(count + 1, GFP_KERNEL);
++    if(copy_from_user(buf, user_buf, count))
++        return -EFAULT;
++    buf[count] = 0;
++
++    i = 0;
++    while (buf[i] != 0) {
++        i += parse_auto_args(buf + i, &args);
++        if (args.argc == 0)
++            continue;
++
++        do_cmd(pdata, &args);
++        free_auto_args(&args);
++    }
++
++    kfree(buf);
++
++    return count;
++}
++
++static void print_dsp_log(struct spi_rk_preisp_data *pdata, msg_dsp_log_t *log)
++{
++    char *str = (char *)(log);
++    str[log->size * sizeof(int32_t) - 1] = 0;
++    str += sizeof(msg_dsp_log_t);
++
++    dev_info(pdata->dev, "DSP%d: %s", log->core_id, str);
++}
++
++static void dispatch_received_msg(struct spi_rk_preisp_data *pdata,
++        struct msg *msg)
++{
++    preisp_client *client;
++
++#if DEBUG_DUMP_ALL_SEND_RECV_MSG == 1
++    int32_hexdump("recv msg:", (int32_t*)msg, msg->size*4);
++#endif
++
++    if (msg->type == id_msg_dsp_log_t) {
++        print_dsp_log(pdata, (msg_dsp_log_t*)msg);
++    } else if (msg->type == id_msg_do_i2c_t) {
++        ap_i2c_do_xfer(pdata->spi, (msg_do_i2c_t*)msg);
++    } else {
++        mutex_lock(&pdata->clients.mutex);
++        list_for_each_entry(client, &pdata->clients.list, list) {
++            if (client->id == msg->camera_id) {
++                msq_send_msg(&client->q, msg);
++                wake_up_interruptible(&client->wait);
++            }
++        }
++        mutex_unlock(&pdata->clients.mutex);
++    }
++}
++
++static long rkpreisp_ioctl(struct file *file,
++        unsigned int cmd, unsigned long arg)
++{
++    int ret = 0;
++    void __user *ubuf = (void __user *)arg;
++    preisp_client *client = file->private_data;
++    struct spi_rk_preisp_data *pdata = client->private_data;
++
++    switch (cmd) {
++    case PREISP_POWER_ON:
++        ret = rkpreisp_power_on(pdata);
++        break;
++    case PREISP_POWER_OFF:
++        ret = rkpreisp_power_off(pdata);
++        break;
++    case PREISP_REQUEST_SLEEP: {
++        int sleep_mode = arg;
++        ret = rkpreisp_request_sleep(pdata, sleep_mode);
++        break;
++    }
++    case PREISP_WAKEUP:
++        ret = rkpreisp_wakeup(pdata);
++        break;
++    case PREISP_DOWNLOAD_FW: {
++        char fw_name[PREISP_FW_NAME_LEN];
++        if (strncpy_from_user(fw_name, ubuf, PREISP_FW_NAME_LEN) <= 0) {
++            ret = -EINVAL;
++            break;
++        }
++        dev_info(pdata->dev, "download fw:%s", fw_name);
++        ret = spi_download_fw(pdata->spi, fw_name);
++        break;
++    }
++    case PREISP_RESET_FW: {
++        char fw_name[PREISP_FW_NAME_LEN];
++        if (strncpy_from_user(fw_name, ubuf, PREISP_FW_NAME_LEN) <= 0) {
++            ret = -EINVAL;
++            break;
++        }
++        dev_info(pdata->dev, "reset fw:%s", fw_name);
++        ret = rkpreisp_reset(pdata, fw_name);
++        break;
++    }
++    case PREISP_APB_WRITE: {
++        struct preisp_apb_pkt pkt;
++        int32_t *data;
++
++        if (copy_from_user(&pkt, ubuf, sizeof(pkt))) {
++            ret = -EINVAL;
++            break;
++        }
++        pkt.data_len = MIN(pkt.data_len, APB_MAX_OP_BYTES);
++        data = kmalloc(pkt.data_len, GFP_KERNEL);
++        if (copy_from_user(data, (void __user*)pkt.data, pkt.data_len)) {
++            kfree(data);
++            ret = -EINVAL;
++            break;
++        }
++        ret = spi2apb_safe_write(pdata->spi, pkt.addr, data, pkt.data_len);
++        kfree(data);
++        break;
++    }
++    case PREISP_APB_READ: {
++        struct preisp_apb_pkt pkt;
++        int32_t *data;
++
++        if (copy_from_user(&pkt, ubuf, sizeof(pkt))) {
++            ret = -EINVAL;
++            break;
++        }
++        pkt.data_len = MIN(pkt.data_len, APB_MAX_OP_BYTES);
++        data = kmalloc(pkt.data_len, GFP_KERNEL);
++        ret = spi2apb_safe_read(pdata->spi, pkt.addr, data, pkt.data_len);
++        if (ret) {
++            kfree(data);
++            break;
++        }
++        ret = copy_to_user((void __user*)pkt.data, data, pkt.data_len);
++
++        kfree(data);
++        break;
++    }
++    case PREISP_ST_QUERY: {
++        int32_t state;
++        ret = spi2apb_state_query(pdata->spi, &state);
++        if (ret)
++            break;
++
++        ret = put_user(state, (int32_t __user *)ubuf);
++        break;
++    }
++    case PREISP_IRQ_REQUEST: {
++        int int_num = arg;
++        ret = spi2apb_interrupt_request(pdata->spi, int_num);
++        break;
++    }
++    case PREISP_SEND_MSG: {
++        struct msg *msg;
++        uint32_t len;
++
++        if (get_user(len, (uint32_t __user*)ubuf)) {
++            ret = -EINVAL;
++            break;
++        }
++        len = len * sizeof(int32_t);
++        msg = kmalloc(len, GFP_KERNEL);
++        if (copy_from_user(msg, ubuf, len)) {
++            kfree(msg);
++            ret = -EINVAL;
++            break;
++        }
++#if DEBUG_DUMP_ALL_SEND_RECV_MSG == 1
++        int32_hexdump("send msg:", (int32_t*)msg, len);
++#endif
++
++#if DEBUG_MSG_LOOP_TEST == 0
++        ret = preisp_send_msg_to_dsp(pdata, msg);
++#else
++        dispatch_received_msg(pdata, msg);
++#endif
++        kfree(msg);
++        break;
++    }
++    case PREISP_QUERY_MSG: {
++        struct msg *msg;
++        ret = msq_recv_msg(&client->q, &msg);
++        if (ret)
++            break;
++
++        ret = put_user(msg->size, (uint32_t __user*)ubuf);
++        break;
++    }
++    case PREISP_RECV_MSG: {
++        struct msg *msg;
++        ret = msq_recv_msg(&client->q, &msg);
++        if (ret)
++            break;
++        ret = copy_to_user(ubuf, msg, msg->size * sizeof(uint32_t));
++        msq_free_received_msg(&client->q, msg);
++        break;
++    }
++    case PREISP_CLIENT_CONNECT:
++    {
++        int id = arg;
++        client->id = id;
++        ret = preisp_client_connect(pdata, client);
++        break;
++    }
++    case PREISP_CLIENT_DISCONNECT:
++    {
++        preisp_client_disconnect(pdata, client);
++        client->id = INVALID_ID;
++        break;
++    }
++    default:
++        ret = -EINVAL;
++        break;
++    }
++
++    return ret;
++}
++
++static unsigned int rkpreisp_poll(struct file *file, poll_table *wait)
++{
++    preisp_client *client = file->private_data;
++    unsigned int mask = 0;
++
++    poll_wait(file, &client->wait, wait);
++
++    if (!msq_is_empty(&client->q))
++        mask |= POLLIN;
++
++    return mask;
++}
++
++static const struct file_operations rkpreisp_fops = {
++    .owner = THIS_MODULE,
++    .open = rkpreisp_open,
++    .release = rkpreisp_release,
++    .write = rkpreisp_write,
++    .poll = rkpreisp_poll,
++    .unlocked_ioctl = rkpreisp_ioctl,
++    .compat_ioctl = rkpreisp_ioctl,
++};
++
++static irqreturn_t rkpreisp_threaded_isr(int irq, void *dev_id)
++{
++    struct spi_rk_preisp_data *pdata = dev_id;
++    struct msg *msg;
++
++    BUG_ON(irq != pdata->irq);
++    mutex_lock(&pdata->power_lock);
++    if (atomic_read(&pdata->power_on_cnt) > 0 &&
++        atomic_read(&pdata->wake_sleep_cnt) > 0) {
++        while (!dsp_msq_recv_msg(pdata->spi, &msg) && msg != NULL) {
++            dispatch_received_msg(pdata, msg);
++            dsp_msq_free_received_msg(msg);
++        }
++    }
++    mutex_unlock(&pdata->power_lock);
++
++    return IRQ_HANDLED;
++}
++
++static irqreturn_t rkpreisp_sleep_isr(int irq, void *dev_id)
++{
++    struct spi_rk_preisp_data *pdata = dev_id;
++
++    BUG_ON(irq != pdata->sleepst_irq);
++    pr_info("dsp enter sleep done!");
++
++    /* disable vdd-core-regulator */
++    if (!IS_ERR(pdata->vdd_core_regu)) {
++        if (regulator_is_enabled(pdata->vdd_core_regu) > 0) {
++            regulator_disable(pdata->vdd_core_regu);
++        }
++    }
++
++    pdata->sleep_state_flag = 1;
++
++    return IRQ_HANDLED;
++}
++
++static int rkpreisp_parse_dt_property(struct device *dev,
++                  struct spi_rk_preisp_data *pdata)
++{
++    int ret = 0;
++    struct device_node *node = dev->of_node;
++    enum of_gpio_flags flags;
++    const char * regu_name;
++
++    if (!node)
++        return -ENODEV;
++
++    of_property_read_u32(node, "spi-max-frequency",
++            &pdata->max_speed_hz);
++
++    ret = of_property_read_u32(node, "spi-min-frequency",
++            &pdata->min_speed_hz);
++    if (ret) {
++        dev_warn(dev, "can not get spi-min-frequency!");
++        pdata->min_speed_hz = pdata->max_speed_hz / 2;
++    }
++
++    pdata->mclk = devm_clk_get(dev, "mclk");
++    if (IS_ERR(pdata->mclk)) {
++        dev_warn(dev, "can not get mclk, error %ld\n", PTR_ERR(pdata->mclk));
++        pdata->mclk = NULL;
++    }
++
++    ret = of_get_named_gpio_flags(node, "reset-gpio", 0, &flags);
++    if (ret <= 0) {
++        dev_warn(dev, "can not find property reset-gpio, error %d\n", ret);
++    }
++
++    pdata->reset_gpio = ret;
++    pdata->reset_active = 1;
++    if (flags == OF_GPIO_ACTIVE_LOW) {
++        pdata->reset_active = 0;
++    }
++
++    if (pdata->reset_gpio > 0) {
++        ret = devm_gpio_request(dev, pdata->reset_gpio, "preisp-reset");
++        if (ret) {
++            dev_err(dev, "gpio %d request error %d\n", pdata->reset_gpio, ret);
++            return ret;
++        }
++
++        ret = gpio_direction_output(pdata->reset_gpio, !pdata->reset_active);
++        if (ret) {
++            dev_err(dev, "gpio %d direction output error %d\n",
++                    pdata->reset_gpio, ret);
++            return ret;
++        }
++    }
++
++    ret = of_get_named_gpio_flags(node, "irq-gpio", 0, NULL);
++    if (ret <= 0) {
++        dev_warn(dev, "can not find property irq-gpio, error %d\n", ret);
++        return ret;
++    }
++
++    pdata->irq_gpio = ret;
++
++    ret = devm_gpio_request(dev, pdata->irq_gpio, "preisp-irq");
++    if (ret) {
++        dev_err(dev, "gpio %d request error %d\n", pdata->irq_gpio, ret);
++        return ret;
++    }
++
++    ret = gpio_direction_input(pdata->irq_gpio);
++    if (ret) {
++        dev_err(dev, "gpio %d direction input error %d\n",
++                pdata->irq_gpio, ret);
++        return ret;
++    }
++
++    ret = gpio_to_irq(pdata->irq_gpio);
++    if (ret < 0) {
++        dev_err(dev, "Unable to get irq number for GPIO %d, error %d\n",
++            pdata->irq_gpio, ret);
++        return ret;
++    }
++    pdata->irq = ret;
++    ret = request_threaded_irq(pdata->irq, NULL, rkpreisp_threaded_isr,
++            IRQF_TRIGGER_RISING | IRQF_ONESHOT, "preisp-irq", pdata);
++    if (ret) {
++        dev_err(dev, "cannot request thread irq: %d\n", ret);
++        return ret;
++    }
++
++    disable_irq(pdata->irq);
++
++    /* for pdvdd-regulator */
++    ret = of_property_read_string(node, "pdvdd-regulator", &regu_name);
++    if(!ret) {
++        pdata->pdvdd_regu = regulator_get(dev, regu_name);
++        if (!IS_ERR(pdata->pdvdd_regu)) {
++            //regulator_set_voltage(pdata->pdvdd_regu,1000000,1000000); //for adjustable regulator
++            dev_info(dev, "regulator: %s, voltage:%d\n", regu_name, regulator_get_voltage(pdata->pdvdd_regu));
++            /* disable regulator */
++            if (regulator_is_enabled(pdata->pdvdd_regu) > 0) {
++                regulator_disable(pdata->pdvdd_regu);
++            }
++        } else {
++            dev_warn(dev,"get regulator: %s fail\n", regu_name);
++        }
++    } else {
++        pdata->pdvdd_regu = ERR_PTR(-EPERM);
++        dev_warn(dev, "no pdvdd-regulator found\n");
++    }
++
++    /* for vdd-core-regulator */
++    ret = of_property_read_string(node, "vdd-core-regulator", &regu_name);
++    if(!ret) {
++        pdata->vdd_core_regu = regulator_get(dev, regu_name);
++        if (!IS_ERR(pdata->vdd_core_regu)) {
++            //regulator_set_voltage(pdata->vdd_core_regu,1000000,1000000); //for adjustable regulator
++            dev_info(dev, "regulator: %s, voltage:%d\n", regu_name, regulator_get_voltage(pdata->vdd_core_regu));
++            /* disable regulator */
++            if (regulator_is_enabled(pdata->vdd_core_regu) > 0) {
++                regulator_disable(pdata->vdd_core_regu);
++            }
++        } else {
++            dev_warn(dev,"get regulator: %s fail\n", regu_name);
++        }
++    } else {
++        pdata->vdd_core_regu = ERR_PTR(-EPERM);
++        dev_warn(dev, "no vdd-core-regulator found\n");
++    }
++
++    pdata->sleepst_gpio = -1;
++    pdata->sleepst_irq = -1;
++    pdata->wakeup_gpio = -1;
++
++    ret = of_get_named_gpio_flags(node, "sleepst-gpio", 0, NULL);
++    if (ret <= 0) {
++        dev_warn(dev, "can not find property sleepst-gpio, error %d\n", ret);
++        return 0;
++    }
++
++    pdata->sleepst_gpio = ret;
++
++    ret = devm_gpio_request(dev, pdata->sleepst_gpio, "preisp-sleep-irq");
++    if (ret) {
++        dev_err(dev, "gpio %d request error %d\n", pdata->sleepst_gpio, ret);
++        return 0;
++    }
++
++    ret = gpio_direction_input(pdata->sleepst_gpio);
++    if (ret) {
++        dev_err(dev, "gpio %d direction input error %d\n",
++                pdata->sleepst_gpio, ret);
++        return ret;
++    }
++
++    ret = gpio_to_irq(pdata->sleepst_gpio);
++    if (ret < 0) {
++        dev_err(dev, "Unable to get irq number for GPIO %d, error %d\n",
++            pdata->sleepst_gpio, ret);
++        return ret;
++    }
++    pdata->sleepst_irq = ret;
++    ret = request_any_context_irq(pdata->sleepst_irq, rkpreisp_sleep_isr,
++            IRQF_TRIGGER_RISING, "preisp-sleep-irq", pdata);
++    disable_irq(pdata->sleepst_irq);
++
++    ret = of_get_named_gpio_flags(node, "wakeup-gpio", 0, &flags);
++    if (ret <= 0) {
++        dev_warn(dev, "can not find property wakeup-gpio, error %d\n", ret);
++    }
++
++    pdata->wakeup_gpio = ret;
++    pdata->wakeup_active = 1;
++    if (flags == OF_GPIO_ACTIVE_LOW) {
++        pdata->wakeup_active = 0;
++    }
++
++    if (pdata->wakeup_gpio > 0) {
++        ret = devm_gpio_request(dev, pdata->wakeup_gpio, "preisp-wakeup");
++        if (ret) {
++            dev_err(dev, "gpio %d request error %d\n", pdata->wakeup_gpio, ret);
++            return ret;
++        }
++
++        ret = gpio_direction_output(pdata->wakeup_gpio, !pdata->wakeup_active);
++        if (ret) {
++            dev_err(dev, "gpio %d direction output error %d\n",
++                    pdata->wakeup_gpio, ret);
++            return ret;
++        }
++    }
++
++    ret = of_property_read_u32(node, "firmware-nowait-mode", &pdata->fw_nowait_mode);
++    if (ret) {
++        dev_warn(dev, "can not get firmware-nowait-mode!");
++        pdata->fw_nowait_mode = 0;
++    }
++
++    return ret;
++}
++
++static int spi_rk_preisp_probe(struct spi_device *spi)
++{
++    struct spi_rk_preisp_data *data;
++    int err;
++
++    dev_info(&spi->dev, "rk preisp spi probe start, verison:%s",
++            RKPREISP_VERSION);
++    data = devm_kzalloc(&spi->dev, sizeof(*data), GFP_KERNEL);
++    if (!data) {
++        return -ENOMEM;
++    }
++    atomic_set(&data->power_on_cnt, 0);
++    atomic_set(&data->wake_sleep_cnt, 0);
++    preisp_client_list_init(&data->clients);
++    mutex_init(&data->send_msg_lock);
++    mutex_init(&data->power_lock);
++    wake_lock_init(&data->resume_wake_lock, WAKE_LOCK_SUSPEND, "Preisp_Wake_Lock");
++
++    data->spi = spi;
++    data->dev = &spi->dev;
++    rkpreisp_parse_dt_property(data->dev, data);
++
++    spi_set_drvdata(spi, data);
++    data->log_level = LOG_INFO;
++
++    data->misc.minor = MISC_DYNAMIC_MINOR;
++    data->misc.name = "rk_preisp";
++    data->misc.fops = &rkpreisp_fops;
++
++    err = misc_register(&data->misc);
++    if (err < 0) {
++        dev_err(data->dev, "Error: misc_register returned %d", err);
++    }
++
++    cache_firmware(RKL_DEFAULT_FW_NAME);
++    if (!data->fw_nowait_mode) {
++        return 0;
++    }
++
++    err = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
++            RKL_DEFAULT_FW_NAME, data->dev, GFP_KERNEL, data, fw_nowait_power_on);
++    if (err) {
++        dev_err(data->dev, "request firmware nowait failed!");
++    }
++
++    return 0;
++}
++
++static int spi_rk_preisp_remove(struct spi_device *spi)
++{
++    struct spi_rk_preisp_data *data = spi_get_drvdata(spi);
++    uncache_firmware(RKL_DEFAULT_FW_NAME);
++    spi_set_drvdata(spi, NULL);
++    misc_deregister(&data->misc);
++    return 0;
++}
++
++static int spi_rk_preisp_suspend(struct spi_device *spi, pm_message_t mesg)
++{
++    struct spi_rk_preisp_data *pdata = spi_get_drvdata(spi);
++
++    if (!pdata->fw_nowait_mode) {
++        return 0;
++    }
++    rkpreisp_power_off(pdata);
++
++    return 0;
++}
++
++static int spi_rk_preisp_resume(struct spi_device *spi)
++{
++    struct spi_rk_preisp_data *pdata = spi_get_drvdata(spi);
++    int ret = 0;
++
++    if (pdata->wakeup_gpio > 0) {
++        gpio_direction_output(pdata->wakeup_gpio, !pdata->wakeup_active);
++    }
++    if (pdata->reset_gpio > 0) {
++        gpio_direction_output(pdata->reset_gpio, !pdata->reset_active);
++    }
++    if (!pdata->fw_nowait_mode)
++        return 0;
++
++    wake_lock(&pdata->resume_wake_lock);
++    pdata->is_resume_processing = true;
++    ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
++            RKL_DEFAULT_FW_NAME, pdata->dev, GFP_KERNEL, pdata, fw_nowait_power_on);
++    if (ret) {
++        dev_err(pdata->dev, "request firmware nowait failed!");
++        wake_unlock(&pdata->resume_wake_lock);
++    }
++    return ret;
++}
++
++/*
++dts:
++    spi_rk_preisp@xx {
++        compatible =  "rockchip,spi_rk_preisp";
++        reg = <x>;
++        spi-max-frequency = <48000000>;
++        //spi-cpol;
++        //spi-cpha;
++        firmware-nowait-mode = <0>;
++        reset-gpio = <&gpio6 GPIO_A0 GPIO_ACTIVE_HIGH>;
++        irq-gpio = <&gpio6 GPIO_A2 GPIO_ACTIVE_HIGH>;
++        clocks = <&xxx>;
++        clock-names = "mclk";
++        //pdvdd-regulator = "preisp-pdvdd";
++        vdd-core-regulator = "preisp-vdd-core";
++
++    };
++*/
++
++static const struct of_device_id spi_rk_preisp_dt_match[] = {
++    { .compatible = "rockchip,spi_rk_preisp", },
++    {},
++};
++MODULE_DEVICE_TABLE(of, spi_rk_preisp_dt_match);
++
++static struct spi_driver spi_rk_preisp_driver = {
++    .driver = {
++        .name   = "spi_rk_preisp",
++        .owner  = THIS_MODULE,
++        .of_match_table = of_match_ptr(spi_rk_preisp_dt_match),
++    },
++    .probe      = spi_rk_preisp_probe,
++    .remove     = spi_rk_preisp_remove,
++    .suspend    = spi_rk_preisp_suspend,
++    .resume     = spi_rk_preisp_resume,
++};
++module_spi_driver(spi_rk_preisp_driver);
++
++MODULE_AUTHOR("Tusson <dusong@rock-chips.com>");
++MODULE_DESCRIPTION("Rockchip spi interface for PreIsp");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/preisp_driver/spi-rkpreisp.h b/drivers/preisp_driver/spi-rkpreisp.h
+new file mode 100644
+index 0000000..85ea1fb
+--- /dev/null
++++ b/drivers/preisp_driver/spi-rkpreisp.h
+@@ -0,0 +1,51 @@
++/*
++ * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ * Author: Tusson <dusong@rock-chips.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++#ifndef __SPI_RK_PREISP_H__
++#define __SPI_RK_PREISP_H__
++
++#include <linux/types.h>
++
++#define RKPREISP_VERSION "1.0.8"
++
++#define PREISP_FW_NAME_LEN 128
++
++struct preisp_apb_pkt {
++    int32_t  data_len;
++    int32_t  addr;
++    int32_t* data;
++};
++
++enum {
++    PREISP_SLEEP_MODE_BYPASS = 0,
++    PREISP_SLEEP_MODE_STANDBY,
++    PREISP_SLEEP_MODE_MAX
++};
++
++#define PREISP_POWER_ON     _IO('p',   1)
++#define PREISP_POWER_OFF    _IO('p',   2)
++#define PREISP_REQUEST_SLEEP _IOW('p',  3, int32_t)
++#define PREISP_WAKEUP       _IO('p',   4)
++#define PREISP_DOWNLOAD_FW  _IOW('p',  5, char[PREISP_FW_NAME_LEN])
++#define PREISP_APB_WRITE    _IOW('p',  6, struct preisp_apb_pkt)
++#define PREISP_APB_READ     _IOR('p',  7, struct preisp_apb_pkt)
++#define PREISP_ST_QUERY     _IOR('p',  8, int32_t)
++#define PREISP_IRQ_REQUEST  _IOW('p',  9, int32_t)
++#define PREISP_SEND_MSG     _IOW('p', 11, int32_t)
++#define PREISP_QUERY_MSG    _IOR('p', 12, int32_t)
++#define PREISP_RECV_MSG     _IOR('p', 13, int32_t)
++#define PREISP_CLIENT_CONNECT    _IOW('p', 15, int32_t)
++#define PREISP_CLIENT_DISCONNECT  _IO('p', 16)
++#define PREISP_RESET_FW     _IOW('p',  17, char[PREISP_FW_NAME_LEN])
++
++#endif
+diff --git a/drivers/preisp_driver/spi2apb.c b/drivers/preisp_driver/spi2apb.c
+new file mode 100644
+index 0000000..0dcd0a0
+--- /dev/null
++++ b/drivers/preisp_driver/spi2apb.c
+@@ -0,0 +1,420 @@
++/*
++ * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ * Author: Tusson <dusong@rock-chips.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <linux/delay.h>
++#include "spi2apb.h"
++
++uint8_t int8_msb2lsb(uint8_t src)
++{
++    int i;
++    uint8_t dst = 0;
++
++    for (i = 0; i < 8; i++) {
++        uint8_t t = 0;
++        t = (((src >> i) & 0x01) << (7 - i));
++        dst |= t;
++    }
++
++    return dst;
++}
++
++uint32_t int32_msb2lsb(uint32_t src)
++{
++    uint32_t dst = 0;
++    int i;
++
++    for (i = 0; i < 4; i++) {
++        int shift = i * 8;
++        dst = dst | (int8_msb2lsb((src >> shift) & 0xff) << shift);
++    }
++
++    return dst;
++}
++
++int spi2apb_lsb_w32(struct spi_device *spi,
++        int32_t addr, int32_t data)
++{
++    int32_t write_cmd = APB_CMD_WRITE;
++    struct spi_transfer write_cmd_packet = {
++        .tx_buf = &write_cmd,
++        .len    = sizeof(write_cmd),
++    };
++    struct spi_transfer addr_packet = {
++        .tx_buf = &addr,
++        .len    = sizeof(addr),
++    };
++    struct spi_transfer data_packet = {
++        .tx_buf = &data,
++        .len    = sizeof(data),
++    };
++    struct spi_message  m;
++
++    write_cmd = int32_msb2lsb(write_cmd);
++    addr = int32_msb2lsb(addr);
++    data = int32_msb2lsb(data);
++
++    spi_message_init(&m);
++    spi_message_add_tail(&write_cmd_packet, &m);
++    spi_message_add_tail(&addr_packet, &m);
++    spi_message_add_tail(&data_packet, &m);
++    return spi_sync(spi, &m);
++}
++
++#define SPI_CTRL0   0x11060000
++#define SPI_ENR     0x11060008
++
++/**
++ * spi2apb_switch_to_msb - SPI2APB set Fist bit mode to MSB
++ *
++ * @spi: spi device
++ * Context: can sleep
++ *
++ */
++void spi2apb_switch_to_msb(struct spi_device *spi)
++{
++    spi2apb_lsb_w32(spi, SPI_ENR, 0);
++    spi2apb_lsb_w32(spi, SPI_CTRL0, 0x108002);
++}
++
++/**
++ * spi2apb_write - SPI2APB synchronous write
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: data buffer
++ * @data_len: data buffer size, in bytes
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_write(struct spi_device *spi,
++        int32_t addr, const int32_t *data, size_t data_len)
++{
++    int32_t write_cmd = APB_CMD_WRITE;
++    struct spi_transfer write_cmd_packet = {
++        .tx_buf = &write_cmd,
++        .len    = sizeof(write_cmd),
++    };
++    struct spi_transfer addr_packet = {
++        .tx_buf = &addr,
++        .len    = sizeof(addr),
++    };
++    struct spi_transfer data_packet = {
++        .tx_buf = data,
++        .len    = data_len,
++    };
++    struct spi_message  m;
++
++    spi_message_init(&m);
++    spi_message_add_tail(&write_cmd_packet, &m);
++    spi_message_add_tail(&addr_packet, &m);
++    spi_message_add_tail(&data_packet, &m);
++    return spi_sync(spi, &m);
++}
++
++/**
++ * spi2apb_w32 - SPI2APB synchronous 32-bit write
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: 32-bit data
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_w32(struct spi_device *spi,
++        int32_t addr, int32_t data)
++{
++    return spi2apb_write(spi, addr, &data, 4);
++}
++
++/**
++ * spi2apb_read - SPI2APB synchronous read
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: data buffer [out]
++ * @data_len: data buffer size, in bytes
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_read(struct spi_device *spi,
++        int32_t addr, int32_t *data, size_t data_len)
++{
++    int32_t real_len = MIN(data_len, APB_MAX_OP_BYTES);
++    int32_t read_cmd = APB_CMD_READ | (real_len << 14 & 0xffff0000);
++    int32_t read_begin_cmd = APB_CMD_READ_BEGIN;
++    int32_t dummy = 0;
++    struct spi_transfer read_cmd_packet = {
++        .tx_buf = &read_cmd,
++        .len    = sizeof(read_cmd),
++    };
++    struct spi_transfer addr_packet = {
++        .tx_buf = &addr,
++        .len    = sizeof(addr),
++    };
++    struct spi_transfer read_dummy_packet = {
++        .tx_buf = &dummy,
++        .len    = sizeof(dummy),
++    };
++    struct spi_transfer read_begin_cmd_packet = {
++        .tx_buf = &read_begin_cmd,
++        .len    = sizeof(read_begin_cmd),
++    };
++    struct spi_transfer data_packet = {
++        .rx_buf = data,
++        .len    = data_len,
++    };
++    struct spi_message  m;
++
++    spi_message_init(&m);
++    spi_message_add_tail(&read_cmd_packet, &m);
++    spi_message_add_tail(&addr_packet, &m);
++    spi_message_add_tail(&read_dummy_packet, &m);
++    spi_message_add_tail(&read_begin_cmd_packet, &m);
++    spi_message_add_tail(&data_packet, &m);
++    return spi_sync(spi, &m);
++}
++
++/**
++ * spi2apb_r32 - SPI2APB synchronous 32-bit read
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: 32-bit data buffer [out]
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_r32(struct spi_device *spi,
++        int32_t addr, int32_t *data)
++{
++    return spi2apb_read(spi, addr, data, 4);
++}
++
++/**
++ * spi2apb_operation_query - SPI2APB last operation state query
++ *
++ * @spi: device from which data will be read
++ * @state: last operation state [out]
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_operation_query(struct spi_device *spi, int32_t *state)
++{
++    int32_t query_cmd = APB_CMD_QUERY;
++    struct spi_transfer query_cmd_packet = {
++        .tx_buf = &query_cmd,
++        .len    = sizeof(query_cmd),
++    };
++    struct spi_transfer state_packet = {
++        .rx_buf = state,
++        .len    = sizeof(*state),
++    };
++    struct spi_message  m;
++
++    spi_message_init(&m);
++    spi_message_add_tail(&query_cmd_packet, &m);
++    spi_message_add_tail(&state_packet, &m);
++    spi_sync(spi, &m);
++
++    return ((*state & APB_OP_STATE_ID_MASK) == APB_OP_STATE_ID) ? 0 : -1;
++}
++
++/**
++ * spi2apb_state_query - SPI2APB system state query
++ *
++ * @spi: spi device
++ * @state: system state [out]
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_state_query(struct spi_device *spi, int32_t *state)
++{
++    int32_t query_cmd = APB_CMD_QUERY_REG2;
++    struct spi_transfer query_cmd_packet = {
++        .tx_buf = &query_cmd,
++        .len    = sizeof(query_cmd),
++    };
++    struct spi_transfer state_packet = {
++        .rx_buf = state,
++        .len    = sizeof(*state),
++    };
++    struct spi_message  m;
++
++    spi_message_init(&m);
++    spi_message_add_tail(&query_cmd_packet, &m);
++    spi_message_add_tail(&state_packet, &m);
++    return spi_sync(spi, &m);
++}
++
++/**
++ * spi2apb_interrupt_request - SPI2APB request a dsp interrupt
++ *
++ * @spi: spi device
++ * @interrupt_num: interrupt identification
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_interrupt_request(struct spi_device *spi,
++        int32_t interrupt_num)
++{
++    int32_t write_reg1_cmd = APB_CMD_WRITE_REG1;
++    struct spi_transfer write_reg1_cmd_packet = {
++        .tx_buf = &write_reg1_cmd,
++        .len    = sizeof(write_reg1_cmd),
++    };
++    struct spi_transfer reg1_packet = {
++        .tx_buf = &interrupt_num,
++        .len    = sizeof(interrupt_num),
++    };
++    struct spi_message  m;
++
++    spi_message_init(&m);
++    spi_message_add_tail(&write_reg1_cmd_packet, &m);
++    spi_message_add_tail(&reg1_packet, &m);
++    return spi_sync(spi, &m);
++}
++
++/**
++ * _spi2apb_safe_write - SPI2APB synchronous write with state check
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: data buffer
++ * @data_len: data buffer size, in bytes
++ * Context: can sleep
++ *
++ * It returns zero on success, else operation state code.
++ */
++static int _spi2apb_safe_write(struct spi_device *spi,
++        int32_t addr, const int32_t *data, size_t data_len)
++{
++    int32_t state = 0;
++    int32_t try = 0;
++
++    do {
++        spi2apb_write(spi, addr, data, data_len);
++        if (spi2apb_operation_query(spi, &state) != 0) {
++            return -1;
++        } else if ((state & APB_OP_STATE_MASK) == 0) {
++            break;
++        }
++
++        if (try++ == APB_SAFE_OPERATION_TRY_MAX)
++            break;
++        udelay(APB_SAFE_OPERATION_TRY_DELAY_US);
++    } while (1);
++
++    return (state & APB_OP_STATE_MASK);
++}
++
++/**
++ * spi2apb_safe_write - SPI2APB synchronous write with state check
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: data buffer
++ * @data_len: data buffer size, in bytes
++ * Context: can sleep
++ *
++ * It returns zero on success, else operation state code.
++ */
++int spi2apb_safe_write(struct spi_device *spi,
++        int32_t addr, const int32_t *data, size_t data_len)
++{
++    int ret = 0;
++    while (data_len > 0) {
++        size_t slen = MIN(data_len, APB_MAX_OP_BYTES);
++
++        ret = _spi2apb_safe_write(spi, addr, data, slen);
++        if (ret) {
++            break;
++        }
++
++        data_len = data_len - slen;
++        data = (int32_t*)((int8_t*)data + slen);
++        addr += slen;
++    }
++    return ret;
++}
++
++/**
++ * spi2apb_safe_w32 - SPI2APB synchronous 32-bit write with state check
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: 32-bit data
++ * Context: can sleep
++ *
++ * It returns zero on success, else operation state code.
++ */
++int spi2apb_safe_w32(struct spi_device *spi,
++        int32_t addr, int32_t data)
++{
++    return spi2apb_safe_write(spi, addr, &data, 4);
++}
++
++/**
++ * spi2apb_safe_read - SPI2APB synchronous read with state check
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: data buffer [out]
++ * @data_len: data buffer size, in bytes
++ * Context: can sleep
++ *
++ * It returns zero on success, else operation state code.
++ */
++int spi2apb_safe_read(struct spi_device *spi,
++        int32_t addr, int32_t *data, size_t data_len)
++{
++    int32_t state = 0;
++    int32_t try = 0;
++
++    do {
++        spi2apb_read(spi, addr, data, data_len);
++        if (spi2apb_operation_query(spi, &state) != 0) {
++            return -1;
++        } else if ((state & APB_OP_STATE_MASK) == 0) {
++            break;
++        }
++
++        if (try++ == APB_SAFE_OPERATION_TRY_MAX)
++            break;
++        udelay(APB_SAFE_OPERATION_TRY_DELAY_US);
++    } while (1);
++
++    return (state & APB_OP_STATE_MASK);
++}
++
++/**
++ * spi2apb_safe_r32 - SPI2APB synchronous 32-bit read with state check
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: 32-bit data buffer [out]
++ * Context: can sleep
++ *
++ * It returns zero on success, else operation state code.
++ */
++int spi2apb_safe_r32(struct spi_device *spi,
++        int32_t addr, int32_t *data)
++{
++    return spi2apb_safe_read(spi, addr, data, 4);
++}
+diff --git a/drivers/preisp_driver/spi2apb.h b/drivers/preisp_driver/spi2apb.h
+new file mode 100644
+index 0000000..bac37d10
+--- /dev/null
++++ b/drivers/preisp_driver/spi2apb.h
+@@ -0,0 +1,196 @@
++/*
++ * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ * Author: Tusson <dusong@rock-chips.com>
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++#ifndef __RK_PREISP_SPI2APB_H__
++#define __RK_PREISP_SPI2APB_H__
++
++#include <linux/spi/spi.h>
++
++#define APB_CMD_WRITE                   0x00000011
++#define APB_CMD_WRITE_REG0              0X00010011
++#define APB_CMD_WRITE_REG1              0X00020011
++#define APB_CMD_READ                    0x00000077
++#define APB_CMD_READ_BEGIN              0x000000AA
++#define APB_CMD_QUERY                   0x000000FF
++#define APB_CMD_QUERY_REG2              0x000001FF
++
++#define APB_OP_STATE_ID_MASK           (0xffff0000)
++#define APB_OP_STATE_ID                (0X16080000)
++
++#define APB_OP_STATE_MASK              (0x0000ffff)
++#define APB_OP_STATE_WRITE_ERROR       (0x01 << 0)
++#define APB_OP_STATE_WRITE_OVERFLOW    (0x01 << 1)
++#define APB_OP_STATE_WRITE_UNFINISHED  (0x01 << 2)
++#define APB_OP_STATE_READ_ERROR        (0x01 << 8)
++#define APB_OP_STATE_READ_UNDERFLOW    (0x01 << 9)
++#define APB_OP_STATE_PRE_READ_ERROR    (0x01 << 10)
++
++#define APB_MAX_OP_BYTES             60000
++
++#ifndef MIN
++#define MIN(a, b) ((a) < (b) ? (a) : (b))
++#endif
++
++/**
++ * spi2apb_switch_to_msb - SPI2APB set Fist bit mode to MSB
++ *
++ * @spi: spi device
++ * Context: can sleep
++ *
++ */
++void spi2apb_switch_to_msb(struct spi_device *spi);
++
++/**
++ * spi2apb_write - SPI2APB synchronous write
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: data buffer
++ * @data_len: data buffer size, in bytes
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_write(struct spi_device *spi, int32_t addr,
++        const int32_t *data, size_t data_len);
++
++/**
++ * spi2apb_w32 - SPI2APB synchronous 32-bit write
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: 32-bit data
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_w32(struct spi_device *spi,
++        int32_t addr, int32_t data);
++
++/**
++ * spi2apb_read - SPI2APB synchronous read
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: data buffer [out]
++ * @data_len: data buffer size, in bytes
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_read(struct spi_device *spi, int32_t addr,
++        int32_t *data, size_t data_len);
++
++/**
++ * spi2apb_r32 - SPI2APB synchronous 32-bit read
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: 32-bit data buffer [out]
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_r32(struct spi_device *spi, int32_t addr, int32_t *data);
++
++/**
++ * spi2apb_operation_query - SPI2APB last operation state query
++ *
++ * @spi: spi device
++ * @state: last operation state [out]
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_operation_query(struct spi_device *spi, int32_t *state);
++
++/**
++ * spi2apb_state_query - SPI2APB system state query
++ *
++ * @spi: spi device
++ * @state: system state [out]
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_state_query(struct spi_device *spi, int32_t *state);
++
++/**
++ * spi2apb_interrupt_request - SPI2APB request a dsp interrupt
++ *
++ * @spi: spi device
++ * @interrupt_num: interrupt identification
++ * Context: can sleep
++ *
++ * It returns zero on success, else a negative error code.
++ */
++int spi2apb_interrupt_request(struct spi_device *spi,
++        int32_t interrupt_num);
++
++
++#define APB_SAFE_OPERATION_TRY_MAX 3
++#define APB_SAFE_OPERATION_TRY_DELAY_US 10
++
++/**
++ * spi2apb_safe_write - SPI2APB synchronous write with state check
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: data buffer
++ * @data_len: data buffer size, in bytes
++ * Context: can sleep
++ *
++ * It returns zero on success, else operation state code.
++ */
++int spi2apb_safe_write(struct spi_device *spi,
++        int32_t addr, const int32_t *data, size_t data_len);
++
++/**
++ * spi2apb_safe_w32 - SPI2APB synchronous 32-bit write with state check
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: 32-bit data
++ * Context: can sleep
++ *
++ * It returns zero on success, else operation state code.
++ */
++int spi2apb_safe_w32(struct spi_device *spi, int32_t addr, int32_t data);
++
++/**
++ * spi2apb_safe_read - SPI2APB synchronous read with state check
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: data buffer [out]
++ * @data_len: data buffer size, in bytes
++ * Context: can sleep
++ *
++ * It returns zero on success, else operation state code.
++ */
++int spi2apb_safe_read(struct spi_device *spi,
++        int32_t addr, int32_t *data, size_t data_len);
++
++/**
++ * spi2apb_safe_r32 - SPI2APB synchronous 32-bit read with state check
++ *
++ * @spi: spi device
++ * @addr: apb resource address
++ * @data: 32-bit data buffer [out]
++ * Context: can sleep
++ *
++ * It returns zero on success, else operation state code.
++ */
++int spi2apb_safe_r32(struct spi_device *spi, int32_t addr, int32_t *data);
++
++#endif
+-- 
+1.9.1
+

@@ -1,0 +1,45 @@
+From d9d408dfc84a34eccbc69ff2dc859036fb957c70 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 29 Sep 2016 10:19:30 +0800
+Subject: [PATCH 6/6] dtsi: lcd-F402: disable lut
+
+Change-Id: Idf829160ea92e4b99296f3a5671ff2581bd8d041
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ include/dt-bindings/display/screen-timing/lcd-F402.dtsi | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/include/dt-bindings/display/screen-timing/lcd-F402.dtsi b/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
+index a03fa61..a65b82a 100644
+--- a/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
++++ b/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
+@@ -10,7 +10,7 @@ disp_timings: display-timings {
+ 		screen-type = <SCREEN_EDP>;
+ 		screen-width = <68>;
+ 		screen-hight = <120>;
+-		out-face    = <OUT_P666>;
++		out-face    = <OUT_P888>;
+ 		clock-frequency = <205000000>;
+ 		hactive = <1536>;
+ 		vactive = <2048>;
+@@ -27,7 +27,7 @@ disp_timings: display-timings {
+ 		swap-rb = <0>;
+ 		swap-rg = <0>;
+ 		swap-gb = <0>;
+-		dsp-lut = <0x00000000 0x00010101 0x00020202 0x00030303 0x00040404 0x00050505 0x00060606 0x00070707 0x00080808 0x00090909
++/*		dsp-lut = <0x00000000 0x00010101 0x00020202 0x00030303 0x00040404 0x00050505 0x00060606 0x00070707 0x00080808 0x00090909
+ 				0x000a0a0a 0x000b0b0b 0x000c0c0c 0x000d0d0d 0x000e0e0e 0x000f0f0f 0x00101010 0x00111111 0x00121212 0x00131313
+ 				0x00141414 0x00151515 0x00161616 0x00171717 0x00181818 0x00191919 0x001a1a1a 0x001b1b1b 0x001c1c1c 0x001d1d1d
+ 				0x001e1e1e 0x001f1f1f 0x00202020 0x00212121 0x00222222 0x00232323 0x00242424 0x00252525 0x00262626 0x00272727
+@@ -52,7 +52,7 @@ disp_timings: display-timings {
+ 				0x00dcdcdc 0x00dddddd 0x00dedede 0x00dfdfdf 0x00e0e0e0 0x00e1e1e1 0x00e2e2e2 0x00e3e3e3 0x00e4e4e4 0x00e5e5e5
+ 				0x00e6e6e6 0x00e7e7e7 0x00e8e8e8 0x00e9e9e9 0x00eaeaea 0x00ebebeb 0x00ececec 0x00ededed 0x00eeeeee 0x00efefef
+ 				0x00f0f0f0 0x00f1f1f1 0x00f2f2f2 0x00f3f3f3 0x00f4f4f4 0x00f5f5f5 0x00f6f6f6 0x00f7f7f7 0x00f8f8f8 0x00f9f9f9
+-				0x00fafafa 0x00fbfbfb 0x00fcfcfc 0x00fdfdfd 0x00fefefe 0x00ffffff>;
++				0x00fafafa 0x00fbfbfb 0x00fcfcfc 0x00fdfdfd 0x00fefefe 0x00ffffff>;*/
+ 		cabc-lut = <
+ 			/*gamma = 2.2*/
+ 				0x00000383 0x00000392 0x000003a2 0x000003b2 0x000003c2 0x000003d2 0x000003e2 0x000003f3
+-- 
+1.9.1
+

@@ -1,0 +1,31 @@
+From b1b3e3b5527bf0cb174b9dd40c88f9b4a83db559 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 23 May 2017 15:10:24 +0800
+Subject: [PATCH 1/2] change ial to RKKeybroad
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ res/res_1280x400/MiniGUI.cfg | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+ mode change 100755 => 100644 res/res_1280x400/MiniGUI.cfg
+
+diff --git a/res/res_1280x400/MiniGUI.cfg b/res/res_1280x400/MiniGUI.cfg
+old mode 100755
+new mode 100644
+index 6f92a6a..c61de6f
+--- a/res/res_1280x400/MiniGUI.cfg
++++ b/res/res_1280x400/MiniGUI.cfg
+@@ -27,8 +27,8 @@ gal_engine=shadow
+ defaultmode=800x600-16bpp
+ 
+ # IAL engine
+-ial_engine=tslib
+-mdev=/dev/input/event0
++ial_engine=RKKeybroad
++mdev=/dev/input/event1
+ mtype=IMPS2
+ 
+ [fbcon]
+-- 
+1.9.1
+

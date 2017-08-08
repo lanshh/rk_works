@@ -1,0 +1,45 @@
+From 4359dbc9445514ce0b0fc699d04d6ad98568b663 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 28 Sep 2016 14:18:15 +0800
+Subject: [PATCH 9/9] =?UTF-8?q?rk32=5Fdp=EF=BC=9A=20select=20lcdc=20source?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Change-Id: I86da467d4e733f4d99798c1a2622254af64082a1
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ drivers/video/rockchip/transmitter/rk32_dp.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/video/rockchip/transmitter/rk32_dp.c b/drivers/video/rockchip/transmitter/rk32_dp.c
+index e471693..83a021e 100755
+--- a/drivers/video/rockchip/transmitter/rk32_dp.c
++++ b/drivers/video/rockchip/transmitter/rk32_dp.c
+@@ -44,6 +44,7 @@
+ /*#define SW_LT*/
+ 
+ #define RK3368_GRF_SOC_CON4	0x410
++#define RK3399_GRF_SOC_CON20	0x06250
+ 
+ static struct rk32_edp *rk32_edp;
+ 
+@@ -138,6 +139,15 @@ static int rk32_edp_init_edp(struct rk32_edp *edp)
+ 		writel_relaxed(val, RK_GRF_VIRT + RK3288_GRF_SOC_CON6);
+ 	}
+ 
++	if (edp->soctype == SOC_RK3399) {
++		if (screen->lcdc_id == 1)  /*select lcdc*/
++			val =  EDP_SEL_VOP_LIT | (EDP_SEL_VOP_LIT << 16);
++		else
++			val = EDP_SEL_VOP_LIT << 16;
++		dev_info(edp->dev, "lcdc_id:%d val:%08x\n", screen->lcdc_id, val);
++		regmap_write(edp->grf, RK3399_GRF_SOC_CON20, val);
++	}
++
+ 	rk32_edp_reset(edp);
+ 	rk32_edp_init_refclk(edp);
+ 	rk32_edp_init_interrupt(edp);
+-- 
+1.9.1
+

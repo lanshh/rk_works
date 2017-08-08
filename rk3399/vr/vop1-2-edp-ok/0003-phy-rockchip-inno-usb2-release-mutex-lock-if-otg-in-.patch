@@ -1,0 +1,32 @@
+From 62897f54d8198506710ee4548f263d2f1c073c2c Mon Sep 17 00:00:00 2001
+From: Wu Liang feng <wulf@rock-chips.com>
+Date: Mon, 19 Sep 2016 18:43:54 +0800
+Subject: [PATCH 3/6] phy: rockchip-inno-usb2: release mutex lock if otg in
+ host mode
+
+We add a mutex lock in rockchip_usb2phy_init(), but foget to
+release it if otg port work in host only mode.
+
+Change-Id: I45abf173097be4463b668b51eece99a72047fb18
+Signed-off-by: Wu Liang feng <wulf@rock-chips.com>
+---
+ drivers/phy/phy-rockchip-inno-usb2.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/phy/phy-rockchip-inno-usb2.c b/drivers/phy/phy-rockchip-inno-usb2.c
+index f19bfe9..b18e2a7 100644
+--- a/drivers/phy/phy-rockchip-inno-usb2.c
++++ b/drivers/phy/phy-rockchip-inno-usb2.c
+@@ -442,6 +442,9 @@ static int rockchip_usb2phy_init(struct phy *phy)
+ 
+ 		mutex_unlock(&rport->mutex);
+ 		schedule_delayed_work(&rport->sm_work, SCHEDULE_DELAY);
++	} else {
++		dev_dbg(&rport->phy->dev, "mode %d\n", rport->mode);
++		mutex_unlock(&rport->mutex);
+ 	}
+ 
+ 	return 0;
+-- 
+1.9.1
+

@@ -1,0 +1,430 @@
+From c4373697635c3d93bf61ac39335acf326aec11c8 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 31 May 2017 17:50:32 +0800
+Subject: [PATCH 2/2] add keyboard menu
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ window/LeftBar.cpp     | 69 +++++++++++++++++++++++++++++++++++--------------
+ window/MainWindows.cpp | 19 +++++++++-----
+ window/MenuLeftWin.cpp | 23 +++++++++++++++--
+ window/MenuWindows.cpp | 70 +++++++++++++++++++++++++++++++++++++++++---------
+ window/RKwindows.h     | 10 +++++++-
+ 5 files changed, 150 insertions(+), 41 deletions(-)
+
+diff --git a/window/LeftBar.cpp b/window/LeftBar.cpp
+index 9d6a005..3d7e5ad 100755
+--- a/window/LeftBar.cpp
++++ b/window/LeftBar.cpp
+@@ -106,7 +106,7 @@ static int ButtonProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 	HDC hdc;
+ 	int id;
+ 	char *caption;
+-	
++
+ 	LeftBar* LBar  = (LeftBar *)GetWindowAdditionalData(hWnd);
+ 	id = atoi(GetWindowCaption(hWnd));
+ 	
+@@ -115,6 +115,10 @@ static int ButtonProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 			GetClientRect(hWnd,&rcClient);
+ 			hdc = BeginPaint (hWnd);
+ 			FillBoxWithBitmap(hdc, 0, 0,RECTW(rcClient), RECTH(rcClient), LBar->lPicRes.lBarPic[id].pbmp);
++			if (GetFocus(GetParent(hWnd)) == hWnd) {
++				SetPenColor(hdc, RGB2Pixel (hdc, 11, 244 , 244));
++	            Rectangle (hdc, 0, 0, RECTW(rcClient) - 1, RECTH(rcClient) -1);
++			}
+ 			EndPaint(hWnd,hdc);
+ 		return 0;
+ 
+@@ -123,11 +127,11 @@ static int ButtonProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 				|| id == (IDC_LEFTBAR_LOCK - IDC_LEFTBAR_SCREEN) || id == (IDC_LEFTBAR_MENU - IDC_LEFTBAR_SCREEN) ||  \
+ 				id == (IDC_LEFTBAR_VIDEO - IDC_LEFTBAR_SCREEN)){
+ 				LBar->lPicRes.lBarPic[id].pbmp = &LBar->lPicRes.lBarPic[id].bmp[1];
+-				GetClientRect(LBar->lPicRes.lBarPic[id].mBWND,&rcClient);	
+-				hdc = BeginPaint (LBar->lPicRes.lBarPic[id].mBWND);
+-				FillBoxWithBitmap(hdc, 0, 0,RECTW(rcClient), RECTH(rcClient), LBar->lPicRes.lBarPic[id].pbmp);
++				//GetClientRect(LBar->lPicRes.lBarPic[id].mBWND,&rcClient);	
++				//hdc = BeginPaint (LBar->lPicRes.lBarPic[id].mBWND);
++				//FillBoxWithBitmap(hdc, 0, 0,RECTW(rcClient), RECTH(rcClient), LBar->lPicRes.lBarPic[id].pbmp);
+ 				InvalidateRect(LBar->lPicRes.lBarPic[id].mBWND, &rcClient, false);
+-				EndPaint(LBar->lPicRes.lBarPic[id].mBWND, hdc);
++				//EndPaint(LBar->lPicRes.lBarPic[id].mBWND, hdc);
+ 			}
+ 		break;
+ 		case MSG_LBUTTONUP:
+@@ -135,23 +139,22 @@ static int ButtonProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 				|| id == (IDC_LEFTBAR_LOCK - IDC_LEFTBAR_SCREEN) || id == (IDC_LEFTBAR_MENU - IDC_LEFTBAR_SCREEN) ||  \
+ 				id == (IDC_LEFTBAR_VIDEO - IDC_LEFTBAR_SCREEN)){
+ 				LBar->lPicRes.lBarPic[id].pbmp = &LBar->lPicRes.lBarPic[id].bmp[0];
+-				GetClientRect(LBar->lPicRes.lBarPic[id].mBWND,&rcClient);	
+-				hdc = BeginPaint (LBar->lPicRes.lBarPic[id].mBWND);
+-				FillBoxWithBitmap(hdc, 0, 0,RECTW(rcClient), RECTH(rcClient), LBar->lPicRes.lBarPic[id].pbmp);
++				//GetClientRect(LBar->lPicRes.lBarPic[id].mBWND,&rcClient);	
++				//hdc = BeginPaint (LBar->lPicRes.lBarPic[id].mBWND);
++				//FillBoxWithBitmap(hdc, 0, 0,RECTW(rcClient), RECTH(rcClient), LBar->lPicRes.lBarPic[id].pbmp);
+ 				InvalidateRect(LBar->lPicRes.lBarPic[id].mBWND, &rcClient, false);
+-				EndPaint(LBar->lPicRes.lBarPic[id].mBWND, hdc);
++				//EndPaint(LBar->lPicRes.lBarPic[id].mBWND, hdc);
+ 			}
+-
++			break;
+ 		case MSG_KILLFOCUS:
+ 			if(id == (IDC_LEFTBAR_MENU - IDC_LEFTBAR_SCREEN) || id == (IDC_LEFTBAR_VIDEO - IDC_LEFTBAR_SCREEN)){
+-					//LBar->SetSwitchRes(id, 0);
++
+ 			}
+ 		break;
+ 		
+ 		case MSG_SETFOCUS:
+ 			if(id == (IDC_LEFTBAR_MENU - IDC_LEFTBAR_SCREEN) || id == (IDC_LEFTBAR_VIDEO - IDC_LEFTBAR_SCREEN)){
+-				//if(!LBar->mCdrMain->IsRecordering())
+-					//LBar->SetSwitchRes(id, 1);
++
+ 			}
+ 		break;
+ 	}
+@@ -201,7 +204,7 @@ int LeftBar::initButton(int Id)
+ 	onoff = lPicRes.lBarPic[Id].onoff;
+ 
+ 	lPicRes.lBarPic[Id].mBWND = CreateWindowEx(CTRL_BUTTON, Caption,	
+-			WS_CHILD | WS_NONE,
++			WS_CHILD | WS_NONE | BS_PUSHLIKE | WS_TABSTOP,
+ 			WS_EX_TRANSPARENT | WS_EX_USEPARENTFONT,
+ 			lPicRes.lBarPic[Id].mId,
+ 			lPicRes.lBarPic[Id].rect.left, 
+@@ -244,16 +247,17 @@ int LeftBar::createLeftBarWidgets()
+ 	int i,j;
+ 	DB_FUN_LINE;
+ 	
+-	for (i = ID_L_SCREEN; i <= ID_L_REC; i++)
++	for (j = 0, i = ID_L_SCREEN; i <= ID_L_REC; i++)
+ 	{
+-
++		tabseq[j] = i;
+ 		initButton(i);
+ 	}
+-	
++
+ 	for (i = ID_L_ICON_LINE; i <= ID_L_ICON_LOGO; i++)
+ 	{
+ 		initPic(i);
+ 	}
++	curnum = 0;
+ }
+ 
+ 
+@@ -273,9 +277,36 @@ int LeftBarProc (HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 
+ 		break;
+ 		
+-	case MSG_KEYDOWN:		
++	case MSG_KEYDOWN:
++		{
++			int id = -1;
++			HWND hNextCtrl, hCurCtrl = GetFocus(hWnd);
++			switch (wParam) {
++			case RK_KEY_MINS:
++			case RK_KEY_PLUS:
++				if (IsWindow(hCurCtrl)) {
++					id = GetDlgCtrlID(hCurCtrl);
++				}
++				id = (wParam == RK_KEY_PLUS) ? ++id : --id;
++				if (IDC_LEFTBAR_SCREEN > id ) {
++					id = IDC_LEFTBAR_SCREEN;
++				} else if (IDC_LEFTBAR_REC < id) {
++					id = IDC_LEFTBAR_REC;
++				}
++				hNextCtrl = GetDlgItem (hWnd, id);
++				if (IsWindow(hNextCtrl))
++					SetFocus(hNextCtrl);
++				break;
++			case RK_KEY_OKAY:
++				if (IsWindow(hCurCtrl)) {
++					SendMessage(hCurCtrl, BM_CLICK, 0, 0);
++				}
++				break;
++			}
++		}
+ 		break;
+-	case MSG_KEYUP:		
++	case MSG_KEYUP:	
++		printf("%s MSG_KEYUP\n", __func__);
+ 		break;
+ 	default:
+ 		break;
+diff --git a/window/MainWindows.cpp b/window/MainWindows.cpp
+index 42f974d..7a63b55 100755
+--- a/window/MainWindows.cpp
++++ b/window/MainWindows.cpp
+@@ -340,6 +340,7 @@ void BattEvent_callback(int cmd, void *msg0, void *msg1)
+ 			shutdown_deinit(mCdrMain->mHwnd);
+ 		break;
+ 		case CMD_DISCHARGE:
++			#if 0
+ 			if((LPARAM)msg1 != 101)
+ 			{
+ 				if(mCdrMain->isShutdown == true)
+@@ -349,6 +350,7 @@ void BattEvent_callback(int cmd, void *msg0, void *msg1)
+ 			}else{
+ 				mCdrMain->isShutdown = false;
+ 			}
++			#endif 
+ 		break;
+ 		default:
+ 		break;
+@@ -404,7 +406,7 @@ static int parking_record_process(int state)
+ 		//parking_suspend(mCdrMain->mHwnd);
+ 	} else if (state == PARKING_SHUTDOWN) {
+ 		printf("parking_record_process: shutdown\n");
+-		shutdown_deinit(mCdrMain->mHwnd);
++		//shutdown_deinit(mCdrMain->mHwnd);
+ 	}
+ 
+ 	return 0;
+@@ -685,12 +687,14 @@ static int CDRWinProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 		}
+ */
+ 	case MSG_KEYDOWN:
+-		//printf("CDRWinProc MSG_KEYDOWN, wParam=%d, lParam=%lu\n", wParam, lParam);
+-		
++		{
++			HWND hAwnd = GetCapture();
++			printf("CDRWinProc:MSG_KEYDOWN:%d\n", hAwnd);
++
++
++		}
+ 		break;
+-	case MSG_KEYUP:
+-		//printf("CDRWinProc MSG_KEYUP, wParam=%d, lParam=%lu\n", wParam, lParam);
+-		
++	case MSG_KEYUP:		
+ 		break;
+ 	case MSG_KEYLONGPRESS:
+ 		
+@@ -1532,6 +1536,7 @@ int CdrMain::createMainWindows(void)
+ 	CreateInfo.hHosting = HWND_DESKTOP;
+ 
+ 	mHwnd = CreateMainWindow(&CreateInfo);
++	printf("create Mainwindow successffully %d\n", mHwnd);
+ 	if (mHwnd == HWND_INVALID) {
+ 		printf("create Mainwindow failed\n");
+ 		return -1;
+@@ -1557,7 +1562,7 @@ int CdrMain::createMainWindows(void)
+ 	ShowWindow(mHwnd, SW_SHOWNORMAL);
+ 	printf("vicent---------------------------Create-MainWindows-mHwnd = %d\n",mHwnd);
+ 	printf("vicent---------------------------Create-MainWindows this = %d\n",this);
+-	
++
+ 	CreatePreview();
+ 	CreatePlaywindows();
+ 	CreateMenuwindows();
+diff --git a/window/MenuLeftWin.cpp b/window/MenuLeftWin.cpp
+index 3060631..5834514 100755
+--- a/window/MenuLeftWin.cpp
++++ b/window/MenuLeftWin.cpp
+@@ -5,7 +5,7 @@ int MenuLeftWinProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ {
+ 	RECT rect;
+ 	MenuLeftWin* mMLWin = (MenuLeftWin*)GetWindowAdditionalData(hWnd);
+-	
++	printf("MenuLeftWinProc %d\n", message);
+ 	switch(message) {
+ 	case MSG_CREATE:
+ 		DB_FUN_LINE;
+@@ -21,6 +21,22 @@ int MenuLeftWinProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 		
+ 	case MSG_LBUTTONUP:
+ 		break;
++	case MSG_KEYDOWN:
++		{
++			HWND hCurCtrl = GetFocus(hWnd);
++			switch (wParam) {
++			case RK_KEY_MINS:
++			case RK_KEY_PLUS:
++				SetFocus(GetDlgItem(mMLWin->mCdrMain->mWin->mHwnd, IDC_MENU_CHECKBOX_VQ_00));
++				break;
++			case RK_KEY_OKAY:
++				if (IsWindow(hCurCtrl)) {
++					SendMessage(hCurCtrl, BM_CLICK, 0, 0);
++				}
++				break;
++			}
++		}
++		break;
+ 	default:
+ 		break;
+ 	}
+@@ -103,8 +119,11 @@ static int ButtonProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 		case MSG_PAINT:
+ 			GetClientRect(hWnd,&rcClient);
+ 			hdc = BeginPaint (hWnd);
+-
+ 			FillBoxWithBitmap(hdc, 0, 0,RECTW(rcClient), RECTH(rcClient), mWin->mlPicRes.mPic[id].pbtBmp);	
++			if (GetFocus(GetParent(hWnd)) == hWnd) {
++				SetPenColor(hdc, RGB2Pixel (hdc, 11, 244 , 244));
++	            Rectangle (hdc, 0, 0, RECTW(rcClient) - 1, RECTH(rcClient) -1);
++			}
+ 			EndPaint(hWnd,hdc);
+ 		return 0;
+ 
+diff --git a/window/MenuWindows.cpp b/window/MenuWindows.cpp
+index 814fccb..fe16334 100755
+--- a/window/MenuWindows.cpp
++++ b/window/MenuWindows.cpp
+@@ -105,6 +105,41 @@ int MenuWinProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 		}
+ #endif
+ 		break;
++	case MSG_KEYDOWN:
++		{
++			int id = -1;
++			HWND hNextCtrl, hCurCtrl = GetFocus(hWnd);
++
++			switch (wParam) {
++			case RK_KEY_MINS:
++			case RK_KEY_PLUS:
++				if (IsWindow(hCurCtrl)) {
++					id = GetDlgCtrlID(hCurCtrl);
++				}
++				id = (wParam == RK_KEY_PLUS) ? ++id : --id;
++				if (IDC_MENU_CHECKBOX_VQ_00 > id ) {
++					id = IDC_MENU_MUTILWIDGET_END - 1;
++					SetFocus(GetDlgItem(mWin->mCdrMain->mMLWin->mHwnd, IDC_MENULEFT_BUTTON_EXIT));
++					/* SetActiveWindow(mWin->mCdrMain->mMLWin->mHwnd); */
++					break;
++				} else if (IDC_MENU_MUTILWIDGET_END <= id) {
++					id = IDC_MENU_CHECKBOX_VQ_00;
++				}
++				hNextCtrl = GetDlgItem (hWnd, id);
++				if (IsWindow(hNextCtrl))
++					SetFocus(hNextCtrl);
++				break;
++			case RK_KEY_OKAY:
++				if (IsWindow(hCurCtrl)) {
++					//SendMessage(hCurCtrl, MSG_LBUTTONDOWN, 0, 0);
++					SendMessage(hCurCtrl, BM_CLICK, 0, 0);
++				}
++				break;
++			}
++		}
++		break;
++	case MSG_KEYUP:
++		break;
+ 	case MSG_LBUTTONUP:
+ 		mWin->moveflag.movingdowny = -1;
+ 		break;
+@@ -232,10 +267,9 @@ static int CheckBoxProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 	id = atoi(GetWindowCaption(hWnd));
+ 	subid = id % 100;
+ 	id  = id / 100;
+-	
++
+ 	switch(message) {
+ 		case MSG_PAINT:
+-
+ 			//printf("CheckBoxProc hWnd %d MSG_PAINT id = %d subid = %d wParam=%d, lParam=%lu\n",hWnd, id ,subid , wParam, lParam);
+ 			GetClientRect(hWnd,&rcClient);
+ 			hdc = BeginPaint (hWnd);
+@@ -245,24 +279,32 @@ static int CheckBoxProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 				RECTW(mWin->mPicRes.dotrect), RECTH(mWin->mPicRes.dotrect), mWin->mPicRes.mPic[id].pdotBmp[subid]);
+ 			TextOut(hdc,mWin->mPicRes.dotlabelrect.left,mWin->mPicRes.dotlabelrect.top, \
+ 				mWin->mPicRes.mPic[id].pdotlabel[subid]);
++			if(GetFocus(GetParent(hWnd)) == hWnd) {
++				SetPenColor(hdc, RGB2Pixel (hdc, 11, 244 , 244));
++	            Rectangle (hdc, 0, 0, RECTW(rcClient) - 1, RECTH(rcClient) -1);
++			}
+ 			EndPaint(hWnd,hdc);
+ 		break;
+ 		case MSG_KILLFOCUS:
+-			//mWin->mPicRes.mPic[id].pdotBmp[subid] = &mWin->mPicRes.dotBmp[0];
+ 		break;
+ 		case MSG_SETFOCUS:
++		break;
++		case MSG_LBUTTONDOWN:
++			printf("CheckBox:MSG_LBUTTONDOWN\n");
++			break;
++		case BM_CLICK: /* bugs here? */
++			printf("CheckBox:BM_CLICK\n");
+ 			for(int i = 0; i < mWin->mPicRes.mPic[id].subcount; i++){
+ 				mWin->mPicRes.mPic[id].pdotBmp[i] = &mWin->mPicRes.dotBmp[0];
+ 			}
+-			
+ 			mWin->mPicRes.mPic[id].pdotBmp[subid] = &mWin->mPicRes.dotBmp[1];
+-		break;
+-		case MSG_LBUTTONDOWN:
+-		break;
++			UpdateWindow(mWin->mHwnd, TRUE);
++			break;
+ 		case MSG_MOUSEMOVEIN:
+ 		break;
+ 		case MSG_LBUTTONUP:
+-			UpdateWindow(mWin->mHwnd, TRUE);
++			printf("CheckBox:MSG_LBUTTONUP\n");
++
+ 		break;
+ 			
+ 	}
+@@ -369,9 +411,9 @@ int MenuWin::initCheckBox(int id, int midbeging)
+ 	char Caption[4];
+ 
+ 	DWORD dwStyle[3] = {
+-		WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP,
+-		WS_VISIBLE | BS_AUTORADIOBUTTON,
+-		WS_VISIBLE | BS_AUTORADIOBUTTON,
++		WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP | BS_PUSHLIKE,
++		WS_VISIBLE | BS_AUTORADIOBUTTON | BS_PUSHLIKE,
++		WS_VISIBLE | BS_AUTORADIOBUTTON | BS_PUSHLIKE, 
+ 	};
+ 	
+ 	DB_FUN_LINE;			
+@@ -521,6 +563,10 @@ static int ButtonProc(HWND hWnd, int message, WPARAM wParam, LPARAM lParam)
+ 			}else{
+ 				FillBoxWithBitmap(hdc, 0, 0,RECTW(rcClient), RECTH(rcClient), mWin->mPicRes.mPic[id].pbtBmp);
+ 			}
++			if(GetFocus(GetParent(hWnd)) == hWnd) {
++				SetPenColor(hdc, RGB2Pixel (hdc, 11, 244 , 244));
++	            Rectangle (hdc, 0, 0, RECTW(rcClient) - 1, RECTH(rcClient) -1);
++			}
+ 			EndPaint(hWnd,hdc);
+ 		return 0;
+ 
+@@ -582,7 +628,7 @@ int MenuWin::initButton(int id, int midbeging)
+ 	sprintf(Caption,"%d", id);
+ 
+ 	retWnd = CreateWindowEx(CTRL_BUTTON, Caption,	
+-			WS_CHILD | WS_NONE,
++			WS_CHILD | WS_NONE | BS_PUSHLIKE,
+ 			WS_EX_TRANSPARENT | WS_EX_USEPARENTFONT,
+ 			midbeging,
+ 			mPicRes.mPic[id].buttonrect.left, 
+diff --git a/window/RKwindows.h b/window/RKwindows.h
+index 5e4b3f1..0d37dbf 100755
+--- a/window/RKwindows.h
++++ b/window/RKwindows.h
+@@ -48,6 +48,13 @@
+ #define WINDOW_MENULEFTWIN	"MENULEFTWIN"
+ #define WINDOW_MENURIGHTWIN	"MENURIGHTWIN"
+ 
++#define RK_KEY_OKAY 106
++#define RK_KEY_MINS 103
++#define RK_KEY_PLUS 108
++#define RK_KEY_LOCA 105
++#define RK_KEY_MODE 28
++#define RK_KEY_POWR 116
++
+ enum {
+ 	WINDOWID_LEFTBAR = 0,
+ 	WINDOWID_RIGHTBAR,
+@@ -172,7 +179,8 @@ public:
+ 	void update(HWND mParent, enum LeftIDCType mId, BITMAP bmp);
+ 	int createLeftBarWidgets();
+ 
+-	
++	int tabseq[8];
++    int curnum;
+ 	CdrMain *mCdrMain;
+ 	
+ 	LPicRes lPicRes;
+-- 
+1.9.1
+

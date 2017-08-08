@@ -1,0 +1,55 @@
+From b78604f7fa83c3dc8ffded65f13df0b210708301 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 12 Jul 2017 10:32:29 +0800
+Subject: [PATCH 2/2] it's ok now
+
+Change-Id: I1f3ae77b6e513f9d0e54e2d95879912f2f831106
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ common.h         | 2 +-
+ noui/camera_ui.c | 6 +++---
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/common.h b/common.h
+index b6fff3a..e711b91 100755
+--- a/common.h
++++ b/common.h
+@@ -28,7 +28,7 @@
+   { 320, 240, 30 }
+ 
+ //#define USE_CIF_CAMERA
+-#define USE_USB_WEBCAM 1
++#define USE_USB_WEBCAM 0
+ 
+ #define TEST_VIDEO_MARK 0
+ 
+diff --git a/noui/camera_ui.c b/noui/camera_ui.c
+index ee46404..adb1990 100644
+--- a/noui/camera_ui.c
++++ b/noui/camera_ui.c
+@@ -260,11 +260,11 @@ int usb_disconnect_poweroff(void *arg)
+         sleep(1);
+     }
+     printf("%s[%d]:gshutdown=%d,shutdown...\n", __func__, __LINE__, gshutdown);
+-    api_video_deinit();
++    api_video_deinit(true);
+     if (charging_status_check()) {
+         gshutdown = 0;
+         printf("%s[%d]:vbus conenct,cancel shutdown\n", __func__, __LINE__);
+-        video_record_deinit();
++        video_record_deinit(true);
+         printf("init rec---\n");
+         initrec(hWnd);
+         if ((api_video_get_record_state() == VIDEO_STATE_PREVIEW) && api_get_sd_mount_state() == SD_STATE_IN)
+@@ -865,7 +865,7 @@ static void initrec(HWND hWnd)
+ 
+ static void deinitrec(HWND hWnd)
+ {
+-    api_video_deinit();
++    api_video_deinit(true);
+ }
+ 
+ void loadingWaitBmp(HWND hWnd)
+-- 
+1.9.1
+

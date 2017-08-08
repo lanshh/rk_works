@@ -1,0 +1,527 @@
+From 89c164757d9ed334d2d5b44bed446d198300624c Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 8 Aug 2017 14:07:18 +0800
+Subject: [PATCH] add for hxtc screen
+
+Change-Id: Idb66676c8dfea8b67091efe789dee609cb223dbf
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/boot/dts/lcd-sc500f3001-mipi.dtsi | 454 +++++++++++++++++++++++++++++
+ arch/arm/boot/dts/rv1108-evb-v13.dts       |  20 +-
+ 2 files changed, 466 insertions(+), 8 deletions(-)
+ create mode 100644 arch/arm/boot/dts/lcd-sc500f3001-mipi.dtsi
+
+diff --git a/arch/arm/boot/dts/lcd-sc500f3001-mipi.dtsi b/arch/arm/boot/dts/lcd-sc500f3001-mipi.dtsi
+new file mode 100644
+index 0000000..6224cf1
+--- /dev/null
++++ b/arch/arm/boot/dts/lcd-sc500f3001-mipi.dtsi
+@@ -0,0 +1,454 @@
++/*
++ * Copyright (c) 2017 Fuzhou Rockchip Electronics Co., Ltd
++ *
++ * This file is dual-licensed: you can use it either under the terms
++ * of the GPL or the X11 license, at your option. Note that this dual
++ * licensing only applies to this file, and not this project as a
++ * whole.
++ *
++ *  a) This file is free software; you can redistribute it and/or
++ *     modify it under the terms of the GNU General Public License as
++ *     published by the Free Software Foundation; either version 2 of the
++ *     License, or (at your option) any later version.
++ *
++ *     This file is distributed in the hope that it will be useful,
++ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *     GNU General Public License for more details.
++ *
++ * Or, alternatively,
++ *
++ *  b) Permission is hereby granted, free of charge, to any person
++ *     obtaining a copy of this software and associated documentation
++ *     files (the "Software"), to deal in the Software without
++ *     restriction, including without limitation the rights to use,
++ *     copy, modify, merge, publish, distribute, sublicense, and/or
++ *     sell copies of the Software, and to permit persons to whom the
++ *     Software is furnished to do so, subject to the following
++ *     conditions:
++ *
++ *     The above copyright notice and this permission notice shall be
++ *     included in all copies or substantial portions of the Software.
++ *
++ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ *     OTHER DEALINGS IN THE SOFTWARE.
++ *
++ * arch/arm/boot/dts/lcd_ili9806e_mipi.dtsi
++ * author: xbl@rock-chips.com
++ * create date: 2016-08-01
++ * lcd model: ili9806e
++ * resolution: 480 * 854
++ * mipi channel: single
++ */
++
++/ {
++	/* about mipi */
++	disp_mipi_init: mipi_dsi_init{
++		compatible = "rockchip,mipi_dsi_init";
++		rockchip,screen_init	= <1>;
++		rockchip,dsi_lane		= <2>;
++		rockchip,dsi_hs_clk		= <400>;
++		rockchip,mipi_dsi_num	= <1>;
++	};
++
++	disp_mipi_power_ctr: mipi_power_ctr {
++		compatible = "rockchip,mipi_power_ctr";
++		mipi_lcd_en: mipi_lcd_en{
++			compatible = "rockchip,lcd_en";
++			rockchip,gpios = <&gpio0 GPIO_C5 GPIO_ACTIVE_HIGH>;
++			rockchip,delay = <20>;
++		};
++		mipi_lcd_rst: mipi_lcd_rst{
++			compatible = "rockchip,lcd_rst";
++			rockchip,gpios = <&gpio0 GPIO_C3 GPIO_ACTIVE_HIGH>;
++			rockchip,delay = <20>;
++		};
++	};
++
++	disp_mipi_init_cmds: screen-on-cmds {
++		rockchip,cmd_debug = <0>;
++		compatible = "rockchip,screen-on-cmds";
++		rockchip,on-cmds1 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xF0 0x55 0xAA 0x52 0x08 0x02>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds2 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xF6 0x60 0x40>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds3 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xFE 0x01 0x80 0x09 0x09>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds4 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xF0 0x55 0xAA 0x52 0x08 0x01>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds5 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xB0 0x0D>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds6 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xB1 0x0D>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds7 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xB5 0x08>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds8 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xB6 0x54>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds9 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xB7 0x44>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds10 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xB8 0x24>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds11 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xB9 0x34>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds12 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xBA 0x14>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds13 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xBC 0x00 0x78 0x00>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds14 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xBD 0x00 0x78 0x00>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds15 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xBE 0x00 0x16>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds16 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xD1 0x00 0x00 0x00 0x19 0x00 0x40
++					0x00 0x60 0x00 0x7C 0x00 0xA9 0x00 0xCD
++					0x01 0x05 0x01 0x2F 0x01 0x6E 0x01 0x9D
++					0x01 0xE1 0x02 0x17 0x02 0x19 0x02 0x4A
++					0x02 0x82 0x02 0xA7 0x02 0xD7 0x02 0xF7
++					0x03 0x20 0x03 0x39 0x03 0x54 0x03 0x63
++					0x03 0x72 0x03 0x7D 0x03 0xFF>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds17 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xD2 0x00 0x00 0x00 0x19 0x00 0x40
++					0x00 0x60 0x00 0x7C 0x00 0xA9 0x00 0xCD
++					0x01 0x05 0x01 0x2F 0x01 0x6E 0x01 0x9D
++					0x01 0xE1 0x02 0x17 0x02 0x19 0x02 0x4A
++					0x02 0x82 0x02 0xA7 0x02 0xD7 0x02 0xF7
++					0x03 0x20 0x03 0x39 0x03 0x54 0x03 0x63
++					0x03 0x72 0x03 0x7D 0x03 0xFF>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds18 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xD3 0x00 0x00 0x00 0x19 0x00 0x40
++					0x00 0x60 0x00 0x7C 0x00 0xA9 0x00 0xCD
++					0x01 0x05 0x01 0x2F 0x01 0x6E 0x01 0x9D
++					0x01 0xE1 0x02 0x17 0x02 0x19 0x02 0x4A
++					0x02 0x82 0x02 0xA7 0x02 0xD7 0x02 0xF7
++					0x03 0x20 0x03 0x39 0x03 0x54 0x03 0x63
++					0x03 0x72 0x03 0x7D 0x03 0xFF>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds19 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xD4 0x00 0x00 0x00 0x19 0x00 0x40
++					0x00 0x60 0x00 0x7C 0x00 0xA9 0x00 0xCD
++					0x01 0x05 0x01 0x2F 0x01 0x6E 0x01 0x9D
++					0x01 0xE1 0x02 0x17 0x02 0x19 0x02 0x4A
++					0x02 0x82 0x02 0xA7 0x02 0xD7 0x02 0xF7
++					0x03 0x20 0x03 0x39 0x03 0x54 0x03 0x63
++					0x03 0x72 0x03 0x7D 0x03 0xFF>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds20 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xD5 0x00 0x00 0x00 0x19 0x00 0x40
++					0x00 0x60 0x00 0x7C 0x00 0xA9 0x00 0xCD
++					0x01 0x05 0x01 0x2F 0x01 0x6E 0x01 0x9D
++					0x01 0xE1 0x02 0x17 0x02 0x19 0x02 0x4A
++					0x02 0x82 0x02 0xA7 0x02 0xD7 0x02 0xF7
++					0x03 0x20 0x03 0x39 0x03 0x54 0x03 0x63
++					0x03 0x72 0x03 0x7D 0x03 0xFF>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds21 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xD6 0x00 0x00 0x00 0x19 0x00 0x40
++					0x00 0x60 0x00 0x7C 0x00 0xA9 0x00 0xCD
++					0x01 0x05 0x01 0x2F 0x01 0x6E 0x01 0x9D
++					0x01 0xE1 0x02 0x17 0x02 0x19 0x02 0x4A
++					0x02 0x82 0x02 0xA7 0x02 0xD7 0x02 0xF7
++					0x03 0x20 0x03 0x39 0x03 0x54 0x03 0x63
++					0x03 0x72 0x03 0x7D 0x03 0xFF>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds22 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xF0 0x55 0xAA 0x52 0x08 0x03>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds23 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB0 0x05 0x17 0xF9 0x53 0x00 0x00 0x30>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds24 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB1 0x05 0x17 0xFB 0x55 0x00 0x00 0x30>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds25 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB2 0xFC 0xFD 0xFE 0xFF 0xF0 0xED 0x28 0xC4 0x08>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds26 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB3 0x5B 0x00 0xFC 0x5A 0x5A 0x0C>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds27 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB4 0x00 0x01 0x02 0x03 0x00 0x40 0x04 0x08 0xED 0x28 0x00>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds28 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB5 0x00 0x00 0x00 0x80 0x60 0x5E 0x50 0x50 0x33 0x33 0x55>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds29 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB6 0xBC 0x00 0x00 0x00 0x96 0x81 0x00>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds30 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB7 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds31 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB8 0x11 0x18 0x00>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds32 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xB9 0x90>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds33 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xBA 0x44 0x44 0x08 0xAC 0xE2 0x64
++					0x44 0x44 0x44 0x44 0x47 0x3F 0xDB 0x91
++					0x54 0x44>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds34 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xBB 0x44 0x43 0x79 0xFD 0xB5 0x14
++					0x44 0x44 0x44 0x44 0x40 0x4A 0xCE 0x86
++					0x24 0x44>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds35 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xBC 0xE0 0x1F 0xF8 0x07>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds36 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xBD 0xE0 0x1F 0xF8 0x07>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds37 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xF0 0x55 0xAA 0x52 0x08 0x00>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds38 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB0 0x00 0x10>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds39 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xB5 0x6B>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds40 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x39 0xB8 0x00 0x03 0x03 0x03>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds41 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0xBC 0x00>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds42 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x15 0x35 0x00>;
++			rockchip,cmd_delay = <0>;
++		};
++		rockchip,on-cmds43 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x05 0x11>;
++			rockchip,cmd_delay = <120>;
++		};
++		rockchip,on-cmds44 {
++			compatible = "rockchip,on-cmds";
++			rockchip,cmd_type = <LPDT>;
++			rockchip,dsi_id = <0>;
++			rockchip,cmd = <0x05 0x29>;
++			rockchip,cmd_delay = <100>;
++		};
++	};
++
++	disp_timings: display-timings {
++		native-mode = <&timing0>;
++		compatible = "rockchip,display-timings";
++		timing0: timing0 {
++			screen-type = <SCREEN_MIPI>;
++			/*lvds-format = <LVDS_8BIT_2>;*/
++			out-face    = <OUT_P888>;
++			clock-frequency = <28000000>;
++			screen-width = <62>;
++			screen-hight = <110>;
++			hactive = <480>;
++			vactive = <854>;
++			hsync-len = <8>;
++			hback-porch = <16>;
++			hfront-porch = <24>;
++			vsync-len = <2>;
++			vback-porch = <16>;
++			vfront-porch = <18>;
++			hsync-active = <0>;
++			vsync-active = <0>;
++			de-active = <0>;
++			pixelclk-active = <0>;
++			swap-rb = <0>;
++			swap-rg = <0>;
++			swap-gb = <0>;
++		};
++	};
++};
+diff --git a/arch/arm/boot/dts/rv1108-evb-v13.dts b/arch/arm/boot/dts/rv1108-evb-v13.dts
+index 74d835f..9e424da 100644
+--- a/arch/arm/boot/dts/rv1108-evb-v13.dts
++++ b/arch/arm/boot/dts/rv1108-evb-v13.dts
+@@ -43,9 +43,10 @@
+ /dts-v1/;
+ 
+ #include "rv1108.dtsi"
++#include "lcd-sc500f3001-mipi.dtsi"
+ //#include "lcd-ili9806e_mipi.dtsi" /* dispaly board v10 v11 */
+ //#include "lcd-e555hbm2_mipi.dtsi" /* display board v20*/
+-#include "lcd-ili9807_mipi.dtsi" /* display board v30 */
++//#include "lcd-ili9807_mipi.dtsi" /* display board v30 */
+ #include "dt-bindings/suspend/rockchip-pm.h"
+ 
+ / {
+@@ -508,14 +509,17 @@
+ 	pinctrl-0 = <&lcdc_mipi_data>;
+ 	pinctrl-1 = <&lcdc_mipi_gpio>;
+ 	power_ctr: power_ctr {
+-		rockchip,debug = <0>;
+-		/*
+-		lcd_en: lcd_en {
++		rockchip,debug = <1>;
++		lcd28_en: lcd28_en {
+ 			rockchip,power_type = <GPIO>;
+-			gpios = <&gpio3 GPIO_C4 GPIO_ACTIVE_HIGH>;
++			gpios = <&gpio3 GPIO_B6 GPIO_ACTIVE_HIGH>;
++			rockchip,delay = <10>;
++		};
++		lcd18_en: lcd18_en {
++			rockchip,power_type = <GPIO>;
++			gpios = <&gpio1 GPIO_D0 GPIO_ACTIVE_HIGH>;
+ 			rockchip,delay = <10>;
+ 		};
+-		*/
+ 	};
+ };
+ 
+@@ -533,9 +537,9 @@
+ };
+ 
+ &hdmi {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &tve {
+-	status = "okay";
++	status = "disabled";
+ };
+-- 
+1.9.1
+

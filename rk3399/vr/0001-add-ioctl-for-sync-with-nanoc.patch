@@ -1,0 +1,208 @@
+From 06a4d94ced6824844bfe7319899868c3db0fad2d Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 8 Sep 2016 20:23:57 +0800
+Subject: [PATCH] add ioctl for sync with nanoc
+
+Change-Id: I3feeec8e66b48874e218a726777f87b78bcb0453
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm64/boot/dts/rockchip/rk3399-evb-rev3.dtsi  |  5 ++
+ drivers/hid/hid-rkvr.c                             | 56 ++++++++--------------
+ drivers/hid/hid-rkvr.h                             |  4 +-
+ drivers/staging/iio/imu/inv_mpu/inv_mpu_hid.c      | 18 +------
+ .../display/screen-timing/lcd-F402.dtsi            |  2 +
+ 5 files changed, 29 insertions(+), 56 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3.dtsi
+index 475837e..f6266ce 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-evb-rev3.dtsi
+@@ -65,6 +65,11 @@
+ 		regulator-always-on;
+ 		regulator-boot-on;
+ 	};
++	 mpu6500_hid {
++		 status = "okay";
++		 compatible = "inv-hid,mpu6500";
++	 };
++
+ };
+ 
+ &cluster0_opp {
+diff --git a/drivers/hid/hid-rkvr.c b/drivers/hid/hid-rkvr.c
+index 1087d90..31fb6e4 100644
+--- a/drivers/hid/hid-rkvr.c
++++ b/drivers/hid/hid-rkvr.c
+@@ -1062,6 +1062,25 @@ static long rkvr_hidraw_ioctl(struct file *file, unsigned int cmd, unsigned long
+ 				break;
+ 			}
+ 
++			if (_IOC_NR(cmd) == _IOC_NR(HIDRKVRHANDSHAKE(0))) {
++				int len = _IOC_SIZE(cmd);
++				char *buf;
++
++				buf = kzalloc(len + 1, GFP_KERNEL);
++				if (!buf) {
++					ret = -ENOMEM;
++					break;
++				}
++				if (copy_from_user(buf, user_arg, len)) {
++					ret = -EFAULT;
++					kfree(buf);
++					break;
++				}
++				ret = hid_report_sync(&hid->dev, buf, len);
++				kfree(buf);
++				break;
++			}
++
+ 			/* Begin Read-only ioctls. */
+ 			if (_IOC_DIR(cmd) != _IOC_READ) {
+ 				ret = -EINVAL;
+@@ -1120,41 +1139,6 @@ int rkvr_sensor_register_callback(int (*callback)(char *, size_t, void *), void
+ }
+ EXPORT_SYMBOL_GPL(rkvr_sensor_register_callback);
+ 
+-static int rkvr_sync_exec(const char *p, size_t c)
+-{
+-	int minor;
+-	int ret = c;
+-	int exist = 0;
+-
+-	mutex_lock(&minors_lock);
+-	pr_info("rkvr_sync_exec %s\n", p);
+-	for (minor = 0; minor < RKVR_HIDRAW_MAX_DEVICES; minor++) {
+-		if (!rkvr_hidraw_table[minor] || !rkvr_hidraw_table[minor]->exist)
+-			continue;
+-		if (hid_report_sync(&rkvr_hidraw_table[minor]->hid->dev, p, c)) {
+-			hid_err(rkvr_hidraw_table[minor]->hid, "hid_report_sync failed\n");
+-			ret = -EIO;
+-			goto exit;
+-		}
+-		exist++;
+-	}
+-	if (!exist)
+-		ret = -ENODEV;
+-exit:
+-	mutex_unlock(&minors_lock);
+-
+-	return ret;
+-}
+-
+-int rkvr_sensor_sync_inv(const char *p, size_t c)
+-{
+-	snprintf(sync_string, sizeof(sync_string), "%s", p);
+-
+-	return rkvr_sync_exec(sync_string, strlen(sync_string));
+-}
+-
+-EXPORT_SYMBOL_GPL(rkvr_sensor_sync_inv);
+-
+ static int rkvr_probe(struct hid_device *hdev, const struct hid_device_id *id)
+ {
+ 	int retval;
+@@ -1224,7 +1208,7 @@ static int rkvr_raw_event(struct hid_device *hdev, struct hid_report *report, u8
+ 	if (++count >= 1000) {
+ 		unsigned long cur_jiffy = jiffies;
+ 
+-		hid_dbg(hdev, "rkvr: %d Hz, hidrkvr %d\n", (int)(1000 * HZ / (cur_jiffy - old_jiffy)), (hdev->hidraw ? 1 : 0));
++		hid_info(hdev, "rkvr: %d Hz, hidrkvr %d\n", (int)(1000 * HZ / (cur_jiffy - old_jiffy)), (hdev->hidraw ? 1 : 0));
+ 		count = 0;
+ 		old_jiffy = cur_jiffy;
+ 	}
+diff --git a/drivers/hid/hid-rkvr.h b/drivers/hid/hid-rkvr.h
+index ff1cd9f..4407608 100644
+--- a/drivers/hid/hid-rkvr.h
++++ b/drivers/hid/hid-rkvr.h
+@@ -9,7 +9,7 @@
+ #ifndef __HID_RKVR_H
+ #define __HID_RKVR_H
+ 
+-#define HIDRKVRHANDSHAKE(len)	_IOC(_IOC_WRITE, 'H', 0x07, len)
++#define HIDRKVRHANDSHAKE(len)	_IOC(_IOC_WRITE, 'H', 0x1A, len)
+ #define HID_REPORT_ID_R	4
+ #define HID_REPORT_ID_W	5
+ #define HID_REPORT_ID_CRYP	6
+@@ -27,11 +27,9 @@ enum tracker_message_type {
+ };
+ 
+ #define DEBUG_SYS 1
+-
+ #define DYNAMIC_LOAD_MPU6500 0
+ 
+ int rkvr_sensor_register_callback(int (*callback)(char *, size_t, void *), void *priv);
+-int rkvr_sensor_sync_inv(const char *p, size_t c);
+ 
+ struct rkvr_iio_hw_device {
+ 	struct device *dev;
+diff --git a/drivers/staging/iio/imu/inv_mpu/inv_mpu_hid.c b/drivers/staging/iio/imu/inv_mpu/inv_mpu_hid.c
+index b05d70a..9604beb 100644
+--- a/drivers/staging/iio/imu/inv_mpu/inv_mpu_hid.c
++++ b/drivers/staging/iio/imu/inv_mpu/inv_mpu_hid.c
+@@ -65,14 +65,6 @@ static struct mpu_platform_data mpu_data = {
+ 	},
+ };
+ 
+-static ssize_t inv_dev_attr_sync_store(struct device *dev, struct device_attribute *attr,
+-			const char *buf, size_t count)
+-{
+-	return rkvr_sensor_sync_inv(buf, count);
+-}
+-
+-static DEVICE_ATTR(sync, S_IWUSR, NULL, inv_dev_attr_sync_store);
+-
+ /**
+  *  inv_mpu_probe() - probe function.
+  */
+@@ -142,17 +134,12 @@ static int inv_mpu_probe(struct platform_device *pdev)
+ 		goto out_remove_trigger;
+ 	}
+ 
+-	result = device_create_file(&indio_dev->dev, &dev_attr_sync);
+-	if (result < 0) {
+-		dev_err(&pdev->dev, "create sync sys file failed\n");
+-		goto out_unreg_iio;
+-	}
+ 	if (INV_MPU6050 == st->chip_type ||
+ 		INV_MPU6500 == st->chip_type) {
+ 		result = inv_create_dmp_sysfs(indio_dev);
+ 		if (result) {
+ 			dev_err(&pdev->dev, "create dmp sysfs failed\n");
+-			goto out_rmsync_iio;
++			goto out_unreg_iio;
+ 		}
+ 	}
+ 
+@@ -162,8 +149,6 @@ static int inv_mpu_probe(struct platform_device *pdev)
+ 					indio_dev->name);
+ 
+ 	return 0;
+-out_rmsync_iio:
+-	device_remove_file(&indio_dev->dev, &dev_attr_sync);
+ out_unreg_iio:
+ 	iio_device_unregister(indio_dev);
+ out_remove_trigger:
+@@ -192,7 +177,6 @@ static int inv_mpu_remove(struct platform_device *pdev)
+ 	struct inv_mpu_iio_s *st = iio_priv(indio_dev);
+ 
+ 	kfifo_free(&st->timestamps);
+-	device_remove_file(&indio_dev->dev, &dev_attr_sync);
+ 	iio_device_unregister(indio_dev);
+ 	if (indio_dev->modes & INDIO_BUFFER_TRIGGERED)
+ 		inv_mpu_remove_trigger(indio_dev);
+diff --git a/include/dt-bindings/display/screen-timing/lcd-F402.dtsi b/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
+index a3ad25f..56bdf8b 100644
+--- a/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
++++ b/include/dt-bindings/display/screen-timing/lcd-F402.dtsi
+@@ -25,6 +25,8 @@ disp_timings: display-timings {
+ 		swap-rb = <0>;
+ 		swap-rg = <0>;
+ 		swap-gb = <0>;
++		screen-width = <68>;
++		screen-hight = <120>;
+ 		dsp-lut = <0x00000000 0x00010101 0x00020202 0x00030303 0x00040404 0x00050505 0x00060606 0x00070707 0x00080808 0x00090909
+ 				0x000a0a0a 0x000b0b0b 0x000c0c0c 0x000d0d0d 0x000e0e0e 0x000f0f0f 0x00101010 0x00111111 0x00121212 0x00131313
+ 				0x00141414 0x00151515 0x00161616 0x00171717 0x00181818 0x00191919 0x001a1a1a 0x001b1b1b 0x001c1c1c 0x001d1d1d
+-- 
+1.9.1
+
