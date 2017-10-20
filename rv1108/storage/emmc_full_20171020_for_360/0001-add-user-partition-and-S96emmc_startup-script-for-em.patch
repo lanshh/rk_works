@@ -1,0 +1,34 @@
+From fda61e084fc70b00a82de8f1586961b70ea9bf9c Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 20 Oct 2017 18:11:56 +0800
+Subject: [PATCH] add user partition and  S96emmc_startup script for emmc
+ formatting
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ rootfs-overlay/etc/fstab                  | 3 ++-
+ rootfs-overlay/etc/init.d/S96emmc_startup | 1 +
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+ create mode 100755 rootfs-overlay/etc/init.d/S96emmc_startup
+
+diff --git a/rootfs-overlay/etc/fstab b/rootfs-overlay/etc/fstab
+index 40eef9b..601aa7c 100644
+--- a/rootfs-overlay/etc/fstab
++++ b/rootfs-overlay/etc/fstab
+@@ -6,4 +6,5 @@ tmpfs		/tmp		tmpfs	mode=1777	0	0
+ tmpfs		/run		tmpfs	mode=0755,nosuid,nodev	0	0
+ sysfs		/sys		sysfs	defaults	0	0
+ debug		/sys/kernel/debug debugfs defaults	0		0
+-/dev/mtdblock4 /param   jffs2   defaults    0   0
++/dev/mmcblk0p5 /param   ext4   defaults    0   0
++/dev/mmcblk0p7 /user   ext4   defaults    0   0
+diff --git a/rootfs-overlay/etc/init.d/S96emmc_startup b/rootfs-overlay/etc/init.d/S96emmc_startup
+new file mode 100755
+index 0000000..840152f
+--- /dev/null
++++ b/rootfs-overlay/etc/init.d/S96emmc_startup
+@@ -0,0 +1 @@
++emmc_startup -t ext4 -d /dev/mmcblk0p7 -D /user
+-- 
+1.9.1
+

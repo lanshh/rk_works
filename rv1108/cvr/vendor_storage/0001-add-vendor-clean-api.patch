@@ -1,0 +1,99 @@
+From d67680962699d09c45462f94d37cea6f7f9cece6 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Sat, 12 Aug 2017 10:57:07 +0800
+Subject: [PATCH] add vendor clean api
+
+Change-Id: I170616ce6084c2edc6ee29d738037781c235293d
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ drivers/soc/rockchip/flash_vendor_storage.c | 54 +++++++++++++++++++++++++++++
+ 1 file changed, 54 insertions(+)
+
+diff --git a/drivers/soc/rockchip/flash_vendor_storage.c b/drivers/soc/rockchip/flash_vendor_storage.c
+index 45220eb..174354f 100644
+--- a/drivers/soc/rockchip/flash_vendor_storage.c
++++ b/drivers/soc/rockchip/flash_vendor_storage.c
+@@ -352,6 +352,46 @@ static struct miscdevice vender_storage_dev = {
+ 	.name  = "vendor_storage",
+ 	.fops  = &vendor_storage_fops,
+ };
++#ifdef CONFIG_ROCKCHIP_VENDOR_STORAGE
++static int vendor_inited;
++static struct class *vendor_storage_class;
++
++int flash_vendor_clean(void)
++{
++	int next_index;
++
++	DLOG("vendor_check fail\n");
++	g_vendor->item_num = 0;
++	g_vendor->version++;
++	g_vendor->version2 = g_vendor->version;
++	g_vendor->free_offset = 0;
++	g_vendor->free_size = sizeof(g_vendor->data);
++	next_index = g_vendor->next_index;
++	g_vendor->next_index++;
++	if (g_vendor->next_index >= FLASH_VENDOR_PART_NUM)
++		g_vendor->next_index = 0;
++	_flash_write(FLASH_VENDOR_PART_START +
++		     FLASH_VENDOR_PART_SIZE * next_index,
++		     FLASH_VENDOR_PART_SIZE, g_vendor);
++	return 0;
++}
++
++static ssize_t vendor_clean(struct class *class, struct class_attribute *attr,
++			   const char *buf, size_t count)
++{
++	printk("store_clean %s\n", buf);
++	if (!vendor_inited) {
++		printk("vendor no inited\n");
++			return -EBUSY;
++	}
++	if (!strncmp(buf, "1", 1)) {
++		flash_vendor_clean();
++		printk("store_clean\n");
++	}
++	return count;
++}
++static CLASS_ATTR(clean, S_IWUSR, NULL, vendor_clean);
++#endif
+ 
+ static int vendor_init_thread(void *arg)
+ {
+@@ -365,6 +405,7 @@ static int vendor_init_thread(void *arg)
+ 		ret = misc_register(&vender_storage_dev);
+ 		#ifdef CONFIG_ROCKCHIP_VENDOR_STORAGE
+ 		rk_vendor_register(flash_vendor_read, flash_vendor_write);
++		vendor_inited = 1;
+ 		#endif
+ 	}
+ 	pr_info("flash vendor storage:20170308 ret = %d\n", ret);
+@@ -373,12 +414,25 @@ static int vendor_init_thread(void *arg)
+ 
+ static int __init vendor_storage_init(void)
+ {
++
++#ifdef CONFIG_ROCKCHIP_VENDOR_STORAGE
++	vendor_storage_class = class_create(THIS_MODULE, "vendor-debug");
++	if (IS_ERR(vendor_storage_class))
++		return PTR_ERR(vendor_storage_class);
++	if (!class_create_file(vendor_storage_class, &class_attr_clean)) {
++		printk("class create clean file ok\n");
++	}
++#endif
+ 	kthread_run(vendor_init_thread, (void *)NULL, "vendor_storage_init");
+ 	return 0;
+ }
+ 
+ static __exit void vendor_storage_deinit(void)
+ {
++#ifdef CONFIG_ROCKCHIP_VENDOR_STORAGE
++	class_remove_file(vendor_storage_class, &class_attr_clean);
++	class_destroy(vendor_storage_class);
++#endif
+ 	if (g_vendor)
+ 		misc_deregister(&vender_storage_dev);
+ }
+-- 
+1.9.1
+

@@ -1,0 +1,68 @@
+From a5872359c93447a29335f45789010af92e41464e Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 20 Oct 2017 18:13:50 +0800
+Subject: [PATCH] midify param as ext4 fs and add 2 user partition
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ mkrootfs.sh      |  4 +++-
+ setting_emmc.ini | 19 ++++++++++++++++---
+ 2 files changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/mkrootfs.sh b/mkrootfs.sh
+index 0984e47..6b85b01 100755
+--- a/mkrootfs.sh
++++ b/mkrootfs.sh
+@@ -34,6 +34,7 @@ IMAGE_OUT_PATH=$(pwd)/rockimg/Image-cvr
+ rm -rf $IMAGE_PATH
+ mkdir -p $IMAGE_PATH/root
+ mkdir -p $IMAGE_PATH/root/param
++mkdir -p $IMAGE_PATH/root/user
+ mkdir -p $IMAGE_PATH/root/system/etc/firmware
+ mkdir -p $RELEASE_SYSTEM_PATH
+ 
+@@ -212,6 +213,7 @@ rm -f $IMAGE_OUT_PATH/rootfs.tmp
+ echo "done."
+ 
+ echo -n "create param.img"
+-mkfs.jffs2 --root=$IMAGE_PATH/root/param --pad=0x100000 -o $IMAGE_OUT_PATH/param.img
++#mkfs.jffs2 --root=$IMAGE_PATH/root/param --pad=0x100000 -o $IMAGE_OUT_PATH/param.img
++make_ext4fs -l 8m $IMAGE_OUT_PATH/param.img
+ echo "done."
+ #rm -rf $IMAGE_PATH/root
+diff --git a/setting_emmc.ini b/setting_emmc.ini
+index f58257e..3401fdb 100755
+--- a/setting_emmc.ini
++++ b/setting_emmc.ini
+@@ -27,12 +27,25 @@ File=../rockimg/Image-cvr/kernel.img
+ Name=rootfs
+ Type=0x8
+ PartOffset=0x5000
+-PartSize=0x4800
++PartSize=0x6000
+ Flag=0x0
+ File=../rockimg/Image-cvr/rootfs.img
+ [UserPart4]
+-Name=user
++Name=param
+ Type=0x80000000
+-PartOffset=0x9800
++Flag=0x0
++File=../rockimg/Image-cvr/param.img
++PartOffset=0xb000
++PartSize=0x4000
++[UserPart5]
++Name=user1
++Type=0x80000000
++PartOffset=0xf000
++PartSize=0x1000
++Flag=0x5
++[UserPart6]
++Name=user2
++Type=0x80000000
++PartOffset=0x10000
+ PartSize=0x0
+ Flag=0x5
+-- 
+1.9.1
+
