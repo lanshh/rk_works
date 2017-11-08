@@ -1,0 +1,44 @@
+From 0c943598ad23e869cd1af358cef7affb24913561 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 7 Nov 2017 18:26:07 +0800
+Subject: [PATCH 5/5] modify lcd resulution
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/boot/dts/lcd_dummy_mipi.dtsi | 20 +++++++++++---------
+ 1 file changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/arch/arm/boot/dts/lcd_dummy_mipi.dtsi b/arch/arm/boot/dts/lcd_dummy_mipi.dtsi
+index ac94fab..c4b249d 100644
+--- a/arch/arm/boot/dts/lcd_dummy_mipi.dtsi
++++ b/arch/arm/boot/dts/lcd_dummy_mipi.dtsi
+@@ -6,15 +6,17 @@
+ 			screen-type = <SCREEN_MIPI>;
+ 			/*lvds-format = <LVDS_8BIT_2>;*/
+ 			out-face = <OUT_P888>;
+-			clock-frequency = <62000000>;
+-			hactive = <720>;
+-			vactive = <1280>;
+-			hsync-len = <4>;
+-			hback-porch = <20>;
+-			hfront-porch = <32>;
+-			vsync-len = <4>;
+-			vback-porch = <15>;
+-			vfront-porch = <15>;
++			clock-frequency = <35390050>;
++			screen-width = <62>;
++			screen-hight = <110>;
++			hactive = <540>;
++			vactive = <960>;
++			hsync-len = <8>;
++			hback-porch = <85>;
++			hfront-porch = <85>;
++			vsync-len = <1>;
++			vback-porch = <20>;
++			vfront-porch = <20>;
+ 			hsync-active = <0>;
+ 			vsync-active = <0>;
+ 			de-active = <0>;
+-- 
+1.9.1
+

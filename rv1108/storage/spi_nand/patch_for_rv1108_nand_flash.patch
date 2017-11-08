@@ -1,0 +1,39 @@
+diff --git a/arch/arm/boot/dts/rv1108-ipc-v10.dts b/arch/arm/boot/dts/rv1108-ipc-v10.dts
+index b1525f2..7c5324ff 100644
+--- a/arch/arm/boot/dts/rv1108-ipc-v10.dts
++++ b/arch/arm/boot/dts/rv1108-ipc-v10.dts
+@@ -82,7 +82,7 @@
+ 	};
+ 
+ 	chosen {
+-		bootargs = "user_debug=31 rockchip_jtag noinitrd root=/dev/mtdblock3 rootfstype=squashfs";
++		bootargs = "user_debug=31 rockchip_jtag noinitrd root=/dev/rootfs rootfstype=squashfs";
+ 	};
+ 
+ 	ion {
+diff --git a/arch/arm/configs/rv1108_ipc_defconfig b/arch/arm/configs/rv1108_ipc_defconfig
+index 0bce503..64a8175 100644
+--- a/arch/arm/configs/rv1108_ipc_defconfig
++++ b/arch/arm/configs/rv1108_ipc_defconfig
+@@ -113,8 +113,6 @@ CONFIG_RFKILL_RK=y
+ CONFIG_DEVTMPFS=y
+ CONFIG_DMA_CMA=y
+ CONFIG_CMA_SIZE_MBYTES=4
+-CONFIG_MTD=y
+-CONFIG_MTD_BLOCK=y
+ CONFIG_ZRAM=y
+ CONFIG_BLK_DEV_LOOP=y
+ CONFIG_UID_STAT=y
+@@ -294,12 +292,10 @@ CONFIG_RK_FLASH=y
+ CONFIG_RK_NANDC_NAND=y
+ CONFIG_RK_SFC_NOR=y
+ CONFIG_RK_SFC_NAND=y
+-CONFIG_RK_SFC_NOR_MTD=y
+ CONFIG_MSDOS_FS=y
+ CONFIG_VFAT_FS=y
+ CONFIG_TMPFS=y
+ CONFIG_TMPFS_POSIX_ACL=y
+-CONFIG_JFFS2_FS=y
+ CONFIG_SQUASHFS=y
+ # CONFIG_NETWORK_FILESYSTEMS is not set
+ CONFIG_NLS_CODEPAGE_437=y

@@ -1,0 +1,70 @@
+From 048feafc9c39506f0afa4aa4ce47a3af5663937b Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Mon, 9 Oct 2017 10:48:29 +0800
+Subject: [PATCH 3/5] change cam_en to gpio1d0 and use clk_mipicsi_out
+
+Change-Id: I5196065ae11d79cb40c32425741dd39924f07718
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/boot/dts/rv1108-camb-v13.dtsi | 25 +++++++++++++------------
+ 1 file changed, 13 insertions(+), 12 deletions(-)
+
+diff --git a/arch/arm/boot/dts/rv1108-camb-v13.dtsi b/arch/arm/boot/dts/rv1108-camb-v13.dtsi
+index bbc8d27..a778ad9 100644
+--- a/arch/arm/boot/dts/rv1108-camb-v13.dtsi
++++ b/arch/arm/boot/dts/rv1108-camb-v13.dtsi
+@@ -4,15 +4,15 @@ camera0: camera-module@36 {
+ 	compatible = "omnivision,ov2710-v4l2-i2c-subdev";
+ 	reg = <0x36>;
+ 	device_type = "v4l2-i2c-subdev";
+-	clocks = <&clk_cif_out>;
+-	clock-names = "clk_cif_out";
++	clocks = <&clk_mipicsi_out>;
++	clock-names = "clk_mipicsi_out";
+ 	pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+-	pinctrl-0 = <&cif_dvp_clk_out>;
+-	pinctrl-1 = <&cif_dvp_clk_out_sleep>;
++        pinctrl-0 = <&cam0_default_pins>;
++        pinctrl-1 = <&cam0_sleep_pins>;
+ 	rockchip,pd-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_HIGH>;
+-	rockchip,pwr-gpio = <&gpio3 GPIO_B5 GPIO_ACTIVE_HIGH>;
++	rockchip,pwr-gpio = <&gpio1 GPIO_D0 GPIO_ACTIVE_HIGH>;
+ 	rockchip,rst-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
+-	rockchip,camera-module-mclk-name = "clk_cif_out";
++	rockchip,camera-module-mclk-name = "clk_mipicsi_out";
+ 	rockchip,camera-module-facing = "back";
+ 	rockchip,camera-module-name = "LA6110PA";
+ 	rockchip,camera-module-len-name = "YM6011P";
+@@ -27,6 +27,7 @@ camera0: camera-module@36 {
+ 	rockchip,camera-module-defrect0 = <1920 1080 0 0 1920 1080>;
+ 	rockchip,camera-module-flash-support = <0>;
+ 	rockchip,camera-module-mipi-dphy-index = <0>;
++	rockchip,grf = <&grf>;
+ };
+ 
+ camera1: camera-module@36-1 {
+@@ -34,15 +35,15 @@ camera1: camera-module@36-1 {
+ 	compatible = "omnivision,ov4689-v4l2-i2c-subdev";
+ 	reg = <0x36>;
+ 	device_type = "v4l2-i2c-subdev";
+-	clocks = <&clk_cif_out>;
+-	clock-names = "clk_cif_out";
++	clocks = <&clk_mipicsi_out>;
++	clock-names = "clk_mipicsi_out";
+ 	pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+-	pinctrl-0 = <&cif_dvp_clk_out>;
+-	pinctrl-1 = <&cif_dvp_clk_out_sleep>;
++	pinctrl-0 = <&cam0_default_pins>;
++	pinctrl-1 = <&cam0_sleep_pins>;
+ 	rockchip,pd-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_LOW>;
+-	rockchip,pwr-gpio = <&gpio3 GPIO_B5 GPIO_ACTIVE_HIGH>;
++	rockchip,pwr-gpio = <&gpio1 GPIO_D0 GPIO_ACTIVE_HIGH>;
+ 	rockchip,rst-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
+-	rockchip,camera-module-mclk-name = "clk_cif_out";
++	rockchip,camera-module-mclk-name = "clk_mipicsi_out";
+ 	rockchip,camera-module-facing = "back";
+ 	rockchip,camera-module-name = "LA6111PA";
+ 	rockchip,camera-module-len-name = "YM6011P";
+-- 
+1.9.1
+

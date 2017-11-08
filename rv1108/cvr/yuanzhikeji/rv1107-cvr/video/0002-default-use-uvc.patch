@@ -1,0 +1,40 @@
+From f26e9bde0083c9577f842ad40cce589138099c72 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 7 Nov 2017 17:14:20 +0800
+Subject: [PATCH 2/2] default use uvc
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ common.h    | 2 +-
+ parameter.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/common.h b/common.h
+index 13c72f1..bb6a620 100644
+--- a/common.h
++++ b/common.h
+@@ -28,7 +28,7 @@
+   { 320, 240, 30 }
+ 
+ //#define USE_CIF_CAMERA
+-#define USE_USB_WEBCAM 0
++#define USE_USB_WEBCAM 1
+ 
+ #define TEST_VIDEO_MARK 0
+ 
+diff --git a/parameter.c b/parameter.c
+index 5fecf95..f6af09c 100644
+--- a/parameter.c
++++ b/parameter.c
+@@ -1261,7 +1261,7 @@ int parameter_recover(void)
+     parameter.video_flip = 0;
+     parameter.reboot_cnt = 0;
+     parameter.tv_sec = 0;
+-    parameter.video_usb = 1;
++    parameter.video_usb = 2;
+ 
+     /*
+     * add for dv
+-- 
+1.9.1
+

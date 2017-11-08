@@ -1,0 +1,69 @@
+From 1da2b8c67c8d3d2d9b923c6495bd2a967e8a491e Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Mon, 6 Nov 2017 19:38:35 +0800
+Subject: [PATCH 2/5] enable nand and chang screen resolution
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/boot/dts/lcd_dummy_mipi.dtsi | 4 ++--
+ arch/arm/boot/dts/rv1107-cvr-v10.dts  | 2 +-
+ arch/arm/configs/rv1108_defconfig     | 4 ----
+ 3 files changed, 3 insertions(+), 7 deletions(-)
+
+diff --git a/arch/arm/boot/dts/lcd_dummy_mipi.dtsi b/arch/arm/boot/dts/lcd_dummy_mipi.dtsi
+index 02eaa2c..ac94fab 100644
+--- a/arch/arm/boot/dts/lcd_dummy_mipi.dtsi
++++ b/arch/arm/boot/dts/lcd_dummy_mipi.dtsi
+@@ -7,8 +7,8 @@
+ 			/*lvds-format = <LVDS_8BIT_2>;*/
+ 			out-face = <OUT_P888>;
+ 			clock-frequency = <62000000>;
+-			hactive = <1280>;
+-			vactive = <720>;
++			hactive = <720>;
++			vactive = <1280>;
+ 			hsync-len = <4>;
+ 			hback-porch = <20>;
+ 			hfront-porch = <32>;
+diff --git a/arch/arm/boot/dts/rv1107-cvr-v10.dts b/arch/arm/boot/dts/rv1107-cvr-v10.dts
+index 5e551ff..f783a20 100644
+--- a/arch/arm/boot/dts/rv1107-cvr-v10.dts
++++ b/arch/arm/boot/dts/rv1107-cvr-v10.dts
+@@ -82,7 +82,7 @@
+ 	};
+ 
+ 	chosen {
+-		bootargs = "user_debug=31 rockchip_jtag noinitrd root=/dev/mtdblock3 rootfstype=squashfs";
++		bootargs = "user_debug=31 rockchip_jtag noinitrd root=/dev/rootfs rootfstype=squashfs";
+ 	};
+ 
+ 	ion {
+diff --git a/arch/arm/configs/rv1108_defconfig b/arch/arm/configs/rv1108_defconfig
+index 39de49b..0436109 100644
+--- a/arch/arm/configs/rv1108_defconfig
++++ b/arch/arm/configs/rv1108_defconfig
+@@ -104,8 +104,6 @@ CONFIG_RFKILL_RK=y
+ CONFIG_DEVTMPFS=y
+ CONFIG_DMA_CMA=y
+ CONFIG_CMA_SIZE_MBYTES=4
+-CONFIG_MTD=y
+-CONFIG_MTD_BLOCK=y
+ CONFIG_ZRAM=y
+ CONFIG_BLK_DEV_LOOP=y
+ CONFIG_UID_STAT=y
+@@ -271,7 +269,6 @@ CONFIG_RK_FLASH=y
+ CONFIG_RK_NANDC_NAND=y
+ CONFIG_RK_SFC_NOR=y
+ CONFIG_RK_SFC_NAND=y
+-CONFIG_RK_SFC_NOR_MTD=y
+ CONFIG_MSDOS_FS=y
+ CONFIG_VFAT_FS=y
+ CONFIG_TMPFS=y
+@@ -303,4 +300,3 @@ CONFIG_CRC_CCITT=y
+ CONFIG_CRC16=y
+ CONFIG_CRC_ITU_T=y
+ CONFIG_LIBCRC32C=y
+-CONFIG_GPS=y
+-- 
+1.9.1
+

@@ -1,0 +1,26 @@
+From 4c745b63864be5cf483fda3ec90626a39f2696e2 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 7 Nov 2017 17:07:15 +0800
+Subject: [PATCH 4/5] use rtl8189fs default
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/configs/rv1108_defconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/configs/rv1108_defconfig b/arch/arm/configs/rv1108_defconfig
+index 0436109..5dfeb2d 100644
+--- a/arch/arm/configs/rv1108_defconfig
++++ b/arch/arm/configs/rv1108_defconfig
+@@ -113,7 +113,7 @@ CONFIG_NETDEVICES=y
+ CONFIG_MII=y
+ # CONFIG_ETHERNET is not set
+ CONFIG_PHYLIB=y
+-CONFIG_RTL8723CS=y
++CONFIG_RTL8189FS=y
+ # CONFIG_SSV6051_P2P is not set
+ # CONFIG_SSV6051_SDIO is not set
+ # CONFIG_INPUT_MOUSEDEV is not set
+-- 
+1.9.1
+
