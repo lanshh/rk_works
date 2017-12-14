@@ -1,0 +1,81 @@
+From 56aaada435344dad86906d171dedd265e9050e5a Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 14 Dec 2017 10:35:08 +0800
+Subject: [PATCH 2/2] add user define img and directory
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ Makefile       |  1 +
+ pack-rootfs.mk |  4 ++++
+ pack-rwpart.mk | 31 +++++++++++++++++++++++++++++++
+ 3 files changed, 36 insertions(+)
+ create mode 100644 pack-rwpart.mk
+
+diff --git a/Makefile b/Makefile
+index d92e85f..f9be7cf 100644
+--- a/Makefile
++++ b/Makefile
+@@ -859,6 +859,7 @@ list-defconfigs:
+ 	  printf "  %-35s - Build for %s\\n" $(b) $(b:_defconfig=);)
+ 	@echo
+ 
++include $(CONFIG_DIR)/pack-rwpart.mk
+ include $(CONFIG_DIR)/pack-rootfs.mk
+ include $(CONFIG_DIR)/pack-kernel.mk
+ 
+diff --git a/pack-rootfs.mk b/pack-rootfs.mk
+index b62d3d9..4911f37 100644
+--- a/pack-rootfs.mk
++++ b/pack-rootfs.mk
+@@ -284,6 +284,10 @@ ifneq ($(STRIPCMD),)
+ 	$(Q)$(call strip_files_under,$(OUT_SYSROOT_USR_DIR)/bin/)
+ 	$(Q)$(call strip_files_under,$(OUT_SYSROOT_USR_DIR)/sbin/)
+ endif
++	$(Q)$(call create_dir_and_cp_and_mkimg, "creae user part and img", $(LS_USER_PATH), $(lS_USER_TOOL_PATH), $(LS_MKIMG_TOOL), 16m , $(lS_USER_IMG_NAME))
++	$(Q)$(call create_dir_only, "creae user1 dir", $(LS_USER1_PATH))
++	$(Q)$(call create_dir_only, "creae param dir", $(LS_PARAM_PATH))
++	$(Q)$(call makeimg, "make param", $(LS_MKIMG_TOOL), 8m, $(LS_PARAM_IMG_NAME))
+ 	@echo "(create rootfs.img without kernel..."
+ 	$(Q)mkdir -p $(OUT_IMAGE_DIR)
+ 	$(Q)rm -f $(OUT_IMAGE_DIR)/rootfs.img
+diff --git a/pack-rwpart.mk b/pack-rwpart.mk
+new file mode 100644
+index 0000000..8937189
+--- /dev/null
++++ b/pack-rwpart.mk
+@@ -0,0 +1,31 @@
++CUSTOM_DIR := $(BASE_DIR)/custom
++OUT_SYSROOT_DIR := $(BASE_DIR)/outImage
++OUT_IMAGE_DIR := $(RV_TOPDIR)/rockimg/Image-cvr
++LS_USER_PATH := $(OUT_SYSROOT_DIR)/root/user
++lS_USER_TOOL_PATH := $(RV_TOPDIR)/common/user
++lS_USER_IMG_NAME := $(OUT_IMAGE_DIR)/user.img
++LS_USER1_PATH := $(OUT_SYSROOT_DIR)/root/user1
++lS_USER1_TOOL_PATH := $(RV_TOPDIR)/common/user1
++LS_PARAM_PATH := $(OUT_SYSROOT_DIR)/root/param
++LS_PARAM_IMG_NAME := $(OUT_IMAGE_DIR)/param.img
++LS_MKIMG_TOOL := make_ext4fs
++pack-rwpart:
++	echo -n "create user.img..."
++	$(Q)rm -rf $(OUT_SYSROOT_DIR)/root/user
++	$(Q)rm -rf $(OUT_SYSROOT_DIR)/root/user1
++	$(Q)rm -rf $(OUT_SYSROOT_DIR)/root/param
++	mkdir $(LS_USER_PATH)
++	$(Q)make_ext4fs -l 16m $(OUT_IMAGE_DIR)/user.img $(LS_USER_PATH)
++	$(Q)cp -r $(lS_USER_TOOL_PATH)/* $(LS_USER_PATH)
++	mkdir $(LS_PARAM_PATH)
++	mkdir $(LS_USER1_PATH)
++
++	$(Q)make_ext4fs -l 8m $(OUT_IMAGE_DIR)/param.img
++	#mkfs.jffs2 --root=$(OUT_SYSROOT_DIR)/root/user --pad=0x100000 -o $(OUT_IMAGE_DIR)/user.img
++	echo "done."
++
++#$(call create_dir_and_cp, lanshh, lanshh1)
++create_dir_and_cp_and_mkimg = echo "$(1) enter...." && rm -rf $(2) && mkdir $(2) && cp $(3)/* $(2) &&\
++ $(4) -l $(5) $(6) $(2) && rm $(2)/* && echo "$(1) exit...."
++create_dir_only = echo "$(1) enter..." && rm -rf $(2) && mkdir $(2) && echo "exit...."
++makeimg = echo "$(1) enter..." && $(2) -l $(3) $(4) $(5) && echo  "$(1) exit...."
+\ No newline at end of file
+-- 
+1.9.1
+
