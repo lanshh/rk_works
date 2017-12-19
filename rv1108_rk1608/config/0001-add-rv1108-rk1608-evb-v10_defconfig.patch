@@ -1,0 +1,219 @@
+From efce524caa5735a706c4545a407435bb29cc83d0 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 19 Dec 2017 16:01:16 +0800
+Subject: [PATCH] add rv1108-rk1608-evb-v10_defconfig
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ rv1108-rk1608-evb-v10_defconfig | 199 ++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 199 insertions(+)
+ create mode 100644 rv1108-rk1608-evb-v10_defconfig
+
+diff --git a/rv1108-rk1608-evb-v10_defconfig b/rv1108-rk1608-evb-v10_defconfig
+new file mode 100644
+index 0000000..7224f16
+--- /dev/null
++++ b/rv1108-rk1608-evb-v10_defconfig
+@@ -0,0 +1,199 @@
++#
++# Automatically generated file; DO NOT EDIT.
++# RV110x develop_branch Configuration
++#
++BR2_HAVE_DOT_CONFIG=y
++BR2_HOST_GCC_AT_LEAST_4_6=y
++BR2_HOST_GCC_AT_LEAST_4_7=y
++BR2_HOST_GCC_AT_LEAST_4_8=y
++BR2_HOST_GCC_AT_LEAST_4_9=y
++BR2_HOST_GCC_AT_LEAST_5=y
++BR2_TOOLCHAIN_GCC_AT_LEAST_4_6=y
++BR2_TOOLCHAIN_GCC_AT_LEAST_4_7=y
++BR2_TOOLCHAIN_GCC_AT_LEAST_4_8=y
++
++#
++# Board options
++#
++RV_PRODUCT_CVR=y
++# RV_PRODUCT_SDV is not set
++# RV_PRODUCT_IPC is not set
++RV_PRODUCT_TYPE="CVR"
++RV_LCD_RESOLUTION="960x540"
++RV_BOARD_VERSION="rv1108-rk1608-evb-v10"
++
++#
++# Build options
++#
++RV_CROSS_COMPILE_PREFIX="$(RV_TOPDIR)/prebuilts/toolschain/usr/bin/arm-linux-"
++RV_DEFCONFIG="$(CONFIG_DIR)/$(RV_BOARD_VERSION)_defconfig"
++RV_JLEVEL=0
++RV_ENABLE_DEBUG=y
++# RV_DEBUG_1 is not set
++RV_DEBUG_2=y
++# RV_DEBUG_3 is not set
++RV_STRIP_strip=y
++# RV_STRIP_none is not set
++# RV_OPTIMIZE_0 is not set
++# RV_OPTIMIZE_1 is not set
++RV_OPTIMIZE_2=y
++# RV_OPTIMIZE_3 is not set
++# RV_OPTIMIZE_S is not set
++# RV_SSP_NONE is not set
++# RV_SSP_REGULAR is not set
++
++#
++# Stack Smashing Protection strong needs a toolchain w/ gcc >= 4.9
++#
++RV_SSP_ALL=y
++RV_STATIC_LIBS=y
++# RV_SHARED_LIBS is not set
++RV_FIRMWARE_MINIMIZE=y
++
++#
++# Applications and Libraries
++#
++
++#
++# Defines used for seperate application and library
++#
++
++#
++# [rv] main app setting options
++#
++RV_TARGET_MAIN_APP_UI_TYPE="CVR"
++# RV_TARGET_MAIN_APP_CACHE_ENCODEDATA_IN_MEM is not set
++RV_TARGET_MAIN_APP_RECORD_FORMAT="mp4"
++RV_TARGET_MAIN_APP_AUDIO_ENC_FORMAT="aac"
++RV_TARGET_MAIN_APP_TS_PROTOCOL="rtsp"
++RV_TARGET_MAIN_APP_ENABLE_CVBS_IN=y
++# RV_TARGET_MAIN_APP_ALWAYS_REWRITE_PARAMETER is not set
++
++# [rv] dpp
++RV_TARGET_DPP=y
++
++# [rv] libodt
++RV_TARGET_LIBODT=y
++
++# [rv] libdvs
++RV_TARGET_LIBDVS=y
++
++#
++# [rv]fs manage
++#
++RV_TARGET_LIBFS_MANAGE=y
++
++#
++# fs manage macros
++#
++RV_TARGET_LIBFS_MANAGE_CACHE_SIZE=1048576
++RV_TARGET_MPP=y
++RV_TARGET_LIBCAMERAHAL=y
++RV_TARGET_APP_RECOVERY=y
++
++#
++# ffmpeg
++#
++RV_TARGET_FFMPEG=y
++
++#
++# ffmpeg config options
++#
++RV_TARGET_FFMPEG_STATIC_LIB=y
++RV_TARGET_FFMPEG_FS_MANAGE=y
++RV_TARGET_FFMPEG_GPL=y
++RV_TARGET_FFMPEG_NONFREE=y
++# RV_TARGET_FFMPEG_ENCODER_PCM_S16LE is not set
++RV_TARGET_FFMPEG_DECODER_PCM_S16LE=y
++# RV_TARGET_FFMPEG_MUXER_AVI is not set
++# RV_TARGET_FFMPEG_DEMUXER_AVI is not set
++# RV_TARGET_FFMPEG_MUXER_MPEGTS is not set
++# RV_TARGET_FFMPEG_DEMUXER_MPEGTS is not set
++RV_TARGET_FFMPEG_MUXER_MP4=y
++# RV_TARGET_FFMPEG_MUXER_MOV is not set
++RV_TARGET_FFMPEG_DEMUXER_MOV_MP4=y
++# RV_TARGET_FFMPEG_DEMUXER_AAC is not set
++# RV_TARGET_FFMPEG_PROTOCOL_UDP is not set
++# RV_TARGET_FFMPEG_LIBRTMP is not set
++
++#
++# libminigui
++#
++RV_TARGET_LIBMINIGUI=y
++
++#
++# libminigui config options
++#
++RV_TARGET_LIBMINIGUI_SUPPORT_JPG=y
++RV_TARGET_LIBFDK_AAC=y
++
++#
++# libfdk_aac configures
++#
++RV_TARGET_LIBFDK_AAC_STATIC_LIB=y
++RV_TARGET_LIBJPEG=y
++# RV_TARGET_LIBRTMP is not set
++RV_TARGET_RKSTREAMER=y
++RV_TARGET_LIBALSA=y
++RV_TARGET_LIBALSA_RKVOICE_PROCESS=y
++# RV_TARGET_FREETYPE is not set
++RV_TARGET_ZLIB=y
++RV_TARGET_LIBPNG=y
++RV_TARGET_LIBRKRGA=y
++RV_TARGET_LIBRKFB=y
++RV_TARGET_LIBRKIPC=y
++# RV_TARGET_LIBTS is not set
++RV_TARGET_FSCK_MSDOS=y
++RV_TARGET_IO=y
++
++#
++# speechrec
++#
++# RV_TARGET_POCKETSPHINX is not set
++# RV_TARGET_SPHINXBASE is not set
++RV_TARGET_LIBIEP=y
++RV_TARGET_ZS_GPSLIB=y
++RV_ENABLE_NETWORK=y
++
++#
++# Network
++#
++RV_TARGET_WLAN_SERVICE=y
++RV_TARGET_LIBNL=y
++RV_TARGET_DNSMASQ=y
++RV_TARGET_HOSTAPD=y
++RV_TARGET_WPA_SUPPLICANT=y
++RV_TARGET_LIGHTTPD=y
++# RV_TARGET_GOOGLETEST is not set
++RV_TARGET_OPENSSL=y
++
++#
++# Development tools
++#
++RV_TARGET_ADBD=y
++# RV_TARGET_IPERF is not set
++RV_TARGET_LIBCUTILS=y
++RV_TARGET_LIBUTILS=y
++RV_TARGET_LIBLOG=y
++RV_TARGET_LOGWRAP=y
++RV_TARGET_GDBSERVER=y
++# RV_TARGET_DEBUG_TOOLS_BLKPARSE is not set
++# RV_TARGET_DEBUG_TOOLS_BLKTRACE is not set
++# RV_TARGET_DEBUG_TOOLS_STRACE is not set
++# RV_TARGET_DEBUG_TOOLS_PERF is not set
++# RV_TARGET_DEBUG_TOOLS_STRESSAPPTEST is not set
++
++#
++# kernel debug
++#
++
++#
++# Convenience for some debugging setting. If need config kernel, pls use the menuconfig under $(project)/kernel
++#
++RV_TARGET_KERNEL_MEMORY_SIZE=""
++RV_TARGET_KERNEL_ION_SIZE=""
++RV_TARGET_KERNEL_ACLK_RKVENC_PRE=""
++RV_TARGET_KERNEL_CLK_VENC_CORE=""
++RV_TARGET_KERNEL_ACLK_RKVDEC_PRE=""
++RV_TARGET_KERNEL_ACLK_VPU_PRE=""
++RV_TARGET_KERNEL_CLK_RGA=""
+-- 
+1.9.1
+

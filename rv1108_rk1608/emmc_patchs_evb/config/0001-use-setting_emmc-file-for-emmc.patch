@@ -1,0 +1,26 @@
+From 07f29c172f907810c3a66bc6fd3d5504894d07f4 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 17 Aug 2017 15:31:41 +0800
+Subject: [PATCH 1/2] use setting_emmc file for emmc
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index d721773..d92e85f 100644
+--- a/Makefile
++++ b/Makefile
+@@ -868,7 +868,7 @@ firmware-gen fwg fw: pack-kernel pack-rootfs
+ 	$(Q)cp $(KERNEL_PKGDIR)/kernel.img $(OUT_IMAGE_DIR)
+ 	$(Q)cp $(RV_TOPDIR)/rockimg/Image-release/rv1108loader.bin $(OUT_IMAGE_DIR)
+ 	$(Q)cp $(RV_TOPDIR)/rockimg/Image-release/rv1108ddr.bin $(OUT_IMAGE_DIR)
+-	$(Q)$(RV_TOPDIR)/build/firmwareMerger -p $(RV_TOPDIR)/build/setting.ini $(OUT_IMAGE_DIR)/
++	$(Q)$(RV_TOPDIR)/build/firmwareMerger -p $(RV_TOPDIR)/build/setting_emmc.ini $(OUT_IMAGE_DIR)/
+ 
+ firmware-write fww:
+ 	@cd tools/Linux_Upgrade_Tool_v1.24 && ./cvr_upgrade.sh
+-- 
+1.9.1
+
