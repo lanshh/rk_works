@@ -1,0 +1,105 @@
+From 4085e4f13a410c2d5841040459ea828309295ae7 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 20 Dec 2017 19:48:27 +0800
+Subject: [PATCH 5/6] fix return code
+
+Change-Id: Idb0d54ef63ce35d4d02fbadcf60693f90238cc39
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ drivers/media/platform/preisp_driver/cif-preisp.c | 22 ++++++++--------------
+ 1 file changed, 8 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/media/platform/preisp_driver/cif-preisp.c b/drivers/media/platform/preisp_driver/cif-preisp.c
+index 75af869..cb44645 100644
+--- a/drivers/media/platform/preisp_driver/cif-preisp.c
++++ b/drivers/media/platform/preisp_driver/cif-preisp.c
+@@ -110,12 +110,12 @@ int sendMsgAndWait(int camId, struct spi_rk_preisp_data *pdata, struct msg *msg,
+ 				ret = 0;
+ 			} else {
+ 				cif_preisp_pltfrm_pr_err(NULL, "msq_recv_msg err!\n");
+-				ret = EFAULT;
++				ret = -EFAULT;
+ 			}
+ 		}
+ 	} else {
+ 		cif_preisp_pltfrm_pr_err(NULL, "msq is empty\n");
+-		ret = EFAULT;
++		ret = -EFAULT;
+ 	}
+ 
+ 	cif_preisp_pltfrm_pr_info(NULL, "size: [%u, %u], type: [%u, %u]\n",
+@@ -132,28 +132,23 @@ int doInitSensor(struct spi_rk_preisp_data *pdata, int camId)
+ 	int err = 0;
+ 
+ 	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);	
+-
+ 	msg.size = sizeof(msg_init_sensor_t) / 4;
+     	msg.type = id_msg_init_sensor_t;
+     	msg.camera_id = camId;
+ 	msg.sync = 1;
+-
+-        msg.in_mipi_phy = 0;
++	msg.in_mipi_phy = 0 == camId ? 0:2;
+         msg.out_mipi_phy = 0;
+         msg.mipi_lane = 2;
+         msg.bayer = 1;
+ 	strcpy(msg.sensor_name, "OV4689");
+-
+ 	ret.size = sizeof(msg_init_sensor_ret_t) / 4;
+ 	ret.type = id_msg_init_sensor_ret_t;
+ 	ret.camera_id = -1;
+-
+ 	err = sendMsgAndWait(camId, pdata, (struct msg*)&msg, &ret, 1000);
+ 	if (err < 0) {
+ 		cif_preisp_pltfrm_pr_err(NULL, "%s: sendMsgAndWait failed!\n", __FUNCTION__);
+-		err = EFAULT;
++		err = -EFAULT;
+ 	}
+-
+ 	return err;
+ }
+ 
+@@ -192,7 +187,7 @@ int doSetInputSize(struct spi_rk_preisp_data *pdata, int camId)
+ 	err = !err ? err : ret.err;
+         if (err) {
+ 		cif_preisp_pltfrm_pr_err(NULL, "%s: sendMsgAndWait failed!\n", __FUNCTION__);
+-		err = EFAULT;
++		err = -EFAULT;
+         }
+ 
+         return err;
+@@ -219,12 +214,11 @@ int doSetOutputSize(struct spi_rk_preisp_data *pdata, int camId)
+ 	ret.size = sizeof(msg_set_output_size_ret_t) / 4;
+ 	ret.type = id_msg_set_output_size_ret_t;
+ 	ret.camera_id = -1;
+-
+ 	err = sendMsgAndWait(camId, pdata, (struct msg*)&msg, &ret, 1000);
+ 	err = !err ? err : ret.err;
+         if (err) {
+ 		cif_preisp_pltfrm_pr_err(NULL, "%s: sendMsgAndWait failed!\n", __FUNCTION__);
+-		err = EFAULT;
++		err = -EFAULT;
+         }
+ 
+ 	return err;
+@@ -327,7 +321,7 @@ int cif_preisp_cfg(struct device *dev, struct cif_preisp_cfg_para *cfg)
+ 	if (IS_ERR_OR_NULL(spi_client)) {
+ 		cif_preisp_pltfrm_pr_err(dev,
+ 			"not an spi device\n");
+-		return EFAULT;
++		return -EFAULT;
+ 	}
+ 
+ 	cif_preisp_pltfrm_pr_dbg(NULL, "%s: cmd: %d\n", __FUNCTION__, cfg->cmd);
+@@ -336,7 +330,7 @@ int cif_preisp_cfg(struct device *dev, struct cif_preisp_cfg_para *cfg)
+ 	if (IS_ERR_OR_NULL(cif_preisp_dev)) {
+ 		cif_preisp_pltfrm_pr_err(dev,
+ 			"not an spi subdev\n");
+-		return EFAULT;
++		return -EFAULT;
+ 	}
+ 
+ 	switch (cfg->cmd) {
+-- 
+1.9.1
+
