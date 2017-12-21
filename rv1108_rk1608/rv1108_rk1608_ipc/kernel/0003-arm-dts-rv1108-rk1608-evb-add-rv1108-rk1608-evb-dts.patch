@@ -1,16 +1,16 @@
-From dfe2ad9478a9da9de1eb9d080f403071541629c4 Mon Sep 17 00:00:00 2001
+From a205eba11d529d2b5f9bd8d378e2046cf4939a01 Mon Sep 17 00:00:00 2001
 From: lanshh <lsh@rock-chips.com>
-Date: Tue, 19 Dec 2017 15:05:15 +0800
-Subject: [PATCH 3/6] arm: dts: rv1108-rk1608-evb: add rv1108-rk1608-evb dts
+Date: Thu, 21 Dec 2017 16:07:16 +0800
+Subject: [PATCH 3/5] arm: dts: rv1108-rk1608-evb: add rv1108-rk1608-evb dts
 
-Change-Id: Iff1954746aec548d1b56caa6ff211da326be3a10
+Change-Id: Ica788ef5e0bb59593879049a9c86c498e383b123
 Signed-off-by: lanshh <lsh@rock-chips.com>
 ---
  arch/arm/boot/dts/Makefile                  |   1 +
- arch/arm/boot/dts/lcd_dummy_mipi.dtsi       |  20 +-
  arch/arm/boot/dts/rv1108-camb-v14.dtsi      |  26 ++
  arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts | 600 ++++++++++++++++++++++++++++
- 4 files changed, 638 insertions(+), 9 deletions(-)
+ arch/arm/boot/dts/rv1108.dtsi               |   8 +-
+ 4 files changed, 631 insertions(+), 4 deletions(-)
  create mode 100644 arch/arm/boot/dts/rv1108-camb-v14.dtsi
  create mode 100644 arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts
 
@@ -26,37 +26,6 @@ index 23231c3..a8a0d0b 100644
  	rv1108-sportdv-v10.dtb
  dtb-$(CONFIG_ARCH_U8500) += snowball.dtb \
  	hrefprev60.dtb \
-diff --git a/arch/arm/boot/dts/lcd_dummy_mipi.dtsi b/arch/arm/boot/dts/lcd_dummy_mipi.dtsi
-index 02eaa2c..c4b249d 100644
---- a/arch/arm/boot/dts/lcd_dummy_mipi.dtsi
-+++ b/arch/arm/boot/dts/lcd_dummy_mipi.dtsi
-@@ -6,15 +6,17 @@
- 			screen-type = <SCREEN_MIPI>;
- 			/*lvds-format = <LVDS_8BIT_2>;*/
- 			out-face = <OUT_P888>;
--			clock-frequency = <62000000>;
--			hactive = <1280>;
--			vactive = <720>;
--			hsync-len = <4>;
--			hback-porch = <20>;
--			hfront-porch = <32>;
--			vsync-len = <4>;
--			vback-porch = <15>;
--			vfront-porch = <15>;
-+			clock-frequency = <35390050>;
-+			screen-width = <62>;
-+			screen-hight = <110>;
-+			hactive = <540>;
-+			vactive = <960>;
-+			hsync-len = <8>;
-+			hback-porch = <85>;
-+			hfront-porch = <85>;
-+			vsync-len = <1>;
-+			vback-porch = <20>;
-+			vfront-porch = <20>;
- 			hsync-active = <0>;
- 			vsync-active = <0>;
- 			de-active = <0>;
 diff --git a/arch/arm/boot/dts/rv1108-camb-v14.dtsi b/arch/arm/boot/dts/rv1108-camb-v14.dtsi
 new file mode 100644
 index 0000000..8618365
@@ -695,6 +664,41 @@ index 0000000..383d6ac
 +		};
 +	};
 +};
+diff --git a/arch/arm/boot/dts/rv1108.dtsi b/arch/arm/boot/dts/rv1108.dtsi
+index a0a1653..370b274 100644
+--- a/arch/arm/boot/dts/rv1108.dtsi
++++ b/arch/arm/boot/dts/rv1108.dtsi
+@@ -1925,10 +1925,10 @@
+ 
+ 		cam_pins {
+ 			cam0_default_pins: cam0-default-pins {
+-				rockchip,pins = <3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
++				rockchip,pins = <1 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
+ 			};
+ 			cam0_sleep_pins: cam0-sleep-pins {
+-				rockchip,pins = <3 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>;
++				rockchip,pins = <1 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>;
+ 			};
+ 		};
+ 
+@@ -1962,7 +1962,7 @@
+ 						<3 GPIO_C6 RK_FUNC_1 &pcfg_pull_none>; /* cif_vsync */
+ 			};
+ 			cif_dvp_clk_out: cif-dvp-clk-out {
+-				rockchip,pins = <3 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>;
++				rockchip,pins = <3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
+ 			};
+ 			cif_dvp_clk_in: cif-dvp-clk-in {
+ 				rockchip,pins = <3 GPIO_C7 RK_FUNC_1 &pcfg_pull_none>;
+@@ -1978,7 +1978,7 @@
+ 						<3 GPIO_D4 RK_FUNC_GPIO &pcfg_pull_none>;
+ 			};
+ 			cif_dvp_clk_out_sleep: cif-dvp-clk-out-sleep {
+-				rockchip,pins = <3 GPIO_D2 RK_FUNC_GPIO &pcfg_pull_none>;
++				rockchip,pins = <3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
+ 			};
+ 			cif_dvp_clk_in_sleep: cif-dvp-clk-in-sleep {
+ 				rockchip,pins = <3 GPIO_C7 RK_FUNC_GPIO &pcfg_pull_none>;
 -- 
 1.9.1
 

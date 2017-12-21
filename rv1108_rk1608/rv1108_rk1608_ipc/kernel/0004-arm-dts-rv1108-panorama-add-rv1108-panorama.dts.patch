@@ -1,31 +1,29 @@
-From 0209a19b6638c782fa64d654272193c1ad402d24 Mon Sep 17 00:00:00 2001
+From 3e69ac65ce4fa1749b2ab7aa517b240ab86effc9 Mon Sep 17 00:00:00 2001
 From: lanshh <lsh@rock-chips.com>
-Date: Wed, 20 Dec 2017 17:22:55 +0800
-Subject: [PATCH 4/6] arm: dts: rv1108-panorama: add rv1108-panorama.dts
+Date: Thu, 21 Dec 2017 16:18:53 +0800
+Subject: [PATCH 4/5] arm: dts: rv1108-panorama: add rv1108-panorama.dts
 
-Change-Id: Idd4516bf20d987e9c38f81ee5787bbe4acadfe40
+Change-Id: Iebee3c67b90b63e5347c7a88629197884cf88902
 Signed-off-by: lanshh <lsh@rock-chips.com>
 ---
- arch/arm/boot/dts/Makefile             |   3 +-
+ arch/arm/boot/dts/Makefile             |   1 +
  arch/arm/boot/dts/rv1108-camb-v13.dtsi |  45 +--
  arch/arm/boot/dts/rv1108-panorama.dts  | 660 +++++++++++++++++++++++++++++++++
- 3 files changed, 669 insertions(+), 39 deletions(-)
+ 3 files changed, 668 insertions(+), 38 deletions(-)
  create mode 100644 arch/arm/boot/dts/rv1108-panorama.dts
 
 diff --git a/arch/arm/boot/dts/Makefile b/arch/arm/boot/dts/Makefile
-index a8a0d0b..f94c034 100644
+index a8a0d0b..82e15ed 100644
 --- a/arch/arm/boot/dts/Makefile
 +++ b/arch/arm/boot/dts/Makefile
-@@ -206,7 +206,8 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
+@@ -205,6 +205,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
+ 	rv1108-ipc-emmc-v10.dtb \
  	rv1108-ketong.dtb \
  	rv1108-minievb-v10.dtb \
++	rv1108-panorama.dtb \
  	rv1108-rk1608-evb-v10.dtb \
--	rv1108-sportdv-v10.dtb
-+	rv1108-sportdv-v10.dtb \
-+	rv1108-panorama.dtb
+ 	rv1108-sportdv-v10.dtb
  dtb-$(CONFIG_ARCH_U8500) += snowball.dtb \
- 	hrefprev60.dtb \
- 	hrefv60plus.dtb \
 diff --git a/arch/arm/boot/dts/rv1108-camb-v13.dtsi b/arch/arm/boot/dts/rv1108-camb-v13.dtsi
 index bbc8d27..fa49ed8 100644
 --- a/arch/arm/boot/dts/rv1108-camb-v13.dtsi
@@ -112,7 +110,7 @@ index bbc8d27..fa49ed8 100644
  	device_type = "v4l2-i2c-subdev";
 diff --git a/arch/arm/boot/dts/rv1108-panorama.dts b/arch/arm/boot/dts/rv1108-panorama.dts
 new file mode 100644
-index 0000000..ac95c77
+index 0000000..3e0c1a6
 --- /dev/null
 +++ b/arch/arm/boot/dts/rv1108-panorama.dts
 @@ -0,0 +1,660 @@
@@ -529,32 +527,32 @@ index 0000000..ac95c77
 +
 +&i2c3 {
 +	status = "okay";
-+    camera1: camera-module@37 {
-+    	status = "okay";
-+    	compatible = "omnivision,ov4689-v4l2-i2c-subdev";
-+    	reg = <0x36>;
-+    	device_type = "v4l2-i2c-subdev";
-+    	clocks = <&clk_mipicsi_out>;
-+    	clock-names = "clk_mipicsi_out";
-+    	rockchip,pd-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_LOW>;
-+    	rockchip,pwr-gpio = <&gpio0 GPIO_C3 GPIO_ACTIVE_HIGH>;
-+    	rockchip,rst-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
-+    	rockchip,camera-module-mclk-name = "clk_mipicsi_out";
-+    	rockchip,camera-module-facing = "back";
-+    	rockchip,camera-module-name = "LA6111PA";
-+    	rockchip,camera-module-len-name = "YM6011P";
-+    	rockchip,camera-module-fov-h = "116";
-+    	rockchip,camera-module-fov-v = "61";
-+    	rockchip,camera-module-orientation = <0>;
-+    	rockchip,camera-module-iq-flip = <0>;
-+    	rockchip,camera-module-iq-mirror = <0>;
-+    	rockchip,camera-module-flip = <0>;
-+    	rockchip,camera-module-mirror = <1>;
-+    	/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
-+    	rockchip,camera-module-defrect0 = <2688 1520 0 0 2688 1520>;
-+    	rockchip,camera-module-flash-support = <0>;
-+    	rockchip,camera-module-mipi-dphy-index = <0>;
-+    };
++	camera1: camera-module@37 {
++		status = "okay";
++		compatible = "omnivision,ov4689-v4l2-i2c-subdev";
++		reg = <0x36>;
++		device_type = "v4l2-i2c-subdev";
++		clocks = <&clk_mipicsi_out>;
++		clock-names = "clk_mipicsi_out";
++		rockchip,pd-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_LOW>;
++		rockchip,pwr-gpio = <&gpio0 GPIO_C3 GPIO_ACTIVE_HIGH>;
++		rockchip,rst-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
++		rockchip,camera-module-mclk-name = "clk_mipicsi_out";
++		rockchip,camera-module-facing = "back";
++		rockchip,camera-module-name = "LA6111PA";
++		rockchip,camera-module-len-name = "YM6011P";
++		rockchip,camera-module-fov-h = "116";
++		rockchip,camera-module-fov-v = "61";
++		rockchip,camera-module-orientation = <0>;
++		rockchip,camera-module-iq-flip = <0>;
++		rockchip,camera-module-iq-mirror = <0>;
++		rockchip,camera-module-flip = <0>;
++		rockchip,camera-module-mirror = <1>;
++		/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
++		rockchip,camera-module-defrect0 = <2688 1520 0 0 2688 1520>;
++		rockchip,camera-module-flash-support = <0>;
++		rockchip,camera-module-mipi-dphy-index = <0>;
++	};
 +};
 +
 +&camera0 {
@@ -776,7 +774,6 @@ index 0000000..ac95c77
 +		};
 +	};
 +};
-\ No newline at end of file
 -- 
 1.9.1
 

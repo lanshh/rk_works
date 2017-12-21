@@ -1,0 +1,134 @@
+From 8ab703b005aced5123a4a300b8d8eabffc8eb68e Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 21 Dec 2017 15:31:26 +0800
+Subject: [PATCH 5/5] Revert "isp11: rockchip: v0.2.f"
+
+This reverts commit 6f50476609c15aa3bf5742a866ab6fc13918b089.
+
+Conflicts:
+	drivers/media/platform/rk-isp11/cif_isp11_version.h
+
+Change-Id: I56c1a9458e3699d2a88a66e28c7821fbf2e3b079
+---
+ drivers/media/platform/rk-isp11/cif_isp11_isp.c    |  2 +-
+ drivers/media/platform/rk-isp11/cif_isp11_rv1108.c | 34 ++++------------------
+ .../media/platform/rk-isp11/cif_isp11_version.h    |  2 +-
+ 3 files changed, 7 insertions(+), 31 deletions(-)
+
+diff --git a/drivers/media/platform/rk-isp11/cif_isp11_isp.c b/drivers/media/platform/rk-isp11/cif_isp11_isp.c
+index 56fcf17..740f9e9 100644
+--- a/drivers/media/platform/rk-isp11/cif_isp11_isp.c
++++ b/drivers/media/platform/rk-isp11/cif_isp11_isp.c
+@@ -423,7 +423,7 @@ static int cifisp_dpcc_param(struct cif_isp11_isp_dev *isp_dev,
+ 		goto end;
+ 	}
+ 
+-	method = &arg->methods[0];
++	method = &arg->methods[i];
+ 	for (i = 0; i < CIFISP_DPCC_METHODS_MAX; i++) {
+ 		if ((method->method & CIFISP_DPCC_METHODS_SET_RESERVED) ||
+ 			(method->line_thresh & CIFISP_DPCC_LINE_THRESH_RESERVED) ||
+diff --git a/drivers/media/platform/rk-isp11/cif_isp11_rv1108.c b/drivers/media/platform/rk-isp11/cif_isp11_rv1108.c
+index d0c1317..cd515c8 100644
+--- a/drivers/media/platform/rk-isp11/cif_isp11_rv1108.c
++++ b/drivers/media/platform/rk-isp11/cif_isp11_rv1108.c
+@@ -25,7 +25,6 @@
+ #include <linux/kernel.h>
+ #include <linux/platform_device.h>
+ #include <linux/platform_data/rk_isp11_platform.h>
+-#include <linux/rockchip/dvfs.h>
+ #include "cif_isp11_pltfrm.h"
+ #include "cif_isp11_regs.h"
+ 
+@@ -81,8 +80,6 @@ struct cif_isp11_clk_rst_rv1108 {
+ 	struct clk *pclk_mipi_csi;
+ 	struct clk *pclk_isp_in;
+ 
+-	struct dvfs_node *dvfs_core;
+-
+ 	struct reset_control *isp_rst;
+ 	struct reset_control *isp_niu_arst;
+ 	struct reset_control *isp_niu_hrst;
+@@ -226,12 +223,7 @@ static int soc_clk_enable(void)
+ 
+ 	clk_prepare_enable(clk_rst->hclk_isp);
+ 	clk_prepare_enable(clk_rst->aclk_isp);
+-	if (clk_rst->dvfs_core) {
+-		clk_enable_dvfs(clk_rst->dvfs_core);
+-		dvfs_clk_prepare_enable(clk_rst->dvfs_core);
+-	} else {
+-		clk_prepare_enable(clk_rst->sclk_isp);
+-	}
++	clk_prepare_enable(clk_rst->sclk_isp);
+ 	clk_prepare_enable(clk_rst->sclk_isp_jpe);
+ 	clk_prepare_enable(clk_rst->sclk_mipidsi_24m);
+ 	clk_prepare_enable(clk_rst->pclk_isp_in);
+@@ -256,12 +248,7 @@ static int soc_clk_disable(void)
+ 
+ 	clk_disable_unprepare(clk_rst->hclk_isp);
+ 	clk_disable_unprepare(clk_rst->aclk_isp);
+-	if (clk_rst->dvfs_core) {
+-		dvfs_clk_disable_unprepare(clk_rst->dvfs_core);
+-		clk_disable_dvfs(clk_rst->dvfs_core);
+-	} else {
+-		clk_disable_unprepare(clk_rst->sclk_isp);
+-	}
++	clk_disable_unprepare(clk_rst->sclk_isp);
+ 	clk_disable_unprepare(clk_rst->sclk_isp_jpe);
+ 	clk_disable_unprepare(clk_rst->sclk_mipidsi_24m);
+ 	clk_disable_unprepare(clk_rst->pclk_isp_in);
+@@ -293,13 +280,8 @@ static int soc_isp_clk_cfg(int *data_rate)
+ 		pr_warn("rv1108 isp signoff is 360MHz, using %dMHz maybe unstable\n",
+ 			isp_clk[i]);
+ 
+-	if (clk_rst->dvfs_core)
+-		dvfs_clk_set_rate(clk_rst->dvfs_core, isp_clk[i] * 1000000);
+-	else
+-		clk_set_rate(clk_rst->sclk_isp, isp_clk[i] * 1000000);
+-
++	clk_set_rate(clk_rst->sclk_isp, isp_clk[i] * 1000000);
+ 	clk_set_rate(clk_rst->sclk_isp_jpe, isp_clk[i] * 1000000);
+-	printk(KERN_INFO "%s: set isp clk = %dMHz\n", __func__, isp_clk[i]);
+ 	return 0;
+ }
+ 
+@@ -362,14 +344,6 @@ static int soc_init(struct pltfrm_soc_init_para *init)
+ 	clk_rst->isp_niu_hrst = devm_reset_control_get(&pdev->dev, "rst_isp_niu_h");
+ 	clk_rst->isp_hrst = devm_reset_control_get(&pdev->dev, "rst_isp_h");
+ 
+-	clk_rst->dvfs_core = clk_get_dvfs_node("clk_isp");
+-	if (IS_ERR_OR_NULL(clk_rst->dvfs_core)) {
+-		dev_info(&pdev->dev, "without dvfs node\n");
+-		clk_rst->dvfs_core = NULL;
+-	} else {
+-		dev_info(&pdev->dev, "with dvfs node\n");
+-	}
+-
+ 	if (IS_ERR_OR_NULL(clk_rst->aclk_isp) ||
+ 		IS_ERR_OR_NULL(clk_rst->hclk_isp) ||
+ 		IS_ERR_OR_NULL(clk_rst->sclk_isp) ||
+@@ -386,6 +360,8 @@ static int soc_init(struct pltfrm_soc_init_para *init)
+ 		goto clk_failed;
+ 	}
+ 
++	clk_set_rate(clk_rst->sclk_isp, 300000000);
++	clk_set_rate(clk_rst->sclk_isp_jpe, 300000000);
+ 	reset_control_deassert(clk_rst->isp_rst);
+ 
+ 	rv1108->isp_base = init->isp_base;
+diff --git a/drivers/media/platform/rk-isp11/cif_isp11_version.h b/drivers/media/platform/rk-isp11/cif_isp11_version.h
+index bee305a..c943b33 100644
+--- a/drivers/media/platform/rk-isp11/cif_isp11_version.h
++++ b/drivers/media/platform/rk-isp11/cif_isp11_version.h
+@@ -152,7 +152,7 @@
+ *
+ */
+ 
+-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 3, 0x0)
++#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xe)
+ 
+ 
+ #endif
+-- 
+1.9.1
+

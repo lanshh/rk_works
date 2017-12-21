@@ -1,12 +1,11 @@
-From e12a2d48902aa4b655f0ee8ae64594c6bb49dce2 Mon Sep 17 00:00:00 2001
+From 3d1d0c28283bbec84e945eb4de21ec9b46fbba2c Mon Sep 17 00:00:00 2001
 From: lanshh <lsh@rock-chips.com>
-Date: Tue, 19 Dec 2017 16:00:44 +0800
-Subject: [PATCH 2/6] camera: rockchip: add rk1608 sensor
+Date: Thu, 21 Dec 2017 16:21:57 +0800
+Subject: [PATCH 2/5] camera: rockchip: add preisp_driver for rk1608
 
-Change-Id: I0000299fc92e196dc8623e5eae94c68d28b4699f
+Change-Id: I0b96548839c8eaa967e8b50adea0aa531dbcc4c4
 Signed-off-by: lanshh <lsh@rock-chips.com>
 ---
- arch/arm/boot/dts/rv1108.dtsi                      |    8 +-
  drivers/base/firmware_class.c                      |    3 +-
  .../soc_camera/rockchip/ov4689_v4l2-i2c-subdev.c   |   18 +-
  .../i2c/soc_camera/rockchip/rk_camera_module.c     |    3 +-
@@ -19,7 +18,7 @@ Signed-off-by: lanshh <lsh@rock-chips.com>
  .../platform/preisp_driver/cif-preisp-pltfrm.c     |  147 ++
  .../platform/preisp_driver/cif-preisp-pltfrm.h     |   61 +
  .../platform/preisp_driver/cif-preisp-rv1108.c     |   52 +
- drivers/media/platform/preisp_driver/cif-preisp.c  |  670 +++++++++
+ drivers/media/platform/preisp_driver/cif-preisp.c  |  661 +++++++++
  drivers/media/platform/preisp_driver/cif-preisp.h  |  336 +++++
  .../media/platform/preisp_driver/cif-preisp.rar    |  Bin 0 -> 3437 bytes
  .../platform/preisp_driver/cif-preisp_img_src.c    |  226 +++
@@ -47,7 +46,7 @@ Signed-off-by: lanshh <lsh@rock-chips.com>
  drivers/of/base.c                                  |    3 +-
  drivers/of/platform.c                              |   16 +
  include/linux/of_platform.h                        |    2 +
- 41 files changed, 6336 insertions(+), 29 deletions(-)
+ 40 files changed, 6323 insertions(+), 25 deletions(-)
  create mode 100644 drivers/media/platform/preisp_driver/Makefile
  create mode 100644 drivers/media/platform/preisp_driver/ap-i2c.c
  create mode 100644 drivers/media/platform/preisp_driver/ap-i2c.h
@@ -75,41 +74,6 @@ Signed-off-by: lanshh <lsh@rock-chips.com>
  create mode 100644 drivers/media/platform/rk-isp11/cif_isp11_img_src_spi-subdev.c
  create mode 100644 drivers/media/platform/rk-isp11/cif_isp11_img_src_spi-subdev.h
 
-diff --git a/arch/arm/boot/dts/rv1108.dtsi b/arch/arm/boot/dts/rv1108.dtsi
-index a0a1653..370b274 100644
---- a/arch/arm/boot/dts/rv1108.dtsi
-+++ b/arch/arm/boot/dts/rv1108.dtsi
-@@ -1925,10 +1925,10 @@
- 
- 		cam_pins {
- 			cam0_default_pins: cam0-default-pins {
--				rockchip,pins = <3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
-+				rockchip,pins = <1 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
- 			};
- 			cam0_sleep_pins: cam0-sleep-pins {
--				rockchip,pins = <3 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>;
-+				rockchip,pins = <1 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>;
- 			};
- 		};
- 
-@@ -1962,7 +1962,7 @@
- 						<3 GPIO_C6 RK_FUNC_1 &pcfg_pull_none>; /* cif_vsync */
- 			};
- 			cif_dvp_clk_out: cif-dvp-clk-out {
--				rockchip,pins = <3 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>;
-+				rockchip,pins = <3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
- 			};
- 			cif_dvp_clk_in: cif-dvp-clk-in {
- 				rockchip,pins = <3 GPIO_C7 RK_FUNC_1 &pcfg_pull_none>;
-@@ -1978,7 +1978,7 @@
- 						<3 GPIO_D4 RK_FUNC_GPIO &pcfg_pull_none>;
- 			};
- 			cif_dvp_clk_out_sleep: cif-dvp-clk-out-sleep {
--				rockchip,pins = <3 GPIO_D2 RK_FUNC_GPIO &pcfg_pull_none>;
-+				rockchip,pins = <3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
- 			};
- 			cif_dvp_clk_in_sleep: cif-dvp-clk-in-sleep {
- 				rockchip,pins = <3 GPIO_C7 RK_FUNC_GPIO &pcfg_pull_none>;
 diff --git a/drivers/base/firmware_class.c b/drivers/base/firmware_class.c
 index 30d575a..f2b11c1 100644
 --- a/drivers/base/firmware_class.c
@@ -405,7 +369,7 @@ index 0000000..dc3c253
 +#endif
 diff --git a/drivers/media/platform/preisp_driver/cif-preisp-pltfrm.c b/drivers/media/platform/preisp_driver/cif-preisp-pltfrm.c
 new file mode 100644
-index 0000000..06e5cf5
+index 0000000..91fab26
 --- /dev/null
 +++ b/drivers/media/platform/preisp_driver/cif-preisp-pltfrm.c
 @@ -0,0 +1,147 @@
@@ -498,7 +462,7 @@ index 0000000..06e5cf5
 +				index);
 +				ret = -EINVAL;
 +				goto err;
-+		}		
++		}
 +
 +		cif_preisp_pltfrm_pr_info(dev, "full name: %s", camera_list_node->full_name);
 +
@@ -683,10 +647,10 @@ index 0000000..651d2a4
 +
 diff --git a/drivers/media/platform/preisp_driver/cif-preisp.c b/drivers/media/platform/preisp_driver/cif-preisp.c
 new file mode 100644
-index 0000000..75af869
+index 0000000..7b7fd19
 --- /dev/null
 +++ b/drivers/media/platform/preisp_driver/cif-preisp.c
-@@ -0,0 +1,670 @@
+@@ -0,0 +1,661 @@
 +/*
 +**************************************************************************
 + * Rockchip driver for CIF ISP 1.1
@@ -726,9 +690,9 @@ index 0000000..75af869
 +	preisp_client *client = preisp_client_new();
 +
 +	client->id = camId;
-+        ret = preisp_client_connect(pdata, client);
++	ret = preisp_client_connect(pdata, client);
 +
-+        return ret;
++	return ret;
 +}
 +
 +int rkpreisp_send_msg(struct spi_rk_preisp_data *pdata, const struct msg *msg)
@@ -740,9 +704,9 @@ index 0000000..75af869
 +#endif
 +
 +#if DEBUG_MSG_LOOP_TEST == 0
-+        ret = preisp_send_msg_to_dsp(pdata, msg);
++	ret = preisp_send_msg_to_dsp(pdata, msg);
 +#else
-+        dispatch_received_msg(pdata, msg);
++	dispatch_received_msg(pdata, msg);
 +#endif
 +
 +	return ret;
@@ -772,18 +736,18 @@ index 0000000..75af869
 +	preisp_client *client = NULL;
 +
 +	cif_preisp_pltfrm_pr_info(NULL, "before send, before recv size: [%u, %u], type: [%u, %u]\n",
-+		msg->size, resp->size, msg->type, resp->type);	
++				  msg->size, resp->size, msg->type, resp->type);
 +
-+#if DEBUG_MSG_LOOP_TEST == 0
-+        ret = preisp_send_msg_to_dsp(pdata, msg);
-+#else
-+        dispatch_received_msg(pdata, msg);
-+#endif
++	#if DEBUG_MSG_LOOP_TEST == 0
++	ret = preisp_send_msg_to_dsp(pdata, msg);
++	#else
++	dispatch_received_msg(pdata, msg);
++	#endif
 +
 +	client = pdata->rkpreisp_client[camId];
 +
 +	cif_preisp_pltfrm_pr_info(NULL, "send sucess, before recv size: [%u, %u], type: [%u, %u]\n",
-+				  msg->size, resp->size, msg->type, resp->type);	
++				  msg->size, resp->size, msg->type, resp->type);
 +	wait_event_interruptible_timeout(client->wait, !msq_is_empty(&client->q),
 +					 msecs_to_jiffies(timeoutMillis));
 +
@@ -799,16 +763,16 @@ index 0000000..75af869
 +				ret = 0;
 +			} else {
 +				cif_preisp_pltfrm_pr_err(NULL, "msq_recv_msg err!\n");
-+				ret = EFAULT;
++				ret = -EFAULT;
 +			}
 +		}
 +	} else {
 +		cif_preisp_pltfrm_pr_err(NULL, "msq is empty\n");
-+		ret = EFAULT;
++		ret = -EFAULT;
 +	}
 +
 +	cif_preisp_pltfrm_pr_info(NULL, "size: [%u, %u], type: [%u, %u]\n",
-+		msg->size, resp->size, msg->type, resp->type);	
++		msg->size, resp->size, msg->type, resp->type);
 +err:
 +	msq_free_received_msg(&client->q, msg);
 +	return ret;
@@ -820,71 +784,63 @@ index 0000000..75af869
 +	msg_init_sensor_ret_t ret;
 +	int err = 0;
 +
-+	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);	
-+
++	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);
 +	msg.size = sizeof(msg_init_sensor_t) / 4;
-+    	msg.type = id_msg_init_sensor_t;
-+    	msg.camera_id = camId;
++	msg.type = id_msg_init_sensor_t;
++	msg.camera_id = camId;
 +	msg.sync = 1;
-+
-+        msg.in_mipi_phy = 0;
-+        msg.out_mipi_phy = 0;
-+        msg.mipi_lane = 2;
-+        msg.bayer = 1;
++	msg.in_mipi_phy = 0 == camId ? 0:2;
++	msg.out_mipi_phy = 0;
++	msg.mipi_lane = 2;
++	msg.bayer = 1;
 +	strcpy(msg.sensor_name, "OV4689");
-+
 +	ret.size = sizeof(msg_init_sensor_ret_t) / 4;
 +	ret.type = id_msg_init_sensor_ret_t;
 +	ret.camera_id = -1;
-+
 +	err = sendMsgAndWait(camId, pdata, (struct msg*)&msg, &ret, 1000);
 +	if (err < 0) {
 +		cif_preisp_pltfrm_pr_err(NULL, "%s: sendMsgAndWait failed!\n", __FUNCTION__);
-+		err = EFAULT;
++		err = -EFAULT;
 +	}
-+
 +	return err;
 +}
 +
 +int doSetInputSize(struct spi_rk_preisp_data *pdata, int camId)
 +{
-+        u32 size = 0;
++	u32 size = 0;
 +	int err = 0;
 +	int VcProfilesSize = 1;
 +	size_t i = 0;
-+        msg_set_input_size_t *msg;
++	msg_set_input_size_t *msg;
 +	msg_set_input_size_ret_t ret;
 +
-+	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);	
-+
-+        size = sizeof(msg_set_input_size_head_t) +
-+            /* resProfiles->mVcProfiles.size() */ VcProfilesSize * sizeof(preisp_vc_cfg_t);
-+        msg = (msg_set_input_size_t*)kmalloc(size, GFP_KERNEL);
-+        msg->head.size = size / 4;
-+        msg->head.type = id_msg_set_input_size_t;
-+        msg->head.camera_id = camId;
-+        msg->head.sync = 1;
-+        for (i = 0; i < VcProfilesSize; ++i) {
-+            msg->channel[i].data_id = 0x2b;
-+            msg->channel[i].decode_format = 0x2b;
-+            msg->channel[i].flag = 1;
-+            msg->channel[i].width = 2688;
-+            msg->channel[i].height = 1520;
-+        }
-+
++	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);
++	size = sizeof(msg_set_input_size_head_t) +
++		/* resProfiles->mVcProfiles.size() */ VcProfilesSize * sizeof(preisp_vc_cfg_t);
++	msg = (msg_set_input_size_t*)kmalloc(size, GFP_KERNEL);
++	msg->head.size = size / 4;
++	msg->head.type = id_msg_set_input_size_t;
++	msg->head.camera_id = camId;
++	msg->head.sync = 1;
++	for (i = 0; i < VcProfilesSize; ++i) {
++		msg->channel[i].data_id = 0x2b;
++		msg->channel[i].decode_format = 0x2b;
++		msg->channel[i].flag = 1;
++		msg->channel[i].width = 2688;
++		msg->channel[i].height = 1520;
++	}
 +	ret.size = sizeof(msg_set_input_size_ret_t) / 4;
 +	ret.type = id_msg_set_input_size_ret_t;
 +	ret.camera_id = -1;
-+
 +	err = sendMsgAndWait(camId, pdata, (struct msg*)msg, &ret, 1000);
 +	kfree(msg);
 +	err = !err ? err : ret.err;
-+        if (err) {
++	if (err) {
 +		cif_preisp_pltfrm_pr_err(NULL, "%s: sendMsgAndWait failed!\n", __FUNCTION__);
-+		err = EFAULT;
-+        }
++		err = -EFAULT;
++	}
 +
-+        return err;
++	return err;
 +}
 +
 +int doSetOutputSize(struct spi_rk_preisp_data *pdata, int camId)
@@ -893,7 +849,7 @@ index 0000000..75af869
 +	msg_set_output_size_ret_t ret;
 +	msg_set_output_size_t msg;
 +
-+	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);	
++	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);
 +
 +	msg.size = sizeof(msg_set_output_size_t) / 4;
 +	msg.type = id_msg_set_output_size_t;
@@ -908,13 +864,12 @@ index 0000000..75af869
 +	ret.size = sizeof(msg_set_output_size_ret_t) / 4;
 +	ret.type = id_msg_set_output_size_ret_t;
 +	ret.camera_id = -1;
-+
 +	err = sendMsgAndWait(camId, pdata, (struct msg*)&msg, &ret, 1000);
 +	err = !err ? err : ret.err;
-+        if (err) {
++	if (err) {
 +		cif_preisp_pltfrm_pr_err(NULL, "%s: sendMsgAndWait failed!\n", __FUNCTION__);
-+		err = EFAULT;
-+        }
++		err = -EFAULT;
++	}
 +
 +	return err;
 +}
@@ -925,11 +880,11 @@ index 0000000..75af869
 +	msg_set_stream_in_on_ret_t ret;
 +	msg_init_sensor_t msg;
 +
-+	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);	
++	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);
 +
 +	msg.size = sizeof(msg_set_stream_in_on_t) / 4;
-+    	msg.type = id_msg_set_stream_in_on_t;
-+    	msg.camera_id = camId;
++		msg.type = id_msg_set_stream_in_on_t;
++		msg.camera_id = camId;
 +	msg.sync = 1;
 +
 +	ret.size = sizeof(msg_set_stream_in_on_ret_t) / 4;
@@ -942,65 +897,65 @@ index 0000000..75af869
 +
 +int doStopInputStream(struct spi_rk_preisp_data *pdata, int camId)
 +{
-+    int err = 0;
-+    msg_set_stream_in_off_ret_t ret;
-+    msg_set_stream_in_off_t msg;
++	int err = 0;
++	msg_set_stream_in_off_ret_t ret;
++	msg_set_stream_in_off_t msg;
 +
-+    cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);  
++	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);
 +
-+    msg.size = sizeof(msg_set_stream_in_off_t) / 4;
-+    msg.type = id_msg_set_stream_in_off_t;
-+    msg.camera_id = camId;
-+    msg.sync = 1;
++	msg.size = sizeof(msg_set_stream_in_off_t) / 4;
++	msg.type = id_msg_set_stream_in_off_t;
++	msg.camera_id = camId;
++	msg.sync = 1;
 +
-+    ret.size = sizeof(msg_set_stream_in_off_t) / 4;
-+    ret.type = id_msg_set_stream_in_off_t;
-+    ret.camera_id = -1;
++	ret.size = sizeof(msg_set_stream_in_off_t) / 4;
++	ret.type = id_msg_set_stream_in_off_t;
++	ret.camera_id = -1;
 +
-+    err = sendMsgAndWait(camId, pdata, (struct msg*)&msg, &ret, 1000);
-+    return err;
++	err = sendMsgAndWait(camId, pdata, (struct msg*)&msg, &ret, 1000);
++	return err;
 +}
 +
 +int doStartOutputStream(struct spi_rk_preisp_data *pdata, int camId)
 +{
-+    int err = 0;
-+    msg_set_stream_out_on_ret_t ret;
-+    msg_set_stream_in_off_t msg;
++	int err = 0;
++	msg_set_stream_out_on_ret_t ret;
++	msg_set_stream_in_off_t msg;
 +
-+    cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);  
++	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);
 +
-+    msg.size = sizeof(msg_set_stream_out_on_t) / 4;
-+    msg.type = id_msg_set_stream_out_on_t;
-+    msg.camera_id = camId;
-+    msg.sync = 1;
++	msg.size = sizeof(msg_set_stream_out_on_t) / 4;
++	msg.type = id_msg_set_stream_out_on_t;
++	msg.camera_id = camId;
++	msg.sync = 1;
 +
-+    ret.size = sizeof(msg_set_stream_out_on_ret_t) / 4;
-+    ret.type = id_msg_set_stream_out_on_ret_t;
-+    ret.camera_id = -1;
++	ret.size = sizeof(msg_set_stream_out_on_ret_t) / 4;
++	ret.type = id_msg_set_stream_out_on_ret_t;
++	ret.camera_id = -1;
 +
-+    err = sendMsgAndWait(camId, pdata, (struct msg*)&msg, &ret, 1000);
-+    return err;
++	err = sendMsgAndWait(camId, pdata, (struct msg*)&msg, &ret, 1000);
++	return err;
 +}
 +
 +int doStopOutputStream(struct spi_rk_preisp_data *pdata, int camId)
 +{
-+    int err = 0;
-+    msg_set_stream_out_off_ret_t ret;
-+    msg_set_stream_out_off_t msg;
++	int err = 0;
++	msg_set_stream_out_off_ret_t ret;
++	msg_set_stream_out_off_t msg;
 +
-+    cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);  
++	cif_preisp_pltfrm_pr_info(NULL, "%s: enter!\n", __FUNCTION__);
 +
-+    msg.size = sizeof(msg_set_stream_out_off_t) / 4;
-+    msg.type = id_msg_set_stream_out_off_t;
-+    msg.camera_id = camId;
-+    msg.sync = 1;
++	msg.size = sizeof(msg_set_stream_out_off_t) / 4;
++	msg.type = id_msg_set_stream_out_off_t;
++	msg.camera_id = camId;
++	msg.sync = 1;
 +
-+    ret.size = sizeof(msg_set_stream_out_off_ret_t) / 4;
-+    ret.type = id_msg_set_stream_out_off_ret_t;
-+    ret.camera_id = -1;
++	ret.size = sizeof(msg_set_stream_out_off_ret_t) / 4;
++	ret.type = id_msg_set_stream_out_off_ret_t;
++	ret.camera_id = -1;
 +
-+    err = sendMsgAndWait(camId, pdata, (struct msg*)&msg, &ret, 1000);
-+    return err;
++	err = sendMsgAndWait(camId, pdata, (struct msg*)&msg, &ret, 1000);
++	return err;
 +}
 +
 +int cif_preisp_cfg(struct device *dev, struct cif_preisp_cfg_para *cfg)
@@ -1016,7 +971,7 @@ index 0000000..75af869
 +	if (IS_ERR_OR_NULL(spi_client)) {
 +		cif_preisp_pltfrm_pr_err(dev,
 +			"not an spi device\n");
-+		return EFAULT;
++		return -EFAULT;
 +	}
 +
 +	cif_preisp_pltfrm_pr_dbg(NULL, "%s: cmd: %d\n", __FUNCTION__, cfg->cmd);
@@ -1025,7 +980,7 @@ index 0000000..75af869
 +	if (IS_ERR_OR_NULL(cif_preisp_dev)) {
 +		cif_preisp_pltfrm_pr_err(dev,
 +			"not an spi subdev\n");
-+		return EFAULT;
++		return -EFAULT;
 +	}
 +
 +	switch (cfg->cmd) {
@@ -1096,7 +1051,7 @@ index 0000000..75af869
 +
 +			cif_preisp_pltfrm_pr_info(NULL,
 +				"doStartOutputStream---------- %d\n", ret);
-+			
++
 +			ret |= doStartOutputStream(cif_preisp_dev, 0);
 +			if (ret < 0) {
 +				cif_preisp_pltfrm_pr_err(NULL,
@@ -1342,7 +1297,7 @@ index 0000000..75af869
 +	int ret = 0;
 +
 +	cif_preisp_dev->cif_preisp_cfg = &cif_preisp_cfg;
-+	
++
 +	cif_preisp_pltfrm_soc_init(cif_preisp_dev, &rv1108_cfg);
 +
 +	ret = cif_preisp_img_srcs_init(cif_preisp_dev);
@@ -5310,7 +5265,7 @@ index 0000000..9324022
 +MODULE_LICENSE("GPL");
 diff --git a/drivers/media/platform/preisp_driver/spi-rkpreisp.h b/drivers/media/platform/preisp_driver/spi-rkpreisp.h
 new file mode 100644
-index 0000000..cbba64b
+index 0000000..da2491a
 --- /dev/null
 +++ b/drivers/media/platform/preisp_driver/spi-rkpreisp.h
 @@ -0,0 +1,183 @@
@@ -5482,7 +5437,7 @@ index 0000000..cbba64b
 +    int sleep_state_flag;
 +    bool is_resume_processing;
 +
-+    preisp_client *rkpreisp_client[10];   
++    preisp_client *rkpreisp_client[10];
 +    struct cif_preisp_img_src *img_src_array[10];
 +    unsigned int img_src_cnt;
 +    struct pltfrm_soc_cfg *soc_cfg;
@@ -6609,7 +6564,7 @@ index 0000000..9d38419
 +}
 diff --git a/drivers/media/platform/rk-isp11/cif_isp11_img_src_spi-subdev.h b/drivers/media/platform/rk-isp11/cif_isp11_img_src_spi-subdev.h
 new file mode 100644
-index 0000000..36046aa
+index 0000000..2e08e0b
 --- /dev/null
 +++ b/drivers/media/platform/rk-isp11/cif_isp11_img_src_spi-subdev.h
 @@ -0,0 +1,122 @@
@@ -6673,7 +6628,7 @@ index 0000000..36046aa
 +    int sleep_state_flag;
 +    bool is_resume_processing;
 +
-+    struct cif_preisp_img_src *img_src;   
++    struct cif_preisp_img_src *img_src;
 +    struct cif_preisp_img_src *img_src_array[10];
 +unsigned int img_src_cnt;
 +
