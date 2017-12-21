@@ -1,0 +1,63 @@
+From 7cc1ed9a03f4289e671dfdf762c0f62e7250ccfe Mon Sep 17 00:00:00 2001
+From: lanshh <lanshh@163.com>
+Date: Mon, 31 Jul 2017 18:06:46 +0800
+Subject: [PATCH] add ov4689 for panorama ipc
+
+Signed-off-by: lanshh <lanshh@163.com>
+---
+ src/include/system/hardware/camera/sensor_info.h |  2 ++
+ src/system/hardware/camera/generic_sensor.cpp    | 11 +++++++++++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/src/include/system/hardware/camera/sensor_info.h b/src/include/system/hardware/camera/sensor_info.h
+index 751a7e2..e83a94a 100644
+--- a/src/include/system/hardware/camera/sensor_info.h
++++ b/src/include/system/hardware/camera/sensor_info.h
+@@ -15,6 +15,7 @@ extern "C" {
+ #define OV7251		1
+ #define IMX351		1
+ #define OV5670		1
++#define OV4689		1
+ 
+ enum sensor_type {
+ 	SENSOR_IMX362,
+@@ -25,6 +26,7 @@ enum sensor_type {
+ 	SENSOR_OV5670,
+ 	SENSOR_IMX258,
+ 	SENSOR_OV7251,
++	SENSOR_OV4689,
+ 	SENSOR_MAX
+ };
+ 
+diff --git a/src/system/hardware/camera/generic_sensor.cpp b/src/system/hardware/camera/generic_sensor.cpp
+index 9c55592..76d508a 100644
+--- a/src/system/hardware/camera/generic_sensor.cpp
++++ b/src/system/hardware/camera/generic_sensor.cpp
+@@ -48,6 +48,7 @@ SYS_DATA_EXT const sensor_name_type g_sensor_type_table[] = {
+ 	SENSOR_NAME_TYPE(OV5670),
+ 	SENSOR_NAME_TYPE(IMX258),
+ 	SENSOR_NAME_TYPE(OV7251),
++	SENSOR_NAME_TYPE(OV4689),
+ 	NULL
+ };
+ 
+@@ -178,6 +179,16 @@ int sensor_global_init
+ 			sensor_info[index].get_emb_exp = ov7251_get_emb_exp;
+ 		#endif
+ 		break;
++	case SENSOR_OV4689:
++		#if OV4689
++			#if RK1608_CFG_SENSOR
++				ov7251_init_global_configs(&GenericSensor[index],
++					&GenericSensor_custom_config[index],
++					&GenericSensor_configs[index][0]);
++			#endif
++			sensor_info[index].get_emb_exp = ov7251_get_emb_exp;
++		#endif
++		break;
+ 	default:
+ 		break;
+ 	}
+-- 
+2.12.0
+
