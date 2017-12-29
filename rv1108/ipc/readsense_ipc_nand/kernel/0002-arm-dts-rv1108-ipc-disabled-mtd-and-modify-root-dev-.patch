@@ -1,0 +1,55 @@
+From f595d91b93aa86f43a6d5c30470d94b9ad744d70 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 28 Dec 2017 15:37:58 +0800
+Subject: [PATCH 2/2] arm: dts: rv1108-ipc: disabled mtd and modify root dev to
+ dev rootfs
+
+Change-Id: I88b59a79d86846615d0373fcfe840e71a7d97adc
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/boot/dts/rv1108-ipc-v10.dts  | 2 +-
+ arch/arm/configs/rv1108_ipc_defconfig | 4 ----
+ 2 files changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/arch/arm/boot/dts/rv1108-ipc-v10.dts b/arch/arm/boot/dts/rv1108-ipc-v10.dts
+index b1525f2..7c5324ff 100644
+--- a/arch/arm/boot/dts/rv1108-ipc-v10.dts
++++ b/arch/arm/boot/dts/rv1108-ipc-v10.dts
+@@ -82,7 +82,7 @@
+ 	};
+ 
+ 	chosen {
+-		bootargs = "user_debug=31 rockchip_jtag noinitrd root=/dev/mtdblock3 rootfstype=squashfs";
++		bootargs = "user_debug=31 rockchip_jtag noinitrd root=/dev/rootfs rootfstype=squashfs";
+ 	};
+ 
+ 	ion {
+diff --git a/arch/arm/configs/rv1108_ipc_defconfig b/arch/arm/configs/rv1108_ipc_defconfig
+index 0bce503..64a8175 100644
+--- a/arch/arm/configs/rv1108_ipc_defconfig
++++ b/arch/arm/configs/rv1108_ipc_defconfig
+@@ -113,8 +113,6 @@ CONFIG_RFKILL_RK=y
+ CONFIG_DEVTMPFS=y
+ CONFIG_DMA_CMA=y
+ CONFIG_CMA_SIZE_MBYTES=4
+-CONFIG_MTD=y
+-CONFIG_MTD_BLOCK=y
+ CONFIG_ZRAM=y
+ CONFIG_BLK_DEV_LOOP=y
+ CONFIG_UID_STAT=y
+@@ -294,12 +292,10 @@ CONFIG_RK_FLASH=y
+ CONFIG_RK_NANDC_NAND=y
+ CONFIG_RK_SFC_NOR=y
+ CONFIG_RK_SFC_NAND=y
+-CONFIG_RK_SFC_NOR_MTD=y
+ CONFIG_MSDOS_FS=y
+ CONFIG_VFAT_FS=y
+ CONFIG_TMPFS=y
+ CONFIG_TMPFS_POSIX_ACL=y
+-CONFIG_JFFS2_FS=y
+ CONFIG_SQUASHFS=y
+ # CONFIG_NETWORK_FILESYSTEMS is not set
+ CONFIG_NLS_CODEPAGE_437=y
+-- 
+1.9.1
+

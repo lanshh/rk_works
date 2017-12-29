@@ -1,0 +1,47 @@
+From 39b3b6aaebe93eb7e28984250082a85b86648f7e Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 13 Dec 2017 11:49:17 +0800
+Subject: [PATCH] rv1108_rk1608_emmc: add 2 user partition
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ setting_emmc.ini | 20 +++++++++++++++++---
+ 1 file changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/setting_emmc.ini b/setting_emmc.ini
+index f58257e..73fef5b 100755
+--- a/setting_emmc.ini
++++ b/setting_emmc.ini
+@@ -27,12 +27,26 @@ File=../rockimg/Image-cvr/kernel.img
+ Name=rootfs
+ Type=0x8
+ PartOffset=0x5000
+-PartSize=0x4800
++PartSize=0x6000
+ Flag=0x0
+ File=../rockimg/Image-cvr/rootfs.img
+ [UserPart4]
+-Name=user
++Name=param
+ Type=0x80000000
+-PartOffset=0x9800
++Flag=0x0
++File=../rockimg/Image-cvr/param.img
++PartOffset=0xb000
++PartSize=0x4000
++[UserPart5]
++Name=user1
++Type=0x80000000
++PartOffset=0xf000
++PartSize=0x4000
++Flag=0x0
++File=../rockimg/Image-cvr/user.img
++[UserPart6]
++Name=user2
++Type=0x80000000
++PartOffset=0x10000
+ PartSize=0x0
+ Flag=0x5
+-- 
+1.9.1
+

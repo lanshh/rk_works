@@ -1,0 +1,26 @@
+From cce248b395d949f2306be74fa377a01ce64b0886 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 15 Dec 2017 19:26:26 +0800
+Subject: [PATCH 3/3] change video directory
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ root/etc/init.d/rcS | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/root/etc/init.d/rcS b/root/etc/init.d/rcS
+index 1c13ba0..01e019d 100644
+--- a/root/etc/init.d/rcS
++++ b/root/etc/init.d/rcS
+@@ -54,7 +54,7 @@ source /etc/init.d/tslib.sh
+ # Mount debugfs
+ mount -t debugfs none /sys/kernel/debug
+ export ANDROID_PRINTF_LOG="time"
+-/usr/local/bin/logwrapper -k /usr/local/bin/video &
++/usr/local/bin/logwrapper -k /user/video &
+ /usr/local/bin/rk-streamer &
+ 
+ #source /etc/init.d/run_adbd.sh &
+-- 
+1.9.1
+

@@ -1,0 +1,21 @@
+From 34ac1986672bd11b761dadfbc972064d62f56061 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 29 Dec 2017 17:31:58 +0800
+Subject: [PATCH 2/5] add S96emmc_startup script
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ rootfs-overlay/etc/init.d/S96emmc_startup | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100755 rootfs-overlay/etc/init.d/S96emmc_startup
+
+diff --git a/rootfs-overlay/etc/init.d/S96emmc_startup b/rootfs-overlay/etc/init.d/S96emmc_startup
+new file mode 100755
+index 0000000..a4272de
+--- /dev/null
++++ b/rootfs-overlay/etc/init.d/S96emmc_startup
+@@ -0,0 +1 @@
++/user/emmc_startup -t ext4 -d /dev/mmcblk0p7 -D /user1
+-- 
+1.9.1
+

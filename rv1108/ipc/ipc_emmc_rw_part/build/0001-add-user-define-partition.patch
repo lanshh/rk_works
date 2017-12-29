@@ -1,0 +1,114 @@
+From 9940c79f222050ebb56541c1b71363191badd731 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 29 Dec 2017 17:02:19 +0800
+Subject: [PATCH 1/2] add user define partition
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ mk_userdef_img.sh  | 24 ++++++++++++++++++++++++
+ mkfirmware_emmc.sh | 27 +++++++++++++++++++++++++++
+ setting_emmc.ini   | 20 +++++++++++++++++---
+ 3 files changed, 68 insertions(+), 3 deletions(-)
+ create mode 100644 mk_userdef_img.sh
+ create mode 100644 mkfirmware_emmc.sh
+
+diff --git a/mk_userdef_img.sh b/mk_userdef_img.sh
+new file mode 100644
+index 0000000..276e72e
+--- /dev/null
++++ b/mk_userdef_img.sh
+@@ -0,0 +1,24 @@
++#! /bin/bash
++
++TOP=$(pwd)
++IMAGE_OUT_PATH=$(pwd)/rockimg/Image-cvr
++USERDEF_PATH=$TOP/out/userdef
++USER1_DATA_PATH=$TOP/common/user
++
++rm -rf $USERDEF_PATH
++mkdir -p $USERDEF_PATH/param
++mkdir -p $USERDEF_PATH/user
++mkdir -p $USERDEF_PATH/user1
++
++echo "create param.img"
++#mkfs.jffs2 --root=$IMAGE_PATH/root/param --pad=0x100000 -o $IMAGE_OUT_PATH/param.img
++make_ext4fs -l 8m $IMAGE_OUT_PATH/param.img
++echo "done."
++
++echo "create user.img"
++cp $USER1_DATA_PATH/* $USERDEF_PATH/user/ -v
++#mkfs.jffs2 --root=$IMAGE_PATH/root/param --pad=0x100000 -o $IMAGE_OUT_PATH/param.img
++make_ext4fs -l 8m $IMAGE_OUT_PATH/user.img $USERDEF_PATH/user
++echo "done."
++
++#rm -rf $IMAGE_PATH/root
+diff --git a/mkfirmware_emmc.sh b/mkfirmware_emmc.sh
+new file mode 100644
+index 0000000..af5d46c
+--- /dev/null
++++ b/mkfirmware_emmc.sh
+@@ -0,0 +1,27 @@
++TOOL_PATH=$(pwd)/build
++IMAGE_OUT_PATH=$(pwd)/rockimg/Image-cvr
++IMAGE_RELEASE_PATH=$(pwd)/rockimg/Image-release
++KERNEL_PATH=$(pwd)/kernel
++product=$1
++
++if [ "$product" = "" ];then
++	echo "Package firmware fail, please input product version, such as "rv1108-evb-v12""
++	exit
++fi
++
++echo "Package user define img now"
++source $(pwd)/build/mk_userdef_img.sh
++
++echo "Package rootfs.img now"
++source $(pwd)/build/mkrootfs.sh
++
++echo "Package firmware.img now"
++cat $KERNEL_PATH/arch/arm/boot/zImage $KERNEL_PATH/arch/arm/boot/dts/$product.dtb > $KERNEL_PATH/zImage-dtb
++$TOOL_PATH/kernelimage --pack --kernel $KERNEL_PATH/zImage-dtb $KERNEL_PATH/kernel.img 0x62000000 > /dev/null && \
++rm -f $KERNEL_PATH/zImage-dtb
++echo 'Image: kernel image is ready'
++
++cp $KERNEL_PATH/kernel.img $IMAGE_OUT_PATH
++cp $IMAGE_RELEASE_PATH/rv1108loader.bin $IMAGE_OUT_PATH
++cp $IMAGE_RELEASE_PATH/rv1108ddr.bin $IMAGE_OUT_PATH
++$TOOL_PATH/firmwareMerger -p  $TOOL_PATH/setting_emmc.ini $IMAGE_OUT_PATH/
+diff --git a/setting_emmc.ini b/setting_emmc.ini
+index f58257e..ad68cf9 100755
+--- a/setting_emmc.ini
++++ b/setting_emmc.ini
+@@ -27,12 +27,26 @@ File=../rockimg/Image-cvr/kernel.img
+ Name=rootfs
+ Type=0x8
+ PartOffset=0x5000
+-PartSize=0x4800
++PartSize=0x6000
+ Flag=0x0
+ File=../rockimg/Image-cvr/rootfs.img
+ [UserPart4]
+-Name=user
++Name=param
+ Type=0x80000000
+-PartOffset=0x9800
++Flag=0x0
++File=../rockimg/Image-cvr/param.img
++PartOffset=0xb000
++PartSize=0x4000
++[UserPart5]
++Name=user1
++Type=0x80000000
++PartOffset=0xf000
++PartSize=0x8000
++Flag=0x0
++File=../rockimg/Image-cvr/user.img
++[UserPart6]
++Name=user2
++Type=0x80000000
++PartOffset=0x17000
+ PartSize=0x0
+ Flag=0x5
+-- 
+1.9.1
+
