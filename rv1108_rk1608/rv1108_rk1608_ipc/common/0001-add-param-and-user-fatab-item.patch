@@ -1,0 +1,24 @@
+From 34863027530d0397d1300ef115e00a977cc1c70d Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 29 Dec 2017 17:26:51 +0800
+Subject: [PATCH 1/5] add param and user fatab item
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ rootfs-overlay/etc/fstab | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/rootfs-overlay/etc/fstab b/rootfs-overlay/etc/fstab
+index 40eef9b..da73a40 100644
+--- a/rootfs-overlay/etc/fstab
++++ b/rootfs-overlay/etc/fstab
+@@ -6,4 +6,5 @@ tmpfs		/tmp		tmpfs	mode=1777	0	0
+ tmpfs		/run		tmpfs	mode=0755,nosuid,nodev	0	0
+ sysfs		/sys		sysfs	defaults	0	0
+ debug		/sys/kernel/debug debugfs defaults	0		0
+-/dev/mtdblock4 /param   jffs2   defaults    0   0
++/dev/mmcblk0p5 /param   ext4   defaults    0   0
++/dev/mmcblk0p6 /user   ext4   defaults    0   0
+-- 
+1.9.1
+

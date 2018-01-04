@@ -1,0 +1,26 @@
+From c41e0dd0556c0d84ce11d67dae278ade2eaa468f Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 29 Dec 2017 17:44:28 +0800
+Subject: [PATCH 2/2] add user def directory
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ mkrootfs.sh | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/mkrootfs.sh b/mkrootfs.sh
+index b3c3d3a..f314f46 100755
+--- a/mkrootfs.sh
++++ b/mkrootfs.sh
+@@ -34,6 +34,8 @@ IMAGE_OUT_PATH=$(pwd)/rockimg/Image-cvr
+ rm -rf $IMAGE_PATH
+ mkdir -p $IMAGE_PATH/root
+ mkdir -p $IMAGE_PATH/root/param
++mkdir -p $IMAGE_PATH/root/user
++mkdir -p $IMAGE_PATH/root/user1
+ mkdir -p $IMAGE_PATH/root/system/etc/firmware
+ mkdir -p $RELEASE_SYSTEM_PATH
+ 
+-- 
+1.9.1
+

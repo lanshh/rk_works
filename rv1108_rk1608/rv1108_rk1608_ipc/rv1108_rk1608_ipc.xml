@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <remote fetch="ssh://10.10.10.29:29418" name="gerrit" review="https://10.10.10.29"/>
+  <remote fetch="https://git.kernel.org/pub/scm" name="kernel.org"/>
+  <remote fetch="../.." name="rk"/>
+  <remote fetch="ssh://git@10.10.10.29" name="rk29"/>
+  <remote fetch="ssh://git@10.10.10.78:2222" name="rk78"/>
+  
+  <default remote="rk" revision="develop" sync-j="4"/>
+  
+  <project name="argus-release/loader" path="loader" remote="rk78" revision="12a0f43942ac450744b9b88f89326f11182ab71a" upstream="master"/>
+  <project name="argus/apps/android" path="mobile-app/android" revision="08c068da88d2d217ac4325b97e858fdf19375832" upstream="ipc_release"/>
+  <project name="argus/apps/ios" path="mobile-app/ios" revision="26d744f641ad72bf632fc7152643746b601344a5" upstream="ipc_release"/>
+  <project name="argus/apps/libfwk_controller" path="app/libfwk_controller" revision="a1e0bc912d6f646d3c691976d62a12ef3ae47f46" upstream="master"/>
+  <project name="argus/apps/libfwk_glue" path="app/libfwk_glue" revision="f4de7bbf58d6e51f5a431ae0d41849b2507cd5e9" upstream="master"/>
+  <project name="argus/apps/libfwk_msg" path="app/libfwk_msg" revision="0685cff6bfe1ef068beb77c27098dcffe81fb846" upstream="master"/>
+  <project name="argus/apps/muxing" path="app/muxing" revision="bbb8fbe2affbf40e28534ac47dac748792d1189b" upstream="master"/>
+  <project name="argus/apps/network_manage" path="app/network_manage" revision="40b6064f68d095005a2a9c5ed6c0c5546e3e02f2" upstream="master"/>
+  <project name="argus/apps/protocol/gb28181" path="app/protocol/gb28181" revision="cb389a3307f9d05e1bd1034b924b60ded6ddc68c" upstream="master"/>
+  <project name="argus/apps/protocol/iotc" path="app/protocol/iotc" revision="47038c83128d96b24b05cbd25468deecd25296f0" upstream="master"/>
+  <project name="argus/apps/rk_pcba_test" path="app/rk_pcba_test" remote="gerrit" revision="e4894e5ebc114893ab9758ef9e7e40d3d854fa98" upstream="ipc_develop"/>
+  <project name="argus/apps/simple_config" path="app/simple_config" revision="f64408491abdf0d2016a448543216bf0eb05ae57" upstream="master"/>
+  <project name="argus/apps/smart_config" path="app/smart_config" revision="71765577ee10dca142463aaf95a3a53ba13feb46" upstream="master"/>
+  <project name="argus/apps/updater" path="app/updater" revision="9e36933bf53cc0b093d6e8051415367b860062e9" upstream="master"/>
+  <project name="argus/apps/webservice" path="app/webservice" revision="293e8011f7157d5da56eeb5d645d99148f50389a" upstream="master"/>
+  <project name="argus/build" path="build" revision="10599b69522983fae7aeebbec827fee6601ee372" upstream="ipc_develop">
+    <copyfile dest="mkfirmware.sh" src="mkfirmware.sh"/>
+    <copyfile dest="build_all.sh" src="build_all.sh"/>
+    <copyfile dest="CMakeLists.txt" src="CMakeLists.txt"/>
+    <copyfile dest="patch" src="patch"/>
+  </project>
+  <project name="argus/common" path="common" revision="07f64feb1ad2a6a409bd66504eabac6c95baccd1" upstream="ipc_develop"/>
+  <project name="argus/config" path="config" revision="22e3b18fda46c47dc53f333a132bafc9f1482334" upstream="ipc_develop"/>
+  <project name="argus/docs" path="docs" revision="2bee43f8a139ecd1938ebbb9305eb138ab854a42" upstream="rk1108-ipc-release"/>
+  <project name="argus/externals/adb" path="external/adb" revision="6a0ea186430dc09e006bdae2a219a999f1c91e82" upstream="master"/>
+  <project name="argus/externals/ffmpeg" path="external/ffmpeg" revision="9c588406427fb3cc67fd7cd42a95b66c8298733b" upstream="ipc_develop"/>
+  <project name="argus/externals/fsck_msdos" path="external/fsck_msdos" revision="2a281c6f320f03aa50fbb83296da55a7d60c45ea" upstream="master"/>
+  <project name="argus/externals/googletest" path="external/googletest" revision="64911f1dff3fa4d4ed702cd16a648bc16fea23dd" upstream="master"/>
+  <project name="argus/externals/iep" path="external/libiep" revision="7a0e6433c20eb97ab17019bb630a0b4b5702264d" upstream="master"/>
+  <project name="argus/externals/io" path="external/io" revision="d02e42704ff938fd5ffe828595a887dffed854da" upstream="master"/>
+  <project name="argus/externals/libalsa" path="external/libalsa" revision="8dbaf52450b0993f70fff8792c492db06625b4c8" upstream="master"/>
+  <project name="argus/externals/libcamerahal" path="external/libcamerahal" revision="c9fe58af8f8cd0f8e99f4087314a89f3b7515455" upstream="ipc_develop"/>
+  <project name="argus/externals/libcutils" path="external/libcutils" revision="973b41906854a32379809b11138afbf7016563a0" upstream="master"/>
+  <project name="argus/externals/libfdk-aac" path="external/libfdk-aac" revision="210c9820bac7de82914d50e67e46bd031c69d7bf" upstream="master"/>
+  <project name="argus/externals/libfs_manage" path="external/libfs_manage" revision="2c5698f291a179bb53b552a6b6567c0a0a880b6a" upstream="ipc_develop"/>
+  <project name="argus/externals/libion" path="external/libion" revision="b7a9b9b5316cd8adba3263091598976393dc7d20" upstream="master"/>
+  <project name="argus/externals/libjpeg" path="external/libjpeg" revision="f7e244a9a49ed452621015cbd85b5d4d84e63d86" upstream="master"/>
+  <project name="argus/externals/liblog" path="external/liblog" revision="3867fe3c8f20f46d7109c2779ac48af2f16d6ea8" upstream="master"/>
+  <project name="argus/externals/libminigui" path="external/libminigui" revision="d67c617dc7de5dbe90ed3f9a4d04af73309cc0bb" upstream="ipc_develop"/>
+  <project name="argus/externals/librk_backtrace" path="external/librk_backtrace" revision="61fce8ff947d4bf7780125b6e4e29e206bd4e1e4" upstream="master"/>
+  <project name="argus/externals/librkfb" path="external/librkfb" revision="a3ee7291bec7f9ba6179e47305190b5117ed60da" upstream="ipc_develop"/>
+  <project name="argus/externals/librkipc" path="external/librkipc" revision="cc6566bb70d2beecec718a5c16327aa3f13bbfec" upstream="master"/>
+  <project name="argus/externals/librkrga" path="external/librkrga" revision="8ce55fc3edd0388a512c3799c41ab1a6accffa32" upstream="master"/>
+  <project name="argus/externals/libutils" path="external/libutils" revision="87a6f06e9ca2009026e3e66b1a304ea8c70cda12" upstream="master"/>
+  <project name="argus/externals/libvpu" path="external/libvpu" revision="07687dc69d8680301e05d7c98c6bb92d92d3fa00" upstream="ipc_develop"/>
+  <project name="argus/externals/logwrap" path="external/logwrap" revision="027da748d2bf31eef86941536e6667b801c15d08" upstream="master"/>
+  <project name="argus/externals/tinyalsa" path="external/tinyalsa" revision="dbb97f156be473bc3a057117e21b9fa1a4e9db5e" upstream="master"/>
+  <project name="argus/externals/tools" path="external/tools" revision="326de67b2f70827163e152e4e06fb7d7494ccd0c" upstream="ipc_develop"/>
+  <project name="argus/image" path="rockimg/Image-release" revision="63c2f4f7b04e2d9624b8c64bb81f8c9cfcebd855" upstream="master"/>
+  <project name="argus/prebuilts" path="prebuilts" revision="907ef6f5bd66d1f1bbcba09524789d2e3bfb4adc" upstream="ipc_develop"/>
+  <project name="argus/tools" path="tools" revision="0800f9933e413d4b053ba01c6782c8ea62c6374c" upstream="rk1108-ipc-release"/>
+  <project name="fs/squashfs/squashfs-tools" path="external/squashfs-tools" remote="kernel.org" revision="aae0aff4f0b3081bd1dfc058c867033a89c11aac" upstream="stable"/>
+  <project name="linux/onvif" path="app/protocol/onvif" remote="gerrit" revision="011a34f615beaf319f7deea46f2a375ee3bb8322" upstream="master"/>
+  <project name="rk/kernel" path="kernel" remote="gerrit" revision="e5e9632313e48fe1f2baf19999b1ca9dc9b17c37" upstream="develop-3.10"/>
+  <project name="rk/live555" path="external/live555" remote="rk29" revision="694ebd6b1a2bfb1260fba781e29adedc369f7590" upstream="ipc_develop"/>
+  <project name="rk/rk1108/apps/video" path="app/video" remote="gerrit" revision="e5d7feff9c27c7e48f8413d00bc546acf418a115" upstream="ipc_develop"/>
+  <project name="rk/rk1108/buildroot" path="buildroot" remote="gerrit" revision="0ef579eea1233a008807fbce51e7ed77c0f756fd" upstream="rockchip/rk1108/2016.08.x"/>
+  <project name="rk/rk1108/framework/dpp" path="external/dpp" remote="gerrit" revision="e53d9ca7bfeb4db120529610a5774407dfef2185" upstream="ipc_develop"/>
+</manifest>
