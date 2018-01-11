@@ -1,0 +1,86 @@
+From 755ad0b79b83a2dfe91974dd62aef7bf121c1d35 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 26 Dec 2017 14:38:52 +0800
+Subject: [PATCH 6/6] arm: dts: rv1108-rk1608-evb: camera mipi connect to
+ rk1608 mipi rx2
+
+Change-Id: I08f96b92ce3ebec9aeb2bbed13fda17a706f0eb2
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/boot/dts/rv1108-camb-v34.dtsi      | 26 ++++++++++++++++++++++++++
+ arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts |  3 ++-
+ arch/arm/boot/dts/rv1108.dtsi               |  4 ++--
+ 3 files changed, 30 insertions(+), 3 deletions(-)
+ create mode 100644 arch/arm/boot/dts/rv1108-camb-v34.dtsi
+
+diff --git a/arch/arm/boot/dts/rv1108-camb-v34.dtsi b/arch/arm/boot/dts/rv1108-camb-v34.dtsi
+new file mode 100644
+index 0000000..f903ed8
+--- /dev/null
++++ b/arch/arm/boot/dts/rv1108-camb-v34.dtsi
+@@ -0,0 +1,26 @@
++camera6: camera-module@37 {
++	status = "okay";
++	compatible = "omnivision,ov4689-v4l2-i2c-subdev";
++	reg = <0x36>;
++	device_type = "v4l2-i2c-subdev";
++	clocks = <&clk_mipicsi_out>;
++	clock-names = "clk_mipicsi_out";
++	rockchip,pd-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_LOW>;
++	rockchip,pwr-gpio = <&gpio3 GPIO_B5 GPIO_ACTIVE_HIGH>;
++	rockchip,rst-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
++	rockchip,camera-module-mclk-name = "clk_mipicsi_out";
++	rockchip,camera-module-facing = "back";
++	rockchip,camera-module-name = "LA6111PA";
++	rockchip,camera-module-len-name = "YM6011P";
++	rockchip,camera-module-fov-h = "116";
++	rockchip,camera-module-fov-v = "61";
++	rockchip,camera-module-orientation = <0>;
++	rockchip,camera-module-iq-flip = <0>;
++	rockchip,camera-module-iq-mirror = <0>;
++	rockchip,camera-module-flip = <0>;
++	rockchip,camera-module-mirror = <1>;
++	/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
++	rockchip,camera-module-defrect0 = <2688 1520 0 0 2688 1520>;
++	rockchip,camera-module-flash-support = <0>;
++	rockchip,camera-module-mipi-dphy-index = <0>;
++};
+diff --git a/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts b/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts
+index 383d6ac..5ada8fd 100644
+--- a/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts
++++ b/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts
+@@ -293,7 +293,7 @@
+ 	spi_rk_preisp@00 {
+ 		compatible =  "rockchip,spi_rk_preisp";
+ 		device_type = "spi_rk_preisp";
+-		rockchip,camera-modules-attached = <&camera5>;
++		rockchip,camera-modules-attached = <&camera6>;
+ 		reg = <0>;
+ 		spi-max-frequency = <20000000>;
+ 		spi-min-frequency = <12000000>;
+@@ -382,6 +382,7 @@
+ 
+ &i2c3 {
+ 	status = "okay";
++#include "rv1108-camb-v34.dtsi" /* camera board v14 */
+ };
+ 
+ &cif1to4 {
+diff --git a/arch/arm/boot/dts/rv1108.dtsi b/arch/arm/boot/dts/rv1108.dtsi
+index 370b274..b1463c2 100644
+--- a/arch/arm/boot/dts/rv1108.dtsi
++++ b/arch/arm/boot/dts/rv1108.dtsi
+@@ -1439,8 +1439,8 @@
+ 
+ 		i2c3 {
+ 			i2c3_xfer: i2c3-xfer {
+-				rockchip,pins = <0 GPIO_B6 RK_FUNC_1 &pcfg_pull_none_smt>,
+-						<0 GPIO_C4 RK_FUNC_2 &pcfg_pull_none_smt>;
++				rockchip,pins = <0 GPIO_B6 RK_FUNC_1 &pcfg_pull_up>,
++						<0 GPIO_C4 RK_FUNC_2 &pcfg_pull_up>;
+ 			};
+ 		};
+ 
+-- 
+1.9.1
+
