@@ -1,7 +1,7 @@
-From d00dce460b30d62f96bfa0bbd12c725e45aa7923 Mon Sep 17 00:00:00 2001
+From b1b044be3675902b93c831bfec7bc85d0a559536 Mon Sep 17 00:00:00 2001
 From: lanshh <lsh@rock-chips.com>
 Date: Thu, 14 Dec 2017 10:35:41 +0800
-Subject: [PATCH 2/2] add user tools for emmc
+Subject: [PATCH 2/3] add user tools for emmc
 
 Signed-off-by: lanshh <lsh@rock-chips.com>
 ---
@@ -12405,5 +12405,5 @@ literal 0
 HcmV?d00001
 
 -- 
-1.9.1
+2.7.4
 

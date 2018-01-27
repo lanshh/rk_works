@@ -1,0 +1,28 @@
+From 94366bf3e8573ad8a6396edbaba900db1c3d6945 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Sat, 27 Jan 2018 12:06:26 +0800
+Subject: [PATCH 5/5] firmware_class: add user as search path
+
+Change-Id: I2c7670bd345282c403010fae08fed37df568817f
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ drivers/base/firmware_class.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/base/firmware_class.c b/drivers/base/firmware_class.c
+index 30d575a..f2b11c1 100644
+--- a/drivers/base/firmware_class.c
++++ b/drivers/base/firmware_class.c
+@@ -269,7 +269,8 @@ static const char * const fw_path[] = {
+ 	"/lib/firmware/updates/" UTS_RELEASE,
+ 	"/lib/firmware/updates",
+ 	"/lib/firmware/" UTS_RELEASE,
+-	"/lib/firmware"
++	"/lib/firmware",
++	"/user"
+ };
+ 
+ /*
+-- 
+2.7.4
+

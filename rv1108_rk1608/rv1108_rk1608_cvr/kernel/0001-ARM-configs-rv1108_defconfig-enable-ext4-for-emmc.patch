@@ -1,0 +1,33 @@
+From 6431a276b019962f626c15cf6efd8d101b1e0831 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 21 Dec 2017 18:05:34 +0800
+Subject: [PATCH 1/2] ARM: configs: rv1108_defconfig: enable ext4 for emmc
+
+Change-Id: I41d1044af9691cab7cf018054535da0d9ace3c2c
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/configs/rv1108_defconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/configs/rv1108_defconfig b/arch/arm/configs/rv1108_defconfig
+index e86ca6d..2858734 100644
+--- a/arch/arm/configs/rv1108_defconfig
++++ b/arch/arm/configs/rv1108_defconfig
+@@ -272,6 +272,7 @@ CONFIG_RK_NANDC_NAND=y
+ CONFIG_RK_SFC_NOR=y
+ CONFIG_RK_SFC_NAND=y
+ CONFIG_RK_SFC_NOR_MTD=y
++CONFIG_EXT4_FS=y
+ CONFIG_MSDOS_FS=y
+ CONFIG_VFAT_FS=y
+ CONFIG_TMPFS=y
+@@ -299,6 +300,5 @@ CONFIG_CRYPTO_SHA256=y
+ CONFIG_CRYPTO_DEV_ROCKCHIP=y
+ CONFIG_CRYPTO_DEV_ROCKCHIP_ENCRYPT=y
+ CONFIG_CRC_CCITT=y
+-CONFIG_CRC16=y
+ CONFIG_CRC_ITU_T=y
+ CONFIG_LIBCRC32C=y
+-- 
+2.7.4
+

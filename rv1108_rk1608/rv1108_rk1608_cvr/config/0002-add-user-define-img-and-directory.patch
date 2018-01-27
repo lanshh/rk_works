@@ -1,7 +1,7 @@
-From 56aaada435344dad86906d171dedd265e9050e5a Mon Sep 17 00:00:00 2001
+From 6c824122c74ce7da154203c1107b4abd61cf9bdf Mon Sep 17 00:00:00 2001
 From: lanshh <lsh@rock-chips.com>
 Date: Thu, 14 Dec 2017 10:35:08 +0800
-Subject: [PATCH 2/2] add user define img and directory
+Subject: [PATCH 2/3] add user define img and directory
 
 Signed-off-by: lanshh <lsh@rock-chips.com>
 ---
@@ -12,10 +12,10 @@ Signed-off-by: lanshh <lsh@rock-chips.com>
  create mode 100644 pack-rwpart.mk
 
 diff --git a/Makefile b/Makefile
-index d92e85f..f9be7cf 100644
+index 5b47058..c629278 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -859,6 +859,7 @@ list-defconfigs:
+@@ -860,6 +860,7 @@ list-defconfigs:
  	  printf "  %-35s - Build for %s\\n" $(b) $(b:_defconfig=);)
  	@echo
  
@@ -24,10 +24,10 @@ index d92e85f..f9be7cf 100644
  include $(CONFIG_DIR)/pack-kernel.mk
  
 diff --git a/pack-rootfs.mk b/pack-rootfs.mk
-index b62d3d9..4911f37 100644
+index e321dfb..0869fb0 100644
 --- a/pack-rootfs.mk
 +++ b/pack-rootfs.mk
-@@ -284,6 +284,10 @@ ifneq ($(STRIPCMD),)
+@@ -328,6 +328,10 @@ ifneq ($(STRIPCMD),)
  	$(Q)$(call strip_files_under,$(OUT_SYSROOT_USR_DIR)/bin/)
  	$(Q)$(call strip_files_under,$(OUT_SYSROOT_USR_DIR)/sbin/)
  endif
@@ -77,5 +77,5 @@ index 0000000..8937189
 +makeimg = echo "$(1) enter..." && $(2) -l $(3) $(4) $(5) && echo  "$(1) exit...."
 \ No newline at end of file
 -- 
-1.9.1
+2.7.4
 

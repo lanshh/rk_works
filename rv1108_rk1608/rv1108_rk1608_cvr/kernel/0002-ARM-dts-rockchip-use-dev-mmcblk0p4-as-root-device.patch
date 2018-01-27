@@ -1,0 +1,27 @@
+From e4d1aa191dfffcb7b3084f4bd86cb021ad33eefe Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 24 Jan 2018 14:23:12 +0800
+Subject: [PATCH 2/2] ARM: dts: rockchip: use /dev/mmcblk0p4 as root device
+
+Change-Id: Id792136818f2eff856a5e6ab3f68acf423a52dfb
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/boot/dts/rv1108-minievb-v10.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/rv1108-minievb-v10.dts b/arch/arm/boot/dts/rv1108-minievb-v10.dts
+index 82b51af..a574d71 100644
+--- a/arch/arm/boot/dts/rv1108-minievb-v10.dts
++++ b/arch/arm/boot/dts/rv1108-minievb-v10.dts
+@@ -81,7 +81,7 @@
+ 	};
+ 
+ 	chosen {
+-		bootargs = "user_debug=31 rockchip_jtag noinitrd root=/dev/mtdblock3 rootfstype=squashfs";
++		bootargs = "user_debug=31 rockchip_jtag noinitrd root=/dev/mmcblk0p4 rootfstype=squashfs";
+ 	};
+ 
+ 	ion {
+-- 
+2.7.4
+
