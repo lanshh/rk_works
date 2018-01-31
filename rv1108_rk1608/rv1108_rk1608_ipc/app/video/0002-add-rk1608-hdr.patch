@@ -1,0 +1,1959 @@
+From 9b473639a4a0c24341aea72c0f5ac276d371ac10 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 31 Jan 2018 17:50:45 +0800
+Subject: [PATCH 2/2] add rk1608 hdr
+
+Change-Id: I04d3b00502cf25f4b33cac5eed5c36580903ae94
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ parameter.c                   |   9 +-
+ rk1608/inc/Barrier.h          |  75 -------
+ rk1608/inc/MessageQueue.h     | 321 ----------------------------
+ rk1608/inc/PreispCamera.h     | 243 ---------------------
+ rk1608/inc/PreispProfiles.h   | 117 ----------
+ rk1608/inc/looper.h           |  17 --
+ rk1608/inc/preisp_api.h       |  27 +++
+ rk1608/inc/preisp_common.h    |  95 ---------
+ rk1608/inc/preisp_debugger.h  | 105 ---------
+ rk1608/inc/preisp_process.h   |  31 +++
+ rk1608/inc/preisp_thread.h    |  42 ----
+ rk1608/inc/shared_ptr.h       | 484 ------------------------------------------
+ rk1608/src/preisp_api.c       |  83 +++++---
+ rk1608/src/preisp_process.cpp |  59 +++++
+ video.cpp                     |  13 ++
+ video.h                       |   6 +-
+ video_hal.cpp                 |   2 +
+ 17 files changed, 201 insertions(+), 1528 deletions(-)
+ delete mode 100644 rk1608/inc/Barrier.h
+ delete mode 100644 rk1608/inc/MessageQueue.h
+ delete mode 100644 rk1608/inc/PreispCamera.h
+ delete mode 100644 rk1608/inc/PreispProfiles.h
+ delete mode 100644 rk1608/inc/looper.h
+ create mode 100644 rk1608/inc/preisp_api.h
+ delete mode 100644 rk1608/inc/preisp_common.h
+ delete mode 100644 rk1608/inc/preisp_debugger.h
+ create mode 100644 rk1608/inc/preisp_process.h
+ delete mode 100644 rk1608/inc/preisp_thread.h
+ delete mode 100644 rk1608/inc/shared_ptr.h
+ create mode 100644 rk1608/src/preisp_process.cpp
+
+diff --git a/parameter.c b/parameter.c
+index e4fb50f..00cdf5a 100644
+--- a/parameter.c
++++ b/parameter.c
+@@ -1556,10 +1556,10 @@ int parameter_recover(void) {
+   memset((void*)&parameter, 0, sizeof(struct sys_param));
+ 
+   sprintf(parameter.pararater_version, "%s", PARAM_VERSION);
+-  sprintf(parameter.WIFI_SSID, "RK_CVR_%X", randnum);
+-  sprintf(parameter.WIFI_PASS, "%s", "123456789");
+-  sprintf(parameter.STA_WIFI_SSID, "RK_WIFI_TEST");
+-  sprintf(parameter.STA_WIFI_PASS, "%s", "123456789");
++  sprintf(parameter.WIFI_SSID, "lanshh-ap");
++  sprintf(parameter.WIFI_PASS, "%s", "ps56123456");
++  sprintf(parameter.STA_WIFI_SSID, "lanshh-ap");
++  sprintf(parameter.STA_WIFI_PASS, "%s", "ps56123456");
+   parameter.eth_dhcp_en = 0;
+   sprintf(parameter.eth_static_ip, "%s", "192.168.1.100");
+   sprintf(parameter.eth_netmask, "%s", "255.255.255.0");
+@@ -1584,6 +1584,7 @@ int parameter_recover(void) {
+ #else
+   parameter.wifi_mode = WIFI_MODE_P2P;
+ #endif
++  parameter.wifi_mode = WIFI_MODE_STATION;
+   parameter.video_3dnr = 1;
+   parameter.video_odt = 0;
+   parameter.video_lan = 1;
+diff --git a/rk1608/inc/Barrier.h b/rk1608/inc/Barrier.h
+deleted file mode 100644
+index 0d9b068..0000000
+--- a/rk1608/inc/Barrier.h
++++ /dev/null
+@@ -1,75 +0,0 @@
+-/*
+- * Copyright (C) 2007 The Android Open Source Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-#ifndef ANDROID_BARRIER_H
+-#define ANDROID_BARRIER_H
+-
+-#include <stdint.h>
+-#include <sys/types.h>
+-#include <utils/threads.h>
+-
+-using namespace android;
+-
+-namespace android {
+-namespace rkpreisp {
+-
+-
+-class Barrier
+-{
+-public:
+-    inline Barrier() : state(CLOSED) { }
+-    inline ~Barrier() { }
+-
+-    // Release any threads waiting at the Barrier.
+-    // Provides release semantics: preceding loads and stores will be visible
+-    // to other threads before they wake up.
+-    void open() {
+-        Mutex::Autolock _l(lock);
+-        state = OPENED;
+-        cv.broadcast();
+-    }
+-
+-    // Reset the Barrier, so wait() will block until open() has been called.
+-    void close() {
+-        Mutex::Autolock _l(lock);
+-        state = CLOSED;
+-    }
+-
+-    // Wait until the Barrier is OPEN.
+-    // Provides acquire semantics: no subsequent loads or stores will occur
+-    // until wait() returns.
+-    int wait(nsecs_t timeout=0) const {
+-        Mutex::Autolock _l(lock);
+-        while (state == CLOSED) {
+-            if (timeout > 0) {
+-                return cv.waitRelative(lock, timeout);
+-            } else {
+-                cv.wait(lock);
+-            }
+-        }
+-        return 0;
+-    }
+-private:
+-    enum { OPENED, CLOSED };
+-    mutable     Mutex       lock;
+-    mutable     Condition   cv;
+-    volatile    int         state;
+-};
+-
+-}; // namespace rkpreisp
+-}; // namespace android
+-
+-#endif // ANDROID_BARRIER_H
+diff --git a/rk1608/inc/MessageQueue.h b/rk1608/inc/MessageQueue.h
+deleted file mode 100644
+index 9613f40..0000000
+--- a/rk1608/inc/MessageQueue.h
++++ /dev/null
+@@ -1,321 +0,0 @@
+-/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions are
+- * met:
+- *     * Redistributions of source code must retain the above copyright
+- *       notice, this list of conditions and the following disclaimer.
+- *     * Redistributions in binary form must reproduce the above
+- *       copyright notice, this list of conditions and the following
+- *       disclaimer in the documentation and/or other materials provided
+- *       with the distribution.
+- *     * Neither the name of The Linux Foundation nor the names of its
+- *       contributors may be used to endorse or promote products derived
+- *       from this software without specific prior written permission.
+- *
+- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+- *
+- */
+-#ifndef __PREISP_MESSAGE_QUEUE_H__
+-#define __PREISP_MESSAGE_QUEUE_H__
+-
+-#include <stdint.h>
+-#include <errno.h>
+-#include <sys/types.h>
+-
+-#include <utils/threads.h>
+-#include <utils/Timers.h>
+-#include <utils/Looper.h>
+-
+-#include "Barrier.h"
+-
+-
+-namespace android {
+-namespace rkpreisp {
+-
+-class MessageBase : public MessageHandler
+-{
+-public:
+-    MessageBase();
+-
+-    // return true if message has a handler
+-    virtual bool handler() = 0;
+-
+-    // waits for the handler to be processed
+-    void wait() const { barrier.wait(); }
+-
+-protected:
+-    virtual ~MessageBase();
+-
+-private:
+-    virtual void handleMessage(const Message& message);
+-
+-    mutable Barrier barrier;
+-};
+-
+-class MessageQueue : public RefBase {
+-public:
+-    MessageQueue(const sp<Looper>& looper);
+-    ~MessageQueue();
+-
+-    void waitMessage();
+-    status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime=0);
+-
+-private:
+-    sp<Looper> mLooper;
+-};
+-
+-class MessageQueueThread : public Thread {
+-public:
+-    MessageQueueThread(const wp<MessageQueue> queue)
+-        : mMsgQueue(queue) {}
+-
+-    virtual ~MessageQueueThread() {}
+-
+-    virtual bool threadLoop();
+-
+-private:
+-    wp<MessageQueue> mMsgQueue;
+-};
+-
+-template<class T>
+-class MessageAsyncArg0 : public MessageBase {
+-public:
+-    typedef void (T::*FUNC)();
+-    MessageAsyncArg0(T *t, FUNC func)
+-        : t(t), func(func) {}
+-
+-    virtual bool handler() {
+-        (t->*func)();
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-};
+-
+-template<class T, typename ARG1>
+-class MessageAsyncArg1 : public MessageBase {
+-public:
+-    typedef void (T::*FUNC)(ARG1);
+-    MessageAsyncArg1(T *t, FUNC func, ARG1 a)
+-        : t(t), func(func), a(a) {}
+-
+-    virtual bool handler() {
+-        (t->*func)(a);
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    ARG1 a;
+-};
+-
+-template <class T, typename ARG1, typename ARG2>
+-class MessageAsyncArg2 : public MessageBase {
+-public:
+-    typedef void (T::*FUNC)(ARG1, ARG2);
+-    MessageAsyncArg2(T *t, FUNC func, ARG1 a, ARG2 b)
+-        : t(t), func(func), a(a), b(b) {}
+-
+-    virtual bool handler() {
+-        (t->*func)(a, b);
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    ARG1 a;
+-    ARG2 b;
+-};
+-
+-template <class T, typename ARG1, typename ARG2, typename ARG3>
+-class MessageAsyncArg3 : public MessageBase {
+-public:
+-    typedef void (T::*FUNC)(ARG1, ARG2, ARG3);
+-    MessageAsyncArg3(T *t, FUNC func, ARG1 a, ARG2 b, ARG3 c)
+-        : t(t), func(func), a(a), b(b), c(c) {}
+-
+-    virtual bool handler() {
+-        (t->*func)(a, b, c);
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    ARG1 a;
+-    ARG2 b;
+-    ARG3 c;
+-};
+-
+-template <class T, typename ARG1, typename ARG2, typename ARG3, typename ARG4>
+-class MessageAsyncArg4 : public MessageBase {
+-public:
+-    typedef void (T::*FUNC)(ARG1, ARG2, ARG3, ARG4);
+-    MessageAsyncArg4(T *t, FUNC func, ARG1 a, ARG2 b, ARG3 c, ARG4 d)
+-        : t(t), func(func), a(a), b(b), c(c), d(d) {}
+-
+-    virtual bool handler() {
+-        (t->*func)(a, b, c, d);
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    ARG1 a;
+-    ARG2 b;
+-    ARG3 c;
+-    ARG4 d;
+-};
+-
+-template <class T, typename ARG1, typename ARG2, typename ARG3, typename ARG4, typename ARG5>
+-class MessageAsyncArg5 : public MessageBase {
+-public:
+-    typedef void (T::*FUNC)(ARG1, ARG2, ARG3, ARG4, ARG5);
+-    MessageAsyncArg5(T *t, FUNC func, ARG1 a, ARG2 b, ARG3 c, ARG4 d, ARG5 e)
+-        : t(t), func(func), a(a), b(b), c(c), d(d), e(e) {}
+-
+-    virtual bool handler() {
+-        (t->*func)(a, b, c, d, e);
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    ARG1 a;
+-    ARG2 b;
+-    ARG3 c;
+-    ARG4 d;
+-    ARG5 e;
+-};
+-
+-template<class T, typename RET>
+-class MessageSyncArg0 : public MessageBase {
+-public:
+-    typedef RET (T::*FUNC)();
+-    MessageSyncArg0(T *t, FUNC func, RET *ret)
+-        : t(t), func(func), ret(ret) {}
+-
+-    virtual bool handler() {
+-        *ret = (t->*func)();
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    RET *ret;
+-};
+-
+-template<class T, typename RET, typename ARG1>
+-class MessageSyncArg1 : public MessageBase {
+-public:
+-    typedef RET (T::*FUNC)(ARG1);
+-    MessageSyncArg1(T *t, FUNC func, RET *ret, ARG1 a)
+-        : t(t), func(func), ret(ret), a(a) {}
+-
+-    virtual bool handler() {
+-        *ret = (t->*func)(a);
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    RET *ret;
+-    ARG1 a;
+-};
+-
+-template<class T, typename RET, typename ARG1, typename ARG2>
+-class MessageSyncArg2 : public MessageBase {
+-public:
+-    typedef RET (T::*FUNC)(ARG1, ARG2);
+-    MessageSyncArg2(T *t, FUNC func, RET *ret, ARG1 a, ARG2 b)
+-        : t(t), func(func), ret(ret), a(a), b(b) {}
+-
+-    virtual bool handler() {
+-        *ret = (t->*func)(a, b);
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    RET *ret;
+-    ARG1 a;
+-    ARG2 b;
+-};
+-
+-template<class T, typename RET, typename ARG1, typename ARG2, typename ARG3>
+-class MessageSyncArg3 : public MessageBase {
+-public:
+-    typedef RET (T::*FUNC)(ARG1, ARG2, ARG3);
+-    MessageSyncArg3(T *t, FUNC func, RET *ret, ARG1 a, ARG2 b, ARG3 c)
+-        : t(t), func(func), ret(ret), a(a), b(b), c(c) {}
+-
+-    virtual bool handler() {
+-        *ret = (t->*func)(a, b, c);
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    RET *ret;
+-    ARG1 a;
+-    ARG2 b;
+-    ARG3 c;
+-};
+-
+-template<class T, typename RET, typename ARG1, typename ARG2, typename ARG3, typename ARG4>
+-class MessageSyncArg4 : public MessageBase {
+-public:
+-    typedef RET (T::*FUNC)(ARG1, ARG2, ARG3, ARG4);
+-    MessageSyncArg4(T *t, FUNC func, RET *ret, ARG1 a, ARG2 b, ARG3 c, ARG4 d)
+-        : t(t), func(func), ret(ret), a(a), b(b), c(c), d(d){}
+-
+-    virtual bool handler() {
+-        *ret = (t->*func)(a, b, c, d);
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    RET *ret;
+-    ARG1 a;
+-    ARG2 b;
+-    ARG3 c;
+-    ARG4 d;
+-};
+-
+-template<class T, typename RET, typename ARG1, typename ARG2, typename ARG3, typename ARG4, typename ARG5>
+-class MessageSyncArg5 : public MessageBase {
+-public:
+-    typedef RET (T::*FUNC)(ARG1, ARG2, ARG3, ARG4, ARG5);
+-    MessageSyncArg5(T *t, FUNC func, RET *ret, ARG1 a, ARG2 b, ARG3 c, ARG4 d, ARG5 e)
+-        : t(t), func(func), ret(ret), a(a), b(b), c(c), d(d), e(e) {}
+-
+-    virtual bool handler() {
+-        *ret = (t->*func)(a, b, c, d, e);
+-        return true;
+-    }
+-private:
+-    T *t;
+-    FUNC func;
+-    RET *ret;
+-    ARG1 a;
+-    ARG2 b;
+-    ARG3 c;
+-    ARG4 d;
+-    ARG5 e;
+-};
+-}; // namespace rkpreisp
+-}; // namespace android
+-
+-#endif
+diff --git a/rk1608/inc/PreispCamera.h b/rk1608/inc/PreispCamera.h
+deleted file mode 100644
+index 5349965..0000000
+--- a/rk1608/inc/PreispCamera.h
++++ /dev/null
+@@ -1,243 +0,0 @@
+-/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions are
+- * met:
+- *     * Redistributions of source code must retain the above copyright
+- *       notice, this list of conditions and the following disclaimer.
+- *     * Redistributions in binary form must reproduce the above
+- *       copyright notice, this list of conditions and the following
+- *       disclaimer in the documentation and/or other materials provided
+- *       with the distribution.
+- *     * Neither the name of The Linux Foundation nor the names of its
+- *       contributors may be used to endorse or promote products derived
+- *       from this software without specific prior written permission.
+- *
+- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+- *
+- */
+-
+-#ifndef __PREISP_CAMERA_H__
+-#define __PREISP_CAMERA_H__
+-
+-#include <utils/Mutex.h>
+-#include <utils/threads.h>
+-#include <MessageQueue.h>
+-#include <rk_preisp_dev.h>
+-#include <preisp_common.h>
+-
+-using namespace android;
+-
+-#define RKPREISP_VERSION "1.0.10"
+-
+-static const char * PREISP_FW_SYSTEM = "rkpreisp.rkl";
+-
+-namespace android {
+-namespace rkpreisp {
+-class MsgWaitter;
+-
+-class PreispCamera {
+-public:
+-    enum NotifyType {
+-        NOTIFY_ERROR = 0x0001,
+-        NOTIFY_PICTURE_FRAME,
+-        NOTIFY_STATS_DATA,
+-        NOTIFY_PICTURE_PREPARE,
+-    };
+-
+-    enum ErrorType {
+-        ERROR_POWER_ON = 0x0001,
+-        ERROR_REQUEST_SLEEP,
+-        ERROR_INIT_SENSOR = id_msg_init_sensor_ret_t,
+-        ERROR_SET_INPUT_SIZE,
+-        ERROR_SET_OUTPUT_SIZE,
+-        ERROR_START_INPUT_STREAM,
+-        ERROR_STOP_INPUT_STREAM,
+-        ERROR_START_OUTPUT_STREAM,
+-        ERROR_STOP_OUTPUT_STREAM,
+-        ERROR_SET_ALGO,
+-        ERROR_TAKE_PICTURE = id_msg_take_picture_ret_t,
+-    };
+-
+-    //notify_type: NOTIFY_ERROR, NOTIFY_PICTURE_FRAME
+-    //ext1: ErrorType(NOTIFY_ERROR)
+-    //      FrameIndex(NOTIFY_PICTURE_FRAME)
+-    //      DivisionMode(NOTIFY_STATS_DATA)
+-    //      0 (NOTIFY_PICTURE_PREPARE)
+-    //ext2: (int*)ErrorValue(NOTIFY_ERROR)
+-    //      0 (NOTIFY_PICTURE_FRAME)
+-    //      (uint16_t*) stats_data (NOTIFY_STATS_DATA)
+-    //      0 (NOTIFY_PICTURE_PREPARE)
+-    typedef void (*notify_callback_t)(int32_t notify_type, int32_t ext1, void* ext2, void *user);
+-
+-    void setNotifyCb(notify_callback_t cb, void *user);
+-
+-    //async
+-    int start();
+-
+-    //sync
+-    int stop();
+-
+-    //sync
+-    int setSize(int w, int h, int mode);
+-
+-    int startInputStream();
+-
+-    int stopInputStream();
+-
+-    int startOutputStream();
+-
+-    int stopOutputStream();
+-
+-    typedef preisp_rt_algo_type RtAlgoType;
+-
+-    int enableRealTimeAlgo(RtAlgoType type);
+-
+-    int disableRealTimeAlgo(RtAlgoType type);
+-
+-    typedef struct preisp_rt_args_now RtArgsNow;
+-
+-    int setRealTimeAlgoArgs(const RtArgsNow *args);
+-
+-    typedef struct preisp_rt_args_delay RtArgsDelay;
+-
+-    int setRealTimeAlgoArgs(const RtArgsDelay *args);
+-
+-    typedef preisp_algo_type AlgoType;
+-
+-    int setAlgo(AlgoType type);
+-
+-    typedef struct preisp_algo_args AlgoArgs;
+-
+-    int takePicture(const AlgoArgs *args);
+-
+-    int takePictureDone();
+-
+-    int sleep(int32_t mode = PREISP_SLEEP_MODE_BYPASS);
+-
+-    int wakeup();
+-
+-    static int setSize(int id, int w, int h, int mode);
+-
+-    static int startInputStream(int id);
+-
+-    static int stopInputStream(int id);
+-
+-    static int startOutputStream(int id);
+-
+-    static int stopOutputStream(int id);
+-
+-    static int enableRealTimeAlgo(int id, RtAlgoType type);
+-
+-    static int disableRealTimeAlgo(int id, RtAlgoType type);
+-
+-    static int setRealTimeAlgoArgs(int id, const RtArgsNow *args);
+-
+-    static int setRealTimeAlgoArgs(int id, const RtArgsDelay *args);
+-
+-    static int setAlgo(int id, AlgoType type);
+-
+-    static int takePicture(int id, const AlgoArgs *args);
+-
+-    static int takePictureDone(int id);
+-
+-    static int Sleep(int32_t mode = PREISP_SLEEP_MODE_BYPASS);
+-
+-    static int Wakeup();
+-
+-    PreispCamera(int cameraId);
+-
+-    virtual ~PreispCamera();
+-
+-private:
+-    //send msg to dsp, and wait for dsp response
+-    int sendMsgAndWait(msg_t *msg, msg_response_t *ret, nsecs_t timeout = milliseconds(1000));
+-
+-    static int sendMsgAndWait(int id, msg_t *msg, msg_response_t *ret,
+-            int timeoutMillis = 1000);
+-
+-    int postMsgResponse(const msg_response_t *msg);
+-
+-    void doSleep(int32_t mode);
+-
+-    void doWakeup();
+-
+-    int doStartStatsOutput();
+-
+-    int doStopStatsOutput();
+-
+-    void doConnectDspMsg();
+-
+-    void doDisconnectDspMsg();
+-
+-    //async
+-    int initSensor();
+-
+-    void doInitSensor();
+-
+-    int doSetSize(int w, int h, int mode);
+-
+-    int doStartInputStream();
+-
+-    int doStopInputStream();
+-
+-    int doStartOutputStream();
+-
+-    int doStopOutputStream();
+-
+-    int doEnalbeRealTimeAlgo(RtAlgoType type);
+-
+-    int doDisalbeRealTimeAlgo(RtAlgoType type);
+-
+-    int doSetAlgo(AlgoType type);
+-
+-    void doNextPictureFrame();
+-
+-    void doTakePictureDone();
+-
+-    status_t notifyUser(int32_t notify_type, int32_t ext1, void* ext2);
+-
+-    void doNotifyUser(int32_t notify_type, int32_t ext1, void* ext2);
+-
+-    status_t postMessageAsync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
+-
+-    status_t postMessageSync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
+-
+-    static int dspMsgCallbackFunc(int fd, int events, void* data);
+-
+-    enum {
+-        STATE_STOP,
+-        STATE_START,
+-    };
+-
+-    int mState;
+-    int mFd;
+-    int mCameraId;
+-
+-    sp<Looper> mApMsgLooper;
+-    sp<MessageQueue> mApMsgQueue;
+-    sp<MessageQueueThread> mApMsgQueueThread;
+-
+-    sp<Looper> mDspMsgLooper;
+-    sp<MessageQueue> mDspMsgQueue;
+-    sp<MessageQueueThread> mDspMsgQueueThread;
+-
+-    notify_callback_t mNotifyCb;
+-    void * mUserData;
+-    MsgWaitter *mMsgWaitter;
+-};
+-
+-}; // namespace rkpreisp
+-}; // namespace android
+-
+-#endif
+diff --git a/rk1608/inc/PreispProfiles.h b/rk1608/inc/PreispProfiles.h
+deleted file mode 100644
+index 5d93f57..0000000
+--- a/rk1608/inc/PreispProfiles.h
++++ /dev/null
+@@ -1,117 +0,0 @@
+-/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions are
+- * met:
+- *     * Redistributions of source code must retain the above copyright
+- *       notice, this list of conditions and the following disclaimer.
+- *     * Redistributions in binary form must reproduce the above
+- *       copyright notice, this list of conditions and the following
+- *       disclaimer in the documentation and/or other materials provided
+- *       with the distribution.
+- *     * Neither the name of The Linux Foundation nor the names of its
+- *       contributors may be used to endorse or promote products derived
+- *       from this software without specific prior written permission.
+- *
+- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+- *
+- */
+-
+-#ifndef __PREISP_PROFILES_H__
+-#define __PREISP_PROFILES_H__
+-
+-#include <utils/threads.h>
+-
+-using namespace android;
+-namespace android {
+-namespace rkpreisp {
+-
+-class PreispProfiles {
+-public:
+-    struct VcProfiles {
+-        int8_t   mDataId;
+-        int8_t   mDecodeFormat;
+-        int8_t   mFlag;
+-        int8_t   unused;
+-
+-        uint16_t mWidth;
+-        uint16_t mHeight;
+-    };
+-
+-    struct ResolutionProfiles {
+-        uint16_t mWidth;
+-        uint16_t mHeight;
+-        uint16_t mLineLengthPclk;
+-        uint16_t mFrameLengthLines;
+-        uint32_t mMipiClk;
+-        uint32_t mMode;
+-        Vector<VcProfiles*> mVcProfiles;
+-    };
+-
+-    struct GlobalProfiles {
+-        int8_t mInPhy;
+-        int8_t mOutPhy;
+-        int8_t mLane;
+-        int8_t mBayer;
+-    };
+-
+-    struct SensorProfiles {
+-        int32_t id;
+-        GlobalProfiles* mGlobalProfiles;
+-        Vector<ResolutionProfiles*> mResProfiles;
+-    };
+-
+-    static PreispProfiles* getInstance();
+-    static PreispProfiles* createInstanceFromXmlFile(const char *xml);
+-    static GlobalProfiles* getGlobalProfiles(int32_t id);
+-    static ResolutionProfiles *getResolutionProfiles(int32_t id,
+-            uint16_t w, uint16_t h, uint32_t mode);
+-
+-    void dump(void);
+-
+-private:
+-    PreispProfiles& operator=(const PreispProfiles&);  // Don't call me
+-    PreispProfiles(const PreispProfiles&);             // Don't call me
+-    PreispProfiles() {}                                // Dummy default constructor
+-    ~PreispProfiles();                                 // Don't delete me
+-
+-    struct NameToTagMap {
+-        const char* name;
+-        int tag;
+-    };
+-
+-    static const NameToTagMap sBayerNameMap[];
+-
+-    static int findTagForName(const NameToTagMap *map, size_t nMappings, const char *name);
+-
+-    static GlobalProfiles* createGlobalProfiles(const char **atts, PreispProfiles *profiles);
+-
+-    static ResolutionProfiles* createResolutionProfiles(const char **atts, PreispProfiles *profiles);
+-
+-    static VcProfiles* createVcProfiles(const char **atts, PreispProfiles *profiles);
+-
+-    static SensorProfiles* createSensorProfiles(const char **atts);
+-
+-    static void startElementHandler(void *userData, const char *name, const char **atts);
+-
+-    static PreispProfiles *sInstance;
+-    static bool sIsInitialized;
+-    static Mutex sLock;
+-
+-    Vector<SensorProfiles*> mSensorProfiles;
+-};
+-
+-}; // namespace rkpreisp
+-}; // namespace android
+-
+-#endif
+diff --git a/rk1608/inc/looper.h b/rk1608/inc/looper.h
+deleted file mode 100644
+index 8536364..0000000
+--- a/rk1608/inc/looper.h
++++ /dev/null
+@@ -1,17 +0,0 @@
+-typedef int (*Looper_callbackFunc)(int fd, int events, void* data);
+-
+-/**
+- * A message that can be posted to a Looper.
+- */
+-struct Message {
+-    Message() : what(0) { }
+-    Message(int what) : what(what) { }
+-
+-    /* The message type. (interpretation is left up to the handler) */
+-    int what;
+-};
+-
+-
+-
+-
+-
+diff --git a/rk1608/inc/preisp_api.h b/rk1608/inc/preisp_api.h
+new file mode 100644
+index 0000000..996e31b
+--- /dev/null
++++ b/rk1608/inc/preisp_api.h
+@@ -0,0 +1,27 @@
++#ifndef _PREISP_API_H_
++#define _PREISP_API_H_
++#if defined(__cplusplus)
++extern "C" {
++#endif
++
++typedef struct _preisp_cfg_{
++	int client_id;
++} preisp_cfg;
++
++typedef struct _preisp_context_{
++	int mfd;
++} preisp_context;
++
++typedef struct _meta_data_ {
++	int i;
++} preisp_meta;
++int preisp_hdr_start(preisp_meta *meta_data);
++
++int preisp_init(preisp_context *ctx, preisp_cfg *cfg);
++int preisp_deinit(preisp_context *ctx);
++
++
++#if defined(__cplusplus)
++}
++#endif
++#endif
+diff --git a/rk1608/inc/preisp_common.h b/rk1608/inc/preisp_common.h
+deleted file mode 100644
+index b03558c..0000000
+--- a/rk1608/inc/preisp_common.h
++++ /dev/null
+@@ -1,95 +0,0 @@
+-/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions are
+- * met:
+- *     * Redistributions of source code must retain the above copyright
+- *       notice, this list of conditions and the following disclaimer.
+- *     * Redistributions in binary form must reproduce the above
+- *       copyright notice, this list of conditions and the following
+- *       disclaimer in the documentation and/or other materials provided
+- *       with the distribution.
+- *     * Neither the name of The Linux Foundation nor the names of its
+- *       contributors may be used to endorse or promote products derived
+- *       from this software without specific prior written permission.
+- *
+- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+- * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+- *
+- */
+-
+-#ifndef __RK_PREISP_COMMON_H__
+-#define __RK_PREISP_COMMON_H__
+-
+-#if defined(__cplusplus)
+-extern "C" {
+-#endif
+-
+-typedef enum {
+-    PREISP_RT_ALGO_ZZHDR,
+-    PREISP_RT_ALGO_DGAIN,
+-} preisp_rt_algo_type;
+-
+-typedef enum {
+-    PREISP_ALGO_NULL,
+-    PREISP_ALGO_NIGHTSHOT,
+-    PREISP_ALGO_ANTISHAKING,
+-    PREISP_ALGO_HDR,
+-} preisp_algo_type;
+-
+-struct preisp_rt_args_now {
+-    float    redGain;
+-    float    blueGain;
+-    float    ispGain;
+-    int16_t  blackLevel[4];
+-    uint8_t  shadingWidth;
+-    uint8_t  shadingHeight;
+-    uint8_t  shadingCh;
+-    uint8_t  unused;
+-    float    *shadingTable;
+-};
+-
+-struct preisp_rt_args_delay {
+-    float    sensorGain;
+-    float    dGain;
+-    float    ratio;
+-    uint16_t coarseIntegTime;
+-    uint16_t anaGainGlobal;
+-};
+-
+-struct preisp_algo_args {
+-    float    redGain;
+-    float    blueGain;
+-    float    sensorGain;
+-    float    ispGain;
+-    float    shutter;
+-    int32_t  luxIndex;
+-    int32_t  expIndex;
+-    int32_t  lumIntensity;
+-    int16_t  blackLevel[4];
+-    int8_t   fusionNum;
+-    int8_t   outNum;
+-    uint8_t  skipFrames;
+-    uint8_t  shadingWidth;
+-    uint8_t  shadingHeight;
+-    uint8_t  shadingCh;
+-    uint8_t  baseFrame;
+-    uint16_t coarseIntegTime;
+-    uint16_t anaGainGlobal;
+-    float    *shadingTable;
+-};
+-
+-#if defined(__cplusplus)
+-}  /* extern "C" */
+-#endif
+-
+-#endif
+diff --git a/rk1608/inc/preisp_debugger.h b/rk1608/inc/preisp_debugger.h
+deleted file mode 100644
+index 135f82d..0000000
+--- a/rk1608/inc/preisp_debugger.h
++++ /dev/null
+@@ -1,105 +0,0 @@
+-#include "types.h"
+-#include <sys/stat.h>
+-#include <fcntl.h>
+-#include <stdlib.h>
+-#include <unistd.h>
+-#include <rk_preisp_dev.h>
+-#include "preisp_thread.h"
+-#include <sys/poll.h>
+-#ifndef __PREISP_DEBUGGER_H_
+-#define __PREISP_DEBUGGER_H_
+-#define PREISP_DEBUGGER_ID 100
+-#define PREISP_LSHTEST_ID 101
+-#define XFILE_MAX_PATH 256
+-#define EVENT_INPUT 1
+-// Hint for number of file descriptors to be associated with the epoll instance.
+-static const int EPOLL_SIZE_HINT = 8;
+-// Maximum number of file descriptors for which to retrieve poll events each iteration.
+-static const int EPOLL_MAX_EVENTS = 16;
+-
+-typedef struct {
+-	uint32_t size;
+-	uint16_t type;
+-	int8_t   camera_id;
+-    union {
+-        int8_t   sync;
+-        int8_t   ret;
+-    };
+-	uint32_t addr;
+-	uint32_t data_size;
+-	uint32_t cb;
+-	uint32_t args;
+-	char	 path[XFILE_MAX_PATH];
+-} msg_xfile_t;
+-
+-class MessageQueueThread : public preispthread {
+-public:
+-	MessageQueueThread(int fd) {
+-		_fd = fd;
+-	}
+-	virtual ~MessageQueueThread() {
+-	}
+-	virtual bool threadLoop();
+-	virtual int readyToRun();
+-private:
+-	int _fd;
+-	int _epollfd;
+-	void *_data;
+-};
+-
+-class PreispDebugger {
+-public:
+-    //async
+-    int start();
+-
+-    //sync
+-    int stop();
+-
+-    int xfileImport(msg_xfile_t* msg);
+-
+-    int xfileExport(msg_xfile_t* msg);
+-
+-    int xfileMkdir(msg_xfile_t* msg);
+-
+-    PreispDebugger();
+-
+-    virtual ~PreispDebugger();
+-
+-private:
+-    void doXfileImport(msg_xfile_t *msg);
+-
+-    void doXfileExport(msg_xfile_t *msg);
+-
+-    void doXfileMkdir(msg_xfile_t* msg);
+-
+-    //status_t postMessageAsync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
+-
+-    //status_t postMessageSync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
+-
+-    static int dspMsgCallbackFunc(int fd, int events, void* data);
+-
+-    int mFd;
+-
+-	class DequeueThread : public preispthread {
+-	public:
+-		DequeueThread(PreispDebugger* preisp): mpreisp(preisp) {
+-		};
+-		virtual bool threadLoop(void) {
+-			return mpreisp->dequeueFunc();
+-		};
+-	private:
+-		PreispDebugger *mpreisp;
+-	};
+-	bool dequeueFunc(void){
+-		printf("dequeueFunc\n");
+-		return 1;
+-	}
+-    //sp<Looper> mApMsgLooper;
+-    //sp<MessageQueue> mApMsgQueue;
+-	shared_ptr<MessageQueueThread> mApMsgQueueThread;
+-
+-    //sp<Looper> mDspMsgLooper;
+-    //sp<MessageQueue> mDspMsgQueue;
+-	shared_ptr<MessageQueueThread> mDspMsgQueueThread;
+-};
+-#endif
+diff --git a/rk1608/inc/preisp_process.h b/rk1608/inc/preisp_process.h
+new file mode 100644
+index 0000000..00e0eaf
+--- /dev/null
++++ b/rk1608/inc/preisp_process.h
+@@ -0,0 +1,31 @@
++#include <CameraHal/StrmPUBase.h>
++#include <dpp/dpp_frame.h>
++#include <dpp/dpp_types.h>
++#include "preisp_api.h"
++#ifndef _PREISP_PROCESS_H_
++#define _PREISP_PROCESS_H_
++
++using namespace std;
++
++#define DPP_OUT_BUFFER_NUM  3
++
++class preisp_process : public StreamPUBase
++{
++public:
++    preisp_process(struct Video *video);
++    ~preisp_process();
++protected:
++    virtual bool bufferReady(weak_ptr<BufferBase> buffer, int status);
++    bool send_meta(struct HAL_Buffer_MetaData* metaData);
++    //virtual bool processFrame(shared_ptr<BufferBase> inBuf, shared_ptr<BufferBase> outBuf);
++    struct Video *mVideo;
++    int ae_status;
++    void *preisp_ctx;
++    void *cfg;
++};
++#endif
++
++
++
++
++
+diff --git a/rk1608/inc/preisp_thread.h b/rk1608/inc/preisp_thread.h
+deleted file mode 100644
+index f0006ab..0000000
+--- a/rk1608/inc/preisp_thread.h
++++ /dev/null
+@@ -1,42 +0,0 @@
+-#ifndef _PREISP_THREAD_H_
+-#define _PREISP_THREAD_H_
+-#include "../oslayer/include/oslayer.h"
+-#include "shared_ptr.h"
+-
+-# ifndef UTIL_GTL_USE_STD_SHARED_PTR
+-using google::protobuf::internal::shared_ptr;
+-using google::protobuf::internal::enable_shared_from_this;
+-using google::protobuf::internal::weak_ptr;
+-# endif
+-
+-class preispthread : public enable_shared_from_this<preispthread> {
+-public:
+-	// Create a Thread object, but doesn't create or start the associated
+-	// thread. See the run() method.
+-	preispthread();
+-	virtual ~preispthread();
+-
+-	// Start the thread in threadLoop() which needs to be implemented.
+-	virtual int run(const char* name = 0, int32_t priority = OSLAYER_THREAD_PRIO_NORMAL);
+-	virtual int readyToRun();
+-	virtual bool threadLoop() = 0;
+-	int requestExitAndWait();
+-	bool isRunning() {
+-		bool ret;
+-		osMutexLock(&mMutex);
+-		ret = mRunning;
+-		osMutexUnlock(&mMutex);
+-		return ret;
+-	};
+-	const char* name;
+-private:
+-	preispthread &operator= (const preispthread&);
+-	static  int _threadLoop(void* user);
+-	// note that all accesses of mExitPending and mRunning need to hold mLock
+-	volatile bool mExitPending;
+-	volatile bool mRunning;
+-	shared_ptr<preispthread> mHoldSelf;
+-	osThread mThread;
+-	osMutex mMutex;
+-};
+-#endif
+diff --git a/rk1608/inc/shared_ptr.h b/rk1608/inc/shared_ptr.h
+deleted file mode 100644
+index 497f158..0000000
+--- a/rk1608/inc/shared_ptr.h
++++ /dev/null
+@@ -1,484 +0,0 @@
+-// Protocol Buffers - Google's data interchange format
+-// Copyright 2014 Google Inc.  All rights reserved.
+-// https://developers.google.com/protocol-buffers/
+-//
+-// Redistribution and use in source and binary forms, with or without
+-// modification, are permitted provided that the following conditions are
+-// met:
+-//
+-//     * Redistributions of source code must retain the above copyright
+-// notice, this list of conditions and the following disclaimer.
+-//     * Redistributions in binary form must reproduce the above
+-// copyright notice, this list of conditions and the following disclaimer
+-// in the documentation and/or other materials provided with the
+-// distribution.
+-//     * Neither the name of Google Inc. nor the names of its
+-// contributors may be used to endorse or promote products derived from
+-// this software without specific prior written permission.
+-//
+-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-
+-// from google3/util/gtl/shared_ptr.h
+-#ifndef GOOGLE_PROTOBUF_STUBS_SHARED_PTR_H__
+-#define GOOGLE_PROTOBUF_STUBS_SHARED_PTR_H__
+-#include <algorithm>  // for swap
+-#include <stddef.h>
+-#include <memory>
+-typedef  uint32_t Atomic32;
+-
+-namespace google {
+-namespace protobuf {
+-namespace internal {
+-// Alias to std::shared_ptr for any C++11 platform,
+-// and for any supported MSVC compiler.
+-#if !defined(UTIL_GTL_USE_STD_SHARED_PTR) && \
+-    (defined(COMPILER_MSVC) || defined(LANG_CXX11))
+-#define UTIL_GTL_USE_STD_SHARED_PTR 1
+-#endif
+-
+-#if defined(UTIL_GTL_USE_STD_SHARED_PTR) && UTIL_GTL_USE_STD_SHARED_PTR
+-
+-// These are transitional.  They will be going away soon.
+-// Please just #include <memory> and just type std::shared_ptr yourself, instead
+-// of relying on this file.
+-//
+-// Migration doc: http://go/std-shared-ptr-lsc
+-using std::enable_shared_from_this;
+-using std::shared_ptr;
+-using std::static_pointer_cast;
+-using std::weak_ptr;
+-
+-#else  // below, UTIL_GTL_USE_STD_SHARED_PTR not set or set to 0.
+-// For everything else there is the google3 implementation.
+-
+-
+-template <typename T> class shared_ptr;
+-template <typename T> class weak_ptr;
+-
+-// This class is an internal implementation detail for shared_ptr. If two
+-// shared_ptrs point to the same object, they also share a control block.
+-// An "empty" shared_pointer refers to NULL and also has a NULL control block.
+-// It contains all of the state that's needed for reference counting or any
+-// other kind of resource management. In this implementation the control block
+-// happens to consist of two atomic words, the reference count (the number
+-// of shared_ptrs that share ownership of the object) and the weak count
+-// (the number of weak_ptrs that observe the object, plus 1 if the
+-// refcount is nonzero).
+-//
+-// The "plus 1" is to prevent a race condition in the shared_ptr and
+-// weak_ptr destructors. We need to make sure the control block is
+-// only deleted once, so we need to make sure that at most one
+-// object sees the weak count decremented from 1 to 0.
+-class SharedPtrControlBlock {
+-  template <typename T> friend class shared_ptr;
+-  template <typename T> friend class weak_ptr;
+- private:
+-  SharedPtrControlBlock() : refcount_(1), weak_count_(1) {
+-    osAtomicInit();
+-  }
+-  virtual ~SharedPtrControlBlock() {
+-    osAtomicShutdown();
+-  }
+-  Atomic32 refcount_;
+-  Atomic32 weak_count_;
+-
+-  bool RefCountDec(volatile Atomic32* ptr) {
+-    //return Barrier_AtomicIncrement(ptr, -1) != 0;
+-    return osAtomicDecrement((Atomic32*)ptr) != 0;
+-  }
+-
+-  void RefCountInc(volatile Atomic32* ptr) {
+-    //NoBarrier_AtomicIncrement(ptr, 1);
+-    osAtomicIncrement((Atomic32*)ptr);
+-  }
+-
+-  Atomic32 compareAndSwap(volatile Atomic32* ptr, Atomic32 oldVal, Atomic32 newVal) {
+-    return  osAtomicCompareAndSwap((Atomic32*)ptr, oldVal, newVal);
+-  }
+-};
+-
+-// Forward declaration. The class is defined below.
+-template <typename T> class enable_shared_from_this;
+-template <typename T>
+-class shared_ptr {
+-  template <typename U> friend class weak_ptr;
+- public:
+-  typedef T element_type;
+-
+-  shared_ptr() : ptr_(NULL), control_block_(NULL) {}
+-
+-  explicit shared_ptr(T* ptr)
+-    : ptr_(ptr),
+-      control_block_(ptr != NULL ? new SharedPtrControlBlock : NULL) {
+-    // If p is non-null and T inherits from enable_shared_from_this, we
+-    // set up the data that shared_from_this needs.
+-    MaybeSetupWeakThis(ptr);
+-  }
+-
+-  // Copy constructor: makes this object a copy of ptr, and increments
+-  // the reference count.
+-  template <typename U>
+-  shared_ptr(const shared_ptr<U>& ptr)
+-    : ptr_(NULL),
+-      control_block_(NULL) {
+-    Initialize(ptr);
+-  }
+-  // Need non-templated version to prevent the compiler-generated default
+-  shared_ptr(const shared_ptr<T>& ptr)
+-    : ptr_(NULL),
+-      control_block_(NULL) {
+-    Initialize(ptr);
+-  }
+-
+-  // Assignment operator. Replaces the existing shared_ptr with ptr.
+-  // Increment ptr's reference count and decrement the one being replaced.
+-  template <typename U>
+-  shared_ptr<T>& operator=(const shared_ptr<U>& ptr) {
+-    if (ptr_ != ptr.ptr_) {
+-      shared_ptr<T> me(ptr);   // will hold our previous state to be destroyed.
+-      swap(me);
+-    }
+-    return *this;
+-  }
+-
+-  // Need non-templated version to prevent the compiler-generated default
+-  shared_ptr<T>& operator=(const shared_ptr<T>& ptr) {
+-    if (ptr_ != ptr.ptr_) {
+-      shared_ptr<T> me(ptr);   // will hold our previous state to be destroyed.
+-      swap(me);
+-    }
+-    return *this;
+-  }
+-
+-  // TODO(austern): Consider providing this constructor. The draft C++ standard
+-  // (20.8.10.2.1) includes it. However, it says that this constructor throws
+-  // a bad_weak_ptr exception when ptr is expired. Is it better to provide this
+-  // constructor and make it do something else, like fail with a CHECK, or to
+-  // leave this constructor out entirely?
+-  //
+-  // template <typename U>
+-  // shared_ptr(const weak_ptr<U>& ptr);
+-
+-  ~shared_ptr() {
+-    if (ptr_ != NULL) {
+-      if (!control_block_->RefCountDec(&control_block_->refcount_)) {
+-        delete ptr_;
+-
+-        // weak_count_ is defined as the number of weak_ptrs that observe
+-        // ptr_, plus 1 if refcount_ is nonzero.
+-        if (!control_block_->RefCountDec(&control_block_->weak_count_)) {
+-          delete control_block_;
+-        }
+-      }
+-    }
+-  }
+-
+-  // Replaces underlying raw pointer with the one passed in.  The reference
+-  // count is set to one (or zero if the pointer is NULL) for the pointer
+-  // being passed in and decremented for the one being replaced.
+-  //
+-  // If you have a compilation error with this code, make sure you aren't
+-  // passing NULL, nullptr, or 0 to this function.  Call reset without an
+-  // argument to reset to a null ptr.
+-  template <typename Y>
+-  void reset(Y* p) {
+-    if (p != ptr_) {
+-      shared_ptr<T> tmp(p);
+-      tmp.swap(*this);
+-    }
+-  }
+-
+-  void reset() {
+-    reset(static_cast<T*>(NULL));
+-  }
+-
+-  // Exchanges the contents of this with the contents of r.  This function
+-  // supports more efficient swapping since it eliminates the need for a
+-  // temporary shared_ptr object.
+-  void swap(shared_ptr<T>& r) {
+-    using std::swap;  // http://go/using-std-swap
+-    swap(ptr_, r.ptr_);
+-    swap(control_block_, r.control_block_);
+-  }
+-
+-  // The following function is useful for gaining access to the underlying
+-  // pointer when a shared_ptr remains in scope so the reference-count is
+-  // known to be > 0 (e.g. for parameter passing).
+-  T* get() const {
+-    return ptr_;
+-  }
+-
+-  T& operator*() const {
+-    return *ptr_;
+-  }
+-
+-  T* operator->() const {
+-    return ptr_;
+-  }
+-
+-  long use_count() const {
+-    return control_block_ ? control_block_->refcount_ : 1;
+-  }
+-
+-  bool unique() const {
+-    return use_count() == 1;
+-  }
+-
+- private:
+-  // If r is non-empty, initialize *this to share ownership with r,
+-  // increasing the underlying reference count.
+-  // If r is empty, *this remains empty.
+-  // Requires: this is empty, namely this->ptr_ == NULL.
+-  template <typename U>
+-  void Initialize(const shared_ptr<U>& r) {
+-    // This performs a static_cast on r.ptr_ to U*, which is a no-op since it
+-    // is already a U*. So initialization here requires that r.ptr_ is
+-    // implicitly convertible to T*.
+-    InitializeWithStaticCast<U>(r);
+-  }
+-
+-  // Initializes *this as described in Initialize, but additionally performs a
+-  // static_cast from r.ptr_ (V*) to U*.
+-  // NOTE(gfc): We'd need a more general form to support const_pointer_cast and
+-  // dynamic_pointer_cast, but those operations are sufficiently discouraged
+-  // that supporting static_pointer_cast is sufficient.
+-  template <typename U, typename V>
+-  void InitializeWithStaticCast(const shared_ptr<V>& r) {
+-    if (r.control_block_ != NULL) {
+-      r.control_block_->RefCountInc(&r.control_block_->refcount_);
+-
+-      ptr_ = static_cast<U*>(r.ptr_);
+-      control_block_ = r.control_block_;
+-    }
+-  }
+-
+-  // Helper function for the constructor that takes a raw pointer. If T
+-  // doesn't inherit from enable_shared_from_this<T> then we have nothing to
+-  // do, so this function is trivial and inline. The other version is declared
+-  // out of line, after the class definition of enable_shared_from_this.
+-  void MaybeSetupWeakThis(enable_shared_from_this<T>* ptr);
+-  void MaybeSetupWeakThis(...) { }
+-  //U SHOULD BE DERIVED FROM T
+-  template <typename U>
+-  void MaybeSetupWeakThis(enable_shared_from_this<U>* ptr) {
+-    MaybeSetupWeakThis((enable_shared_from_this<T>*)ptr);
+-  }
+-  T* ptr_;
+-  SharedPtrControlBlock* control_block_;
+-
+-#ifndef SWIG
+-  template <typename U>
+-  friend class shared_ptr;
+-
+-  template <typename U, typename V>
+-  friend shared_ptr<U> static_pointer_cast(const shared_ptr<V>& rhs);
+-#endif
+-};
+-
+-// Matches the interface of std::swap as an aid to generic programming.
+-template <typename T> void swap(shared_ptr<T>& r, shared_ptr<T>& s) {
+-  r.swap(s);
+-}
+-
+-template <typename T, typename U>
+-shared_ptr<T> static_pointer_cast(const shared_ptr<U>& rhs) {
+-  shared_ptr<T> lhs;
+-  lhs.template InitializeWithStaticCast<T>(rhs);
+-  return lhs;
+-}
+-
+-// See comments at the top of the file for a description of why this
+-// class exists, and the draft C++ standard (as of July 2009 the
+-// latest draft is N2914) for the detailed specification.
+-template <typename T>
+-class weak_ptr {
+-  template <typename U> friend class weak_ptr;
+- public:
+-  typedef T element_type;
+-
+-  // Create an empty (i.e. already expired) weak_ptr.
+-  weak_ptr() : ptr_(NULL), control_block_(NULL) { }
+-
+-  // Create a weak_ptr that observes the same object that ptr points
+-  // to.  Note that there is no race condition here: we know that the
+-  // control block can't disappear while we're looking at it because
+-  // it is owned by at least one shared_ptr, ptr.
+-  template <typename U> weak_ptr(const shared_ptr<U>& ptr) {
+-    CopyFrom(ptr.ptr_, ptr.control_block_);
+-  }
+-
+-  // Copy a weak_ptr. The object it points to might disappear, but we
+-  // don't care: we're only working with the control block, and it can't
+-  // disappear while we're looking at because it's owned by at least one
+-  // weak_ptr, ptr.
+-  template <typename U> weak_ptr(const weak_ptr<U>& ptr) {
+-    CopyFrom(ptr.ptr_, ptr.control_block_);
+-  }
+-
+-  // Need non-templated version to prevent default copy constructor
+-  weak_ptr(const weak_ptr& ptr) {
+-    CopyFrom(ptr.ptr_, ptr.control_block_);
+-  }
+-
+-  // Destroy the weak_ptr. If no shared_ptr owns the control block, and if
+-  // we are the last weak_ptr to own it, then it can be deleted. Note that
+-  // weak_count_ is defined as the number of weak_ptrs sharing this control
+-  // block, plus 1 if there are any shared_ptrs. We therefore know that it's
+-  // safe to delete the control block when weak_count_ reaches 0, without
+-  // having to perform any additional tests.
+-  ~weak_ptr() {
+-    if (control_block_ != NULL &&
+-        !control_block_->RefCountDec(&control_block_->weak_count_)) {
+-      delete control_block_;
+-    }
+-  }
+-
+-  weak_ptr& operator=(const weak_ptr& ptr) {
+-    if (&ptr != this) {
+-      weak_ptr tmp(ptr);
+-      tmp.swap(*this);
+-    }
+-    return *this;
+-  }
+-  template <typename U> weak_ptr& operator=(const weak_ptr<U>& ptr) {
+-    weak_ptr tmp(ptr);
+-    tmp.swap(*this);
+-    return *this;
+-  }
+-  template <typename U> weak_ptr& operator=(const shared_ptr<U>& ptr) {
+-    weak_ptr tmp(ptr);
+-    tmp.swap(*this);
+-    return *this;
+-  }
+-
+-  void swap(weak_ptr& ptr) {
+-    using std::swap;  // http://go/using-std-swap
+-    swap(ptr_, ptr.ptr_);
+-    swap(control_block_, ptr.control_block_);
+-  }
+-
+-  void reset() {
+-    weak_ptr tmp;
+-    tmp.swap(*this);
+-  }
+-
+-  // Return the number of shared_ptrs that own the object we are observing.
+-  // Note that this number can be 0 (if this pointer has expired).
+-  long use_count() const {
+-    return control_block_ != NULL ? control_block_->refcount_ : 0;
+-  }
+-
+-  bool expired() const { return use_count() == 0; }
+-
+-  // Return a shared_ptr that owns the object we are observing. If we
+-  // have expired, the shared_ptr will be empty. We have to be careful
+-  // about concurrency, though, since some other thread might be
+-  // destroying the last owning shared_ptr while we're in this
+-  // function.  We want to increment the refcount only if it's nonzero
+-  // and get the new value, and we want that whole operation to be
+-  // atomic.
+-  shared_ptr<T> lock() const {
+-    shared_ptr<T> result;
+-    if (control_block_ != NULL) {
+-      Atomic32 old_refcount;
+-      do {
+-        old_refcount = control_block_->refcount_;
+-        if (old_refcount == 0)
+-          break;
+-      } while (old_refcount !=
+-               osAtomicCompareAndSwap(
+-                   &control_block_->refcount_, old_refcount,
+-                   old_refcount + 1));
+-      if (old_refcount > 0) {
+-        result.ptr_ = ptr_;
+-        result.control_block_ = control_block_;
+-      }
+-    }
+-
+-    return result;
+-  }
+-
+- private:
+-  void CopyFrom(T* ptr, SharedPtrControlBlock* control_block) {
+-    ptr_ = ptr;
+-    control_block_ = control_block;
+-    if (control_block_ != NULL)
+-      control_block_->RefCountInc(&control_block_->weak_count_);
+-  }
+-
+- private:
+-  element_type* ptr_;
+-  SharedPtrControlBlock* control_block_;
+-};
+-
+-template <typename T> void swap(weak_ptr<T>& r, weak_ptr<T>& s) {
+-  r.swap(s);
+-}
+-
+-// See comments at the top of the file for a description of why this class
+-// exists, and section 20.8.10.5 of the draft C++ standard (as of July 2009
+-// the latest draft is N2914) for the detailed specification.
+-template <typename T>
+-class enable_shared_from_this {
+-	friend class shared_ptr<T>;
+-public:
+-	// Precondition: there must be a shared_ptr that owns *this and that was
+-	// created, directly or indirectly, from a raw pointer of type T*. (The
+-	// latter part of the condition is technical but not quite redundant; it
+-	// rules out some complicated uses involving inheritance hierarchies.)
+-	shared_ptr<T> shared_from_this() {
+-		// Behavior is undefined if the precondition isn't satisfied; we choose
+-		// to die with a CHECK failure.
+-		//CHECK(!weak_this_.expired()) << "No shared_ptr owns this object";
+-		return weak_this_.lock();
+-	}
+-	shared_ptr<const T> shared_from_this() const {
+-		CHECK(!weak_this_.expired()) << "No shared_ptr owns this object";
+-		return weak_this_.lock();
+-	}
+-
+-protected:
+-	enable_shared_from_this() {
+-	}
+-	enable_shared_from_this(const enable_shared_from_this& other) {
+-	}
+-	enable_shared_from_this& operator=(const enable_shared_from_this& other) {
+-		return *this;
+-	}
+-	~enable_shared_from_this() {
+-	}
+-
+-private:
+-	weak_ptr<T> weak_this_;
+-};
+-
+-// This is a helper function called by shared_ptr's constructor from a raw
+-// pointer. If T inherits from enable_shared_from_this<T>, it sets up
+-// weak_this_ so that shared_from_this works correctly. If T does not inherit
+-// from weak_this we get a different overload, defined inline, which does
+-// nothing.
+-template<typename T>
+-void shared_ptr<T>::MaybeSetupWeakThis(enable_shared_from_this<T>* ptr) {
+-  if (ptr) {
+-    //CHECK(ptr->weak_this_.expired()) << "Object already owned by a shared_ptr";
+-    ptr->weak_this_ = *this;
+-  }
+-}
+-
+-#endif  // UTIL_GTL_USE_STD_SHARED_PTR
+-
+-}  // internal
+-}  // namespace protobuf
+-}  // namespace google
+-
+-#endif  // GOOGLE_PROTOBUF_STUBS_SHARED_PTR_H__
+diff --git a/rk1608/src/preisp_api.c b/rk1608/src/preisp_api.c
+index c8b602b..c721405 100644
+--- a/rk1608/src/preisp_api.c
++++ b/rk1608/src/preisp_api.c
+@@ -33,14 +33,12 @@
+ #include <string.h>
+ #include "types.h"
+ #include <rk_preisp_dev.h>
++#include "preisp_api.h"
+ 
+-typedef struct _preisp_cfg_{
+-	int client_id;
+-} preisp_cfg;
+-
+-typedef struct _preisp_context_{
+-	int mfd;
+-} preisp_context;
++inline size_t align4(size_t size)
++{
++    return (size + 3) & ~3;
++}
+ 
+ int preisp_init(preisp_context *ctx, preisp_cfg *cfg)
+ {
+@@ -64,32 +62,69 @@ int preisp_deinit(preisp_context *ctx)
+ 	preisp_close(fd);
+ }
+ 
+-typedef struct {
+-    msg_t head;
+-    int i;
+-} msg_args;
++preisp_context __g_preisp_ctx;
+ 
+-int preisp_setargs(preisp_context *ctx)
++int __preisp_init(preisp_cfg *cfg)
+ {
+-	int size, ret;
+-	msg_args *msg;
+-
+-	size = sizeof(msg_set_input_size_head_t) + sizeof(int);
+-	ret = preisp_send_msg(ctx->mfd, (msg_t*)msg);
++	int ret = -1;
++	int fd;
++	int client_id = 101;
++	preisp_context *ctx = &__g_preisp_ctx;
+ 
+-	free(msg);
++	if (cfg) {
++		client_id = cfg->client_id;
++	}
++	fd = preisp_open();
++	if (fd > 0 ) {
++		preisp_client_connect(fd, client_id);
++		ctx->mfd = fd;
++		ret = 0;
++	}
+ 	return ret;
+ }
+ 
+-int preisp_hdr_start(preisp_context *ctx)
++void __preisp_deinit()
++{
++	preisp_context *ctx = &__g_preisp_ctx;
++	int fd = ctx->mfd;
++
++	preisp_client_disconnect(fd);
++	preisp_close(fd);
++}
++
++typedef struct {
++    msg_t head;
++    preisp_meta meta_data;
++} msg_meta;
++
++int preisp_hdr_start(preisp_meta *meta_data)
+ {
+-	int size, ret;
+-	msg_args *msg;
++	int size, ret = -1;
++	msg_meta msg;
++	preisp_context *ctx = &__g_preisp_ctx;
++	preisp_cfg cfg = {.client_id = 101};
++
++	ret = __preisp_init(&cfg);
++	if(ret) {
++		printf("__preisp_init fail %d", ret);
++        return ret;
++	}
++	memcpy(&msg.meta_data, meta_data, sizeof(msg.meta_data));
++
++    msg.head.size = align4(sizeof(msg_meta))/4;
++    msg.head.type = 0xff00;
++    msg.head.camera_id = 101;
++    msg.head.sync = 1;
+ 
+-	size = sizeof(msg_set_input_size_head_t) + sizeof(int);
+-	ret = preisp_send_msg(ctx->mfd, (msg_t*)msg);
++	ret = preisp_send_msg(ctx->mfd, (msg_t*)&msg);
++    if(ret) {
++        printf("preisp_send_msg fail %d", ret);
++        goto exit;
++    }
+ 
+-	free(msg);
++	ret = 0;
++exit:
++    __preisp_deinit();
+ 	return ret;
+ }
+ 
+diff --git a/rk1608/src/preisp_process.cpp b/rk1608/src/preisp_process.cpp
+new file mode 100644
+index 0000000..d629ec5
+--- /dev/null
++++ b/rk1608/src/preisp_process.cpp
+@@ -0,0 +1,59 @@
++#include "video.h"
++#include "preisp_process.h"
++
++preisp_process::preisp_process(struct Video *video) : StreamPUBase("ispprocess", false, true)
++{
++    printf("preisp_process\n");
++    mVideo = video;
++    ae_status = -1;
++}
++
++preisp_process::~preisp_process()
++{
++	printf("~preisp_process\n");
++}
++
++bool preisp_process::send_meta(struct HAL_Buffer_MetaData* metaData)
++{
++    preisp_meta meta;
++
++    printf("preisp_process::send_meta....\n");
++    if(preisp_hdr_start(&meta)) {
++        printf("preisp_process::send_meta fail\n");
++        goto exit;
++    }
++    return true;
++exit:
++    return false;
++}
++
++bool preisp_process::bufferReady(weak_ptr<BufferBase> buffer, int status)
++{
++    UNUSED_PARAM(status);
++    shared_ptr<BufferBase> spCamBuf = buffer.lock();
++    enum HAL_AE_STATE ae_state;
++
++    mVideo->hal->dev->getAeState(ae_state);
++    if (ae_status != ae_state) {
++        if (HAL_AE_STATE_STABLE == ae_state) {
++            printf("HAL_AE_STATE_STABLE == ae_state\n");
++            //mVideo->hal->dev->set3ALocks(HAL_3A_LOCKS_EXPOSURE);
++            if (spCamBuf.get()) {
++                struct HAL_Buffer_MetaData* metaData = spCamBuf->getMetaData();
++                if (metaData) {
++                    if(send_meta(metaData)) {
++                        printf("send_meta(metaData) successfully\n");
++                        ae_status = ae_state;
++                    } else {
++                        printf("send_meta(metaData) fail\n");
++                    }
++                }
++            }
++        } else {
++            printf("HAL_AE_STATE_UNSTABLE == ae_state\n");
++            ae_status = ae_state;
++        }
++    }
++    return true;
++}
++
+diff --git a/video.cpp b/video.cpp
+index 9c87e4c..1476da1 100644
+--- a/video.cpp
++++ b/video.cpp
+@@ -810,6 +810,11 @@ static int video_isp_add_mp_policy_fix(struct Video* video)
+     if (hal_add_pu(video->hal->mpath, video->hal->gb_transport,
+                video->frmFmt, 0, NULL))
+         return -1;
++
++    video->hal->isp_process = shared_ptr<preisp_process>(new preisp_process(video));
++    if (hal_add_pu(video->hal->mpath, video->hal->isp_process, video->frmFmt, 0, NULL))
++        return -1;
++
+     return 0;
+ }
+ 
+@@ -994,6 +999,9 @@ static void video_isp_remove_mp_policy1(struct Video* video)
+ 
+     hal_remove_pu(video->hal->mpath, video->hal->mp_display);
+     video->hal->mp_display.reset();
++
++    hal_remove_pu(video->hal->mpath, video->hal->isp_process);
++    video->hal->isp_process.reset();
+ }
+ 
+ static int video_isp_add_mp_policy_fix(struct Video* video)
+@@ -1020,6 +1028,9 @@ static int video_isp_add_mp_policy_fix(struct Video* video)
+         return -1;
+ #endif
+ #endif
++    video->hal->isp_process = shared_ptr<preisp_process>(new preisp_process(video));
++    if (hal_add_pu(video->hal->mpath, video->hal->isp_process, video->frmFmt, 0, NULL))
++        return -1;
+     return 0;
+ }
+ 
+@@ -1037,6 +1048,8 @@ static void video_isp_remove_mp_policy_fix(struct Video* video)
+         rk_rga_close(video->raw_fd);
+ #endif
+ #endif
++    hal_remove_pu(video->hal->mpath, video->hal->isp_process);
++    video->hal->isp_process.reset();
+ }
+ #endif
+ /* sp path[0]
+diff --git a/video.h b/video.h
+index 13d6c63..801825e 100644
+--- a/video.h
++++ b/video.h
+@@ -65,7 +65,7 @@ extern "C" {
+ #include "display_process.h"
+ #include "transport_process.h"
+ #include "odt_process.h"
+-
++#include "preisp_process.h"
+ #ifdef ENABLE_RS_FACE
+ #include "face_detect_process.h"
+ #endif
+@@ -127,6 +127,7 @@ struct hal {
+   shared_ptr<TransportProcess> mp_transport;
+   shared_ptr<UvcProcess> mp_uvc;
+   shared_ptr<GBStreamProcess> gb_transport;
++  shared_ptr<preisp_process> isp_process;
+   shared_ptr<NV12_RAW> nv12_raw;
+   shared_ptr<OdtProcess> nv12_odt;
+ #ifdef ENABLE_RS_FACE
+@@ -229,6 +230,9 @@ struct Video {
+   int type;
+   int usb_type;
+   pthread_t record_id;
++  pthread_t ae_dec_id;
++  int ae_st;
++
+   int deviceid;
+   volatile int pthread_run;
+ 
+diff --git a/video_hal.cpp b/video_hal.cpp
+index a543622..d8aedb6 100644
+--- a/video_hal.cpp
++++ b/video_hal.cpp
+@@ -20,8 +20,10 @@ int hal_add_pu(shared_ptr<CamHwItf::PathBase> pre,      shared_ptr<StreamPUBase>
+         printf("%s: PU is NULL\n", __func__);
+         return -1;
+     }
++    printf("hal_add_pu1\n");
+     pre->addBufferNotifier(next.get());
+     next->prepare(frmFmt, num, allocator);
++    printf("hal_add_pu2\n");
+     if (!next->start()) {
+         printf("PU start failed!\n");
+         return -1;
+-- 
+2.7.4
+

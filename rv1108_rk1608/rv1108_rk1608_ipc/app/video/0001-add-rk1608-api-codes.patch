@@ -1,0 +1,2560 @@
+From 6844958798f91ebf23c642192c9d7313ccac6e76 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Mon, 29 Jan 2018 18:59:52 +0800
+Subject: [PATCH 1/2] add rk1608 api codes
+
+Change-Id: I6dc38c041a2c684651cf1e0fdef0f7cb9d96155f
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ Makefile                     |   3 +-
+ rk1608/inc/Barrier.h         |  75 +++++++
+ rk1608/inc/MessageQueue.h    | 321 ++++++++++++++++++++++++++++
+ rk1608/inc/PreispCamera.h    | 243 ++++++++++++++++++++++
+ rk1608/inc/PreispProfiles.h  | 117 +++++++++++
+ rk1608/inc/looper.h          |  17 ++
+ rk1608/inc/preisp_c_api.h    |  73 +++++++
+ rk1608/inc/preisp_common.h   |  95 +++++++++
+ rk1608/inc/preisp_debugger.h | 105 ++++++++++
+ rk1608/inc/preisp_msg.h      | 360 ++++++++++++++++++++++++++++++++
+ rk1608/inc/preisp_thread.h   |  42 ++++
+ rk1608/inc/rk_preisp_dev.h   | 101 +++++++++
+ rk1608/inc/shared_ptr.h      | 484 +++++++++++++++++++++++++++++++++++++++++++
+ rk1608/inc/types.h           | 102 +++++++++
+ rk1608/src/preisp_api.c      |  95 +++++++++
+ rk1608/src/rk_preisp_dev.c   | 175 ++++++++++++++++
+ 16 files changed, 2407 insertions(+), 1 deletion(-)
+ create mode 100644 rk1608/inc/Barrier.h
+ create mode 100644 rk1608/inc/MessageQueue.h
+ create mode 100644 rk1608/inc/PreispCamera.h
+ create mode 100644 rk1608/inc/PreispProfiles.h
+ create mode 100644 rk1608/inc/looper.h
+ create mode 100644 rk1608/inc/preisp_c_api.h
+ create mode 100644 rk1608/inc/preisp_common.h
+ create mode 100644 rk1608/inc/preisp_debugger.h
+ create mode 100644 rk1608/inc/preisp_msg.h
+ create mode 100644 rk1608/inc/preisp_thread.h
+ create mode 100644 rk1608/inc/rk_preisp_dev.h
+ create mode 100644 rk1608/inc/shared_ptr.h
+ create mode 100644 rk1608/inc/types.h
+ create mode 100644 rk1608/src/preisp_api.c
+ create mode 100644 rk1608/src/rk_preisp_dev.c
+
+diff --git a/Makefile b/Makefile
+index 51e69d9..e6d6965 100644
+--- a/Makefile
++++ b/Makefile
+@@ -2,7 +2,7 @@ BIN	 = video
+ CC	 = ../../prebuilts/toolschain/usr/bin/arm-linux-gcc
+ CPP	 = ../../prebuilts/toolschain/usr/bin/arm-linux-g++
+ 
+-INCS	 = -I./../../out/system/include/ -I./ -Iav_wrapper/ -I./watermark/ -I./power/ -I./network/ -I./uvc/
++INCS	 = -I./../../out/system/include/ -I./ -Iav_wrapper/ -I./watermark/ -I./power/ -I./network/ -I./uvc/ -Irk1608/inc
+ 
+ 
+ LIBS	 = -L./../../out/system/lib -lcam_hal  \
+@@ -75,6 +75,7 @@ TMP_CSRCS = $(wildcard *.c api/*.c av_wrapper/decoder_demuxing/*.c customer_inte
+ ETCPATH  = ../../out/system/etc
+ RESPATH  = ../../out/system/share/minigui/res/images
+ 
++TMP_CSRCS += $(wildcard rk1608/src/*.c)
+ #Resolution = 320x240 ###Screan Resolution = 852*480; BOARD VERSION=V10/V11
+ #Resolution = 854x480 ###Screan Resolution = 854*480; BOARD VERSION=V10/V11
+ Resolution = 1280x720 ###Screan Resolution = 1280*720; BOARD VERSION=V12
+diff --git a/rk1608/inc/Barrier.h b/rk1608/inc/Barrier.h
+new file mode 100644
+index 0000000..0d9b068
+--- /dev/null
++++ b/rk1608/inc/Barrier.h
+@@ -0,0 +1,75 @@
++/*
++ * Copyright (C) 2007 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_BARRIER_H
++#define ANDROID_BARRIER_H
++
++#include <stdint.h>
++#include <sys/types.h>
++#include <utils/threads.h>
++
++using namespace android;
++
++namespace android {
++namespace rkpreisp {
++
++
++class Barrier
++{
++public:
++    inline Barrier() : state(CLOSED) { }
++    inline ~Barrier() { }
++
++    // Release any threads waiting at the Barrier.
++    // Provides release semantics: preceding loads and stores will be visible
++    // to other threads before they wake up.
++    void open() {
++        Mutex::Autolock _l(lock);
++        state = OPENED;
++        cv.broadcast();
++    }
++
++    // Reset the Barrier, so wait() will block until open() has been called.
++    void close() {
++        Mutex::Autolock _l(lock);
++        state = CLOSED;
++    }
++
++    // Wait until the Barrier is OPEN.
++    // Provides acquire semantics: no subsequent loads or stores will occur
++    // until wait() returns.
++    int wait(nsecs_t timeout=0) const {
++        Mutex::Autolock _l(lock);
++        while (state == CLOSED) {
++            if (timeout > 0) {
++                return cv.waitRelative(lock, timeout);
++            } else {
++                cv.wait(lock);
++            }
++        }
++        return 0;
++    }
++private:
++    enum { OPENED, CLOSED };
++    mutable     Mutex       lock;
++    mutable     Condition   cv;
++    volatile    int         state;
++};
++
++}; // namespace rkpreisp
++}; // namespace android
++
++#endif // ANDROID_BARRIER_H
+diff --git a/rk1608/inc/MessageQueue.h b/rk1608/inc/MessageQueue.h
+new file mode 100644
+index 0000000..9613f40
+--- /dev/null
++++ b/rk1608/inc/MessageQueue.h
+@@ -0,0 +1,321 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++#ifndef __PREISP_MESSAGE_QUEUE_H__
++#define __PREISP_MESSAGE_QUEUE_H__
++
++#include <stdint.h>
++#include <errno.h>
++#include <sys/types.h>
++
++#include <utils/threads.h>
++#include <utils/Timers.h>
++#include <utils/Looper.h>
++
++#include "Barrier.h"
++
++
++namespace android {
++namespace rkpreisp {
++
++class MessageBase : public MessageHandler
++{
++public:
++    MessageBase();
++
++    // return true if message has a handler
++    virtual bool handler() = 0;
++
++    // waits for the handler to be processed
++    void wait() const { barrier.wait(); }
++
++protected:
++    virtual ~MessageBase();
++
++private:
++    virtual void handleMessage(const Message& message);
++
++    mutable Barrier barrier;
++};
++
++class MessageQueue : public RefBase {
++public:
++    MessageQueue(const sp<Looper>& looper);
++    ~MessageQueue();
++
++    void waitMessage();
++    status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime=0);
++
++private:
++    sp<Looper> mLooper;
++};
++
++class MessageQueueThread : public Thread {
++public:
++    MessageQueueThread(const wp<MessageQueue> queue)
++        : mMsgQueue(queue) {}
++
++    virtual ~MessageQueueThread() {}
++
++    virtual bool threadLoop();
++
++private:
++    wp<MessageQueue> mMsgQueue;
++};
++
++template<class T>
++class MessageAsyncArg0 : public MessageBase {
++public:
++    typedef void (T::*FUNC)();
++    MessageAsyncArg0(T *t, FUNC func)
++        : t(t), func(func) {}
++
++    virtual bool handler() {
++        (t->*func)();
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++};
++
++template<class T, typename ARG1>
++class MessageAsyncArg1 : public MessageBase {
++public:
++    typedef void (T::*FUNC)(ARG1);
++    MessageAsyncArg1(T *t, FUNC func, ARG1 a)
++        : t(t), func(func), a(a) {}
++
++    virtual bool handler() {
++        (t->*func)(a);
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    ARG1 a;
++};
++
++template <class T, typename ARG1, typename ARG2>
++class MessageAsyncArg2 : public MessageBase {
++public:
++    typedef void (T::*FUNC)(ARG1, ARG2);
++    MessageAsyncArg2(T *t, FUNC func, ARG1 a, ARG2 b)
++        : t(t), func(func), a(a), b(b) {}
++
++    virtual bool handler() {
++        (t->*func)(a, b);
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    ARG1 a;
++    ARG2 b;
++};
++
++template <class T, typename ARG1, typename ARG2, typename ARG3>
++class MessageAsyncArg3 : public MessageBase {
++public:
++    typedef void (T::*FUNC)(ARG1, ARG2, ARG3);
++    MessageAsyncArg3(T *t, FUNC func, ARG1 a, ARG2 b, ARG3 c)
++        : t(t), func(func), a(a), b(b), c(c) {}
++
++    virtual bool handler() {
++        (t->*func)(a, b, c);
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    ARG1 a;
++    ARG2 b;
++    ARG3 c;
++};
++
++template <class T, typename ARG1, typename ARG2, typename ARG3, typename ARG4>
++class MessageAsyncArg4 : public MessageBase {
++public:
++    typedef void (T::*FUNC)(ARG1, ARG2, ARG3, ARG4);
++    MessageAsyncArg4(T *t, FUNC func, ARG1 a, ARG2 b, ARG3 c, ARG4 d)
++        : t(t), func(func), a(a), b(b), c(c), d(d) {}
++
++    virtual bool handler() {
++        (t->*func)(a, b, c, d);
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    ARG1 a;
++    ARG2 b;
++    ARG3 c;
++    ARG4 d;
++};
++
++template <class T, typename ARG1, typename ARG2, typename ARG3, typename ARG4, typename ARG5>
++class MessageAsyncArg5 : public MessageBase {
++public:
++    typedef void (T::*FUNC)(ARG1, ARG2, ARG3, ARG4, ARG5);
++    MessageAsyncArg5(T *t, FUNC func, ARG1 a, ARG2 b, ARG3 c, ARG4 d, ARG5 e)
++        : t(t), func(func), a(a), b(b), c(c), d(d), e(e) {}
++
++    virtual bool handler() {
++        (t->*func)(a, b, c, d, e);
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    ARG1 a;
++    ARG2 b;
++    ARG3 c;
++    ARG4 d;
++    ARG5 e;
++};
++
++template<class T, typename RET>
++class MessageSyncArg0 : public MessageBase {
++public:
++    typedef RET (T::*FUNC)();
++    MessageSyncArg0(T *t, FUNC func, RET *ret)
++        : t(t), func(func), ret(ret) {}
++
++    virtual bool handler() {
++        *ret = (t->*func)();
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    RET *ret;
++};
++
++template<class T, typename RET, typename ARG1>
++class MessageSyncArg1 : public MessageBase {
++public:
++    typedef RET (T::*FUNC)(ARG1);
++    MessageSyncArg1(T *t, FUNC func, RET *ret, ARG1 a)
++        : t(t), func(func), ret(ret), a(a) {}
++
++    virtual bool handler() {
++        *ret = (t->*func)(a);
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    RET *ret;
++    ARG1 a;
++};
++
++template<class T, typename RET, typename ARG1, typename ARG2>
++class MessageSyncArg2 : public MessageBase {
++public:
++    typedef RET (T::*FUNC)(ARG1, ARG2);
++    MessageSyncArg2(T *t, FUNC func, RET *ret, ARG1 a, ARG2 b)
++        : t(t), func(func), ret(ret), a(a), b(b) {}
++
++    virtual bool handler() {
++        *ret = (t->*func)(a, b);
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    RET *ret;
++    ARG1 a;
++    ARG2 b;
++};
++
++template<class T, typename RET, typename ARG1, typename ARG2, typename ARG3>
++class MessageSyncArg3 : public MessageBase {
++public:
++    typedef RET (T::*FUNC)(ARG1, ARG2, ARG3);
++    MessageSyncArg3(T *t, FUNC func, RET *ret, ARG1 a, ARG2 b, ARG3 c)
++        : t(t), func(func), ret(ret), a(a), b(b), c(c) {}
++
++    virtual bool handler() {
++        *ret = (t->*func)(a, b, c);
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    RET *ret;
++    ARG1 a;
++    ARG2 b;
++    ARG3 c;
++};
++
++template<class T, typename RET, typename ARG1, typename ARG2, typename ARG3, typename ARG4>
++class MessageSyncArg4 : public MessageBase {
++public:
++    typedef RET (T::*FUNC)(ARG1, ARG2, ARG3, ARG4);
++    MessageSyncArg4(T *t, FUNC func, RET *ret, ARG1 a, ARG2 b, ARG3 c, ARG4 d)
++        : t(t), func(func), ret(ret), a(a), b(b), c(c), d(d){}
++
++    virtual bool handler() {
++        *ret = (t->*func)(a, b, c, d);
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    RET *ret;
++    ARG1 a;
++    ARG2 b;
++    ARG3 c;
++    ARG4 d;
++};
++
++template<class T, typename RET, typename ARG1, typename ARG2, typename ARG3, typename ARG4, typename ARG5>
++class MessageSyncArg5 : public MessageBase {
++public:
++    typedef RET (T::*FUNC)(ARG1, ARG2, ARG3, ARG4, ARG5);
++    MessageSyncArg5(T *t, FUNC func, RET *ret, ARG1 a, ARG2 b, ARG3 c, ARG4 d, ARG5 e)
++        : t(t), func(func), ret(ret), a(a), b(b), c(c), d(d), e(e) {}
++
++    virtual bool handler() {
++        *ret = (t->*func)(a, b, c, d, e);
++        return true;
++    }
++private:
++    T *t;
++    FUNC func;
++    RET *ret;
++    ARG1 a;
++    ARG2 b;
++    ARG3 c;
++    ARG4 d;
++    ARG5 e;
++};
++}; // namespace rkpreisp
++}; // namespace android
++
++#endif
+diff --git a/rk1608/inc/PreispCamera.h b/rk1608/inc/PreispCamera.h
+new file mode 100644
+index 0000000..5349965
+--- /dev/null
++++ b/rk1608/inc/PreispCamera.h
+@@ -0,0 +1,243 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#ifndef __PREISP_CAMERA_H__
++#define __PREISP_CAMERA_H__
++
++#include <utils/Mutex.h>
++#include <utils/threads.h>
++#include <MessageQueue.h>
++#include <rk_preisp_dev.h>
++#include <preisp_common.h>
++
++using namespace android;
++
++#define RKPREISP_VERSION "1.0.10"
++
++static const char * PREISP_FW_SYSTEM = "rkpreisp.rkl";
++
++namespace android {
++namespace rkpreisp {
++class MsgWaitter;
++
++class PreispCamera {
++public:
++    enum NotifyType {
++        NOTIFY_ERROR = 0x0001,
++        NOTIFY_PICTURE_FRAME,
++        NOTIFY_STATS_DATA,
++        NOTIFY_PICTURE_PREPARE,
++    };
++
++    enum ErrorType {
++        ERROR_POWER_ON = 0x0001,
++        ERROR_REQUEST_SLEEP,
++        ERROR_INIT_SENSOR = id_msg_init_sensor_ret_t,
++        ERROR_SET_INPUT_SIZE,
++        ERROR_SET_OUTPUT_SIZE,
++        ERROR_START_INPUT_STREAM,
++        ERROR_STOP_INPUT_STREAM,
++        ERROR_START_OUTPUT_STREAM,
++        ERROR_STOP_OUTPUT_STREAM,
++        ERROR_SET_ALGO,
++        ERROR_TAKE_PICTURE = id_msg_take_picture_ret_t,
++    };
++
++    //notify_type: NOTIFY_ERROR, NOTIFY_PICTURE_FRAME
++    //ext1: ErrorType(NOTIFY_ERROR)
++    //      FrameIndex(NOTIFY_PICTURE_FRAME)
++    //      DivisionMode(NOTIFY_STATS_DATA)
++    //      0 (NOTIFY_PICTURE_PREPARE)
++    //ext2: (int*)ErrorValue(NOTIFY_ERROR)
++    //      0 (NOTIFY_PICTURE_FRAME)
++    //      (uint16_t*) stats_data (NOTIFY_STATS_DATA)
++    //      0 (NOTIFY_PICTURE_PREPARE)
++    typedef void (*notify_callback_t)(int32_t notify_type, int32_t ext1, void* ext2, void *user);
++
++    void setNotifyCb(notify_callback_t cb, void *user);
++
++    //async
++    int start();
++
++    //sync
++    int stop();
++
++    //sync
++    int setSize(int w, int h, int mode);
++
++    int startInputStream();
++
++    int stopInputStream();
++
++    int startOutputStream();
++
++    int stopOutputStream();
++
++    typedef preisp_rt_algo_type RtAlgoType;
++
++    int enableRealTimeAlgo(RtAlgoType type);
++
++    int disableRealTimeAlgo(RtAlgoType type);
++
++    typedef struct preisp_rt_args_now RtArgsNow;
++
++    int setRealTimeAlgoArgs(const RtArgsNow *args);
++
++    typedef struct preisp_rt_args_delay RtArgsDelay;
++
++    int setRealTimeAlgoArgs(const RtArgsDelay *args);
++
++    typedef preisp_algo_type AlgoType;
++
++    int setAlgo(AlgoType type);
++
++    typedef struct preisp_algo_args AlgoArgs;
++
++    int takePicture(const AlgoArgs *args);
++
++    int takePictureDone();
++
++    int sleep(int32_t mode = PREISP_SLEEP_MODE_BYPASS);
++
++    int wakeup();
++
++    static int setSize(int id, int w, int h, int mode);
++
++    static int startInputStream(int id);
++
++    static int stopInputStream(int id);
++
++    static int startOutputStream(int id);
++
++    static int stopOutputStream(int id);
++
++    static int enableRealTimeAlgo(int id, RtAlgoType type);
++
++    static int disableRealTimeAlgo(int id, RtAlgoType type);
++
++    static int setRealTimeAlgoArgs(int id, const RtArgsNow *args);
++
++    static int setRealTimeAlgoArgs(int id, const RtArgsDelay *args);
++
++    static int setAlgo(int id, AlgoType type);
++
++    static int takePicture(int id, const AlgoArgs *args);
++
++    static int takePictureDone(int id);
++
++    static int Sleep(int32_t mode = PREISP_SLEEP_MODE_BYPASS);
++
++    static int Wakeup();
++
++    PreispCamera(int cameraId);
++
++    virtual ~PreispCamera();
++
++private:
++    //send msg to dsp, and wait for dsp response
++    int sendMsgAndWait(msg_t *msg, msg_response_t *ret, nsecs_t timeout = milliseconds(1000));
++
++    static int sendMsgAndWait(int id, msg_t *msg, msg_response_t *ret,
++            int timeoutMillis = 1000);
++
++    int postMsgResponse(const msg_response_t *msg);
++
++    void doSleep(int32_t mode);
++
++    void doWakeup();
++
++    int doStartStatsOutput();
++
++    int doStopStatsOutput();
++
++    void doConnectDspMsg();
++
++    void doDisconnectDspMsg();
++
++    //async
++    int initSensor();
++
++    void doInitSensor();
++
++    int doSetSize(int w, int h, int mode);
++
++    int doStartInputStream();
++
++    int doStopInputStream();
++
++    int doStartOutputStream();
++
++    int doStopOutputStream();
++
++    int doEnalbeRealTimeAlgo(RtAlgoType type);
++
++    int doDisalbeRealTimeAlgo(RtAlgoType type);
++
++    int doSetAlgo(AlgoType type);
++
++    void doNextPictureFrame();
++
++    void doTakePictureDone();
++
++    status_t notifyUser(int32_t notify_type, int32_t ext1, void* ext2);
++
++    void doNotifyUser(int32_t notify_type, int32_t ext1, void* ext2);
++
++    status_t postMessageAsync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
++
++    status_t postMessageSync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
++
++    static int dspMsgCallbackFunc(int fd, int events, void* data);
++
++    enum {
++        STATE_STOP,
++        STATE_START,
++    };
++
++    int mState;
++    int mFd;
++    int mCameraId;
++
++    sp<Looper> mApMsgLooper;
++    sp<MessageQueue> mApMsgQueue;
++    sp<MessageQueueThread> mApMsgQueueThread;
++
++    sp<Looper> mDspMsgLooper;
++    sp<MessageQueue> mDspMsgQueue;
++    sp<MessageQueueThread> mDspMsgQueueThread;
++
++    notify_callback_t mNotifyCb;
++    void * mUserData;
++    MsgWaitter *mMsgWaitter;
++};
++
++}; // namespace rkpreisp
++}; // namespace android
++
++#endif
+diff --git a/rk1608/inc/PreispProfiles.h b/rk1608/inc/PreispProfiles.h
+new file mode 100644
+index 0000000..5d93f57
+--- /dev/null
++++ b/rk1608/inc/PreispProfiles.h
+@@ -0,0 +1,117 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#ifndef __PREISP_PROFILES_H__
++#define __PREISP_PROFILES_H__
++
++#include <utils/threads.h>
++
++using namespace android;
++namespace android {
++namespace rkpreisp {
++
++class PreispProfiles {
++public:
++    struct VcProfiles {
++        int8_t   mDataId;
++        int8_t   mDecodeFormat;
++        int8_t   mFlag;
++        int8_t   unused;
++
++        uint16_t mWidth;
++        uint16_t mHeight;
++    };
++
++    struct ResolutionProfiles {
++        uint16_t mWidth;
++        uint16_t mHeight;
++        uint16_t mLineLengthPclk;
++        uint16_t mFrameLengthLines;
++        uint32_t mMipiClk;
++        uint32_t mMode;
++        Vector<VcProfiles*> mVcProfiles;
++    };
++
++    struct GlobalProfiles {
++        int8_t mInPhy;
++        int8_t mOutPhy;
++        int8_t mLane;
++        int8_t mBayer;
++    };
++
++    struct SensorProfiles {
++        int32_t id;
++        GlobalProfiles* mGlobalProfiles;
++        Vector<ResolutionProfiles*> mResProfiles;
++    };
++
++    static PreispProfiles* getInstance();
++    static PreispProfiles* createInstanceFromXmlFile(const char *xml);
++    static GlobalProfiles* getGlobalProfiles(int32_t id);
++    static ResolutionProfiles *getResolutionProfiles(int32_t id,
++            uint16_t w, uint16_t h, uint32_t mode);
++
++    void dump(void);
++
++private:
++    PreispProfiles& operator=(const PreispProfiles&);  // Don't call me
++    PreispProfiles(const PreispProfiles&);             // Don't call me
++    PreispProfiles() {}                                // Dummy default constructor
++    ~PreispProfiles();                                 // Don't delete me
++
++    struct NameToTagMap {
++        const char* name;
++        int tag;
++    };
++
++    static const NameToTagMap sBayerNameMap[];
++
++    static int findTagForName(const NameToTagMap *map, size_t nMappings, const char *name);
++
++    static GlobalProfiles* createGlobalProfiles(const char **atts, PreispProfiles *profiles);
++
++    static ResolutionProfiles* createResolutionProfiles(const char **atts, PreispProfiles *profiles);
++
++    static VcProfiles* createVcProfiles(const char **atts, PreispProfiles *profiles);
++
++    static SensorProfiles* createSensorProfiles(const char **atts);
++
++    static void startElementHandler(void *userData, const char *name, const char **atts);
++
++    static PreispProfiles *sInstance;
++    static bool sIsInitialized;
++    static Mutex sLock;
++
++    Vector<SensorProfiles*> mSensorProfiles;
++};
++
++}; // namespace rkpreisp
++}; // namespace android
++
++#endif
+diff --git a/rk1608/inc/looper.h b/rk1608/inc/looper.h
+new file mode 100644
+index 0000000..8536364
+--- /dev/null
++++ b/rk1608/inc/looper.h
+@@ -0,0 +1,17 @@
++typedef int (*Looper_callbackFunc)(int fd, int events, void* data);
++
++/**
++ * A message that can be posted to a Looper.
++ */
++struct Message {
++    Message() : what(0) { }
++    Message(int what) : what(what) { }
++
++    /* The message type. (interpretation is left up to the handler) */
++    int what;
++};
++
++
++
++
++
+diff --git a/rk1608/inc/preisp_c_api.h b/rk1608/inc/preisp_c_api.h
+new file mode 100644
+index 0000000..3f69cef
+--- /dev/null
++++ b/rk1608/inc/preisp_c_api.h
+@@ -0,0 +1,73 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#ifndef __RK_PREISP_C_API_H__
++#define __RK_PREISP_C_API_H__
++
++#include "preisp_common.h"
++
++#if defined(__cplusplus)
++extern "C" {
++#endif
++
++int preisp_start_input_stream(int id);
++
++int preisp_stop_input_stream(int id);
++
++int preisp_start_output_stream(int id);
++
++int preisp_stop_output_stream(int id);
++
++int preisp_set_size(int id, int w, int h, int mode);
++
++int preisp_enable_rtalgo(int id, preisp_rt_algo_type type);
++
++int preisp_disable_rtalgo(int id, preisp_rt_algo_type type);
++
++int preisp_set_rt_args_now(int id, const struct preisp_rt_args_now *args);
++
++int preisp_set_rt_args_delay(int id, const struct preisp_rt_args_delay *args);
++
++int preisp_set_algo(int id, preisp_algo_type type);
++
++int preisp_take_picture(int id, const struct preisp_algo_args *args);
++
++int preisp_take_picture_done(int id);
++
++int preisp_sleep_suspend(void);
++
++int preisp_sleep_bypass(void);
++
++int preisp_sleep_wakeup(void);
++
++#if defined(__cplusplus)
++}  /* extern "C" */
++#endif
++
++#endif
+diff --git a/rk1608/inc/preisp_common.h b/rk1608/inc/preisp_common.h
+new file mode 100644
+index 0000000..b03558c
+--- /dev/null
++++ b/rk1608/inc/preisp_common.h
+@@ -0,0 +1,95 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#ifndef __RK_PREISP_COMMON_H__
++#define __RK_PREISP_COMMON_H__
++
++#if defined(__cplusplus)
++extern "C" {
++#endif
++
++typedef enum {
++    PREISP_RT_ALGO_ZZHDR,
++    PREISP_RT_ALGO_DGAIN,
++} preisp_rt_algo_type;
++
++typedef enum {
++    PREISP_ALGO_NULL,
++    PREISP_ALGO_NIGHTSHOT,
++    PREISP_ALGO_ANTISHAKING,
++    PREISP_ALGO_HDR,
++} preisp_algo_type;
++
++struct preisp_rt_args_now {
++    float    redGain;
++    float    blueGain;
++    float    ispGain;
++    int16_t  blackLevel[4];
++    uint8_t  shadingWidth;
++    uint8_t  shadingHeight;
++    uint8_t  shadingCh;
++    uint8_t  unused;
++    float    *shadingTable;
++};
++
++struct preisp_rt_args_delay {
++    float    sensorGain;
++    float    dGain;
++    float    ratio;
++    uint16_t coarseIntegTime;
++    uint16_t anaGainGlobal;
++};
++
++struct preisp_algo_args {
++    float    redGain;
++    float    blueGain;
++    float    sensorGain;
++    float    ispGain;
++    float    shutter;
++    int32_t  luxIndex;
++    int32_t  expIndex;
++    int32_t  lumIntensity;
++    int16_t  blackLevel[4];
++    int8_t   fusionNum;
++    int8_t   outNum;
++    uint8_t  skipFrames;
++    uint8_t  shadingWidth;
++    uint8_t  shadingHeight;
++    uint8_t  shadingCh;
++    uint8_t  baseFrame;
++    uint16_t coarseIntegTime;
++    uint16_t anaGainGlobal;
++    float    *shadingTable;
++};
++
++#if defined(__cplusplus)
++}  /* extern "C" */
++#endif
++
++#endif
+diff --git a/rk1608/inc/preisp_debugger.h b/rk1608/inc/preisp_debugger.h
+new file mode 100644
+index 0000000..135f82d
+--- /dev/null
++++ b/rk1608/inc/preisp_debugger.h
+@@ -0,0 +1,105 @@
++#include "types.h"
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <stdlib.h>
++#include <unistd.h>
++#include <rk_preisp_dev.h>
++#include "preisp_thread.h"
++#include <sys/poll.h>
++#ifndef __PREISP_DEBUGGER_H_
++#define __PREISP_DEBUGGER_H_
++#define PREISP_DEBUGGER_ID 100
++#define PREISP_LSHTEST_ID 101
++#define XFILE_MAX_PATH 256
++#define EVENT_INPUT 1
++// Hint for number of file descriptors to be associated with the epoll instance.
++static const int EPOLL_SIZE_HINT = 8;
++// Maximum number of file descriptors for which to retrieve poll events each iteration.
++static const int EPOLL_MAX_EVENTS = 16;
++
++typedef struct {
++	uint32_t size;
++	uint16_t type;
++	int8_t   camera_id;
++    union {
++        int8_t   sync;
++        int8_t   ret;
++    };
++	uint32_t addr;
++	uint32_t data_size;
++	uint32_t cb;
++	uint32_t args;
++	char	 path[XFILE_MAX_PATH];
++} msg_xfile_t;
++
++class MessageQueueThread : public preispthread {
++public:
++	MessageQueueThread(int fd) {
++		_fd = fd;
++	}
++	virtual ~MessageQueueThread() {
++	}
++	virtual bool threadLoop();
++	virtual int readyToRun();
++private:
++	int _fd;
++	int _epollfd;
++	void *_data;
++};
++
++class PreispDebugger {
++public:
++    //async
++    int start();
++
++    //sync
++    int stop();
++
++    int xfileImport(msg_xfile_t* msg);
++
++    int xfileExport(msg_xfile_t* msg);
++
++    int xfileMkdir(msg_xfile_t* msg);
++
++    PreispDebugger();
++
++    virtual ~PreispDebugger();
++
++private:
++    void doXfileImport(msg_xfile_t *msg);
++
++    void doXfileExport(msg_xfile_t *msg);
++
++    void doXfileMkdir(msg_xfile_t* msg);
++
++    //status_t postMessageAsync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
++
++    //status_t postMessageSync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
++
++    static int dspMsgCallbackFunc(int fd, int events, void* data);
++
++    int mFd;
++
++	class DequeueThread : public preispthread {
++	public:
++		DequeueThread(PreispDebugger* preisp): mpreisp(preisp) {
++		};
++		virtual bool threadLoop(void) {
++			return mpreisp->dequeueFunc();
++		};
++	private:
++		PreispDebugger *mpreisp;
++	};
++	bool dequeueFunc(void){
++		printf("dequeueFunc\n");
++		return 1;
++	}
++    //sp<Looper> mApMsgLooper;
++    //sp<MessageQueue> mApMsgQueue;
++	shared_ptr<MessageQueueThread> mApMsgQueueThread;
++
++    //sp<Looper> mDspMsgLooper;
++    //sp<MessageQueue> mDspMsgQueue;
++	shared_ptr<MessageQueueThread> mDspMsgQueueThread;
++};
++#endif
+diff --git a/rk1608/inc/preisp_msg.h b/rk1608/inc/preisp_msg.h
+new file mode 100644
+index 0000000..ef02c77
+--- /dev/null
++++ b/rk1608/inc/preisp_msg.h
+@@ -0,0 +1,360 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#ifndef __RK_PREISP_MSG_H__
++#define __RK_PREISP_MSG_H__
++
++#if defined(__cplusplus)
++extern "C" {
++#endif
++
++enum {
++    RK_BAYER_RGGB = 0,
++    RK_BAYER_BGGR = 1,
++    RK_BAYER_GRBG = 2,
++    RK_BAYER_GBRG = 3
++};
++
++#define RK_CSI_EMBED_DATA        0x12
++#define RK_CSI_RESERVED_DATA_0   0x13
++#define RK_CSI_YUV422_8          0x1E
++#define RK_CSI_RAW8              0x2A
++#define RK_CSI_RAW10             0x2B
++#define RK_CSI_RAW12             0x2C
++#define RK_CSI_RAW14             0x2D
++#define RK_CSI_DPCM6             0x32
++#define RK_CSI_DPCM8             0x30
++
++#define RK_CSI_DECODE_8BIT         0x2A
++#define RK_CSI_DECODE_10BIT        0x2B
++#define RK_CSI_DECODE_12BIT        0x2C
++#define RK_CSI_DECODE_14BIT        0x2D
++
++enum {
++    //AP -> DSP sensor msg
++    id_msg_init_sensor_t = 0x0001,
++    id_msg_set_input_size_t,
++    id_msg_set_output_size_t,
++    id_msg_set_stream_in_on_t,
++    id_msg_set_stream_in_off_t,
++    id_msg_set_stream_out_on_t,
++    id_msg_set_stream_out_off_t,
++    id_msg_set_fast_3a_on_t,
++    id_msg_set_fast_3a_off_t,
++
++    id_msg_set_algo_nightshot_t = 0x0011,
++    id_msg_set_algo_antishaking_t,
++    id_msg_set_algo_hdr_t,
++    id_msg_set_algo_null_t,
++
++    id_msg_take_picture_t = 0x0021,
++    id_msg_take_picture_done_t,
++
++    id_msg_set_rt_zzhdr_on_t = 0x0031,
++    id_msg_set_rt_zzhdr_off_t,
++    id_msg_set_rt_dgain_on_t,
++    id_msg_set_rt_dgain_off_t,
++    id_msg_rt_now_args_t,
++    id_msg_rt_delay_args_t,
++
++    //AP -> DSP system msg
++    id_msg_set_sys_mode_bypass_t = 0x0200,
++    id_msg_set_sys_mode_standby_t,
++
++    id_msg_set_log_level_t = 0x0250,
++
++    //DSP -> AP response sensor msg
++    id_msg_init_sensor_ret_t = 0x0300,
++    id_msg_set_input_size_ret_t,
++    id_msg_set_output_size_ret_t,
++    id_msg_set_stream_in_on_ret_t,
++    id_msg_set_stream_in_off_ret_t,
++    id_msg_set_stream_out_on_ret_t,
++    id_msg_set_stream_out_off_ret_t,
++    id_msg_set_fast_3a_on_ret_t,
++    id_msg_set_fast_3a_off_ret_t,
++
++    id_msg_set_algo_nightshot_ret_t = 0x0310,
++    id_msg_set_algo_antishaking_ret_t,
++    id_msg_set_algo_hdr_ret_t,
++    id_msg_set_algo_null_ret_t,
++
++    id_msg_take_picture_ret_t = 0x0320,
++    id_msg_take_picture_done_ret_t,
++
++    id_msg_set_rt_zzhdr_on_ret_t = 0x0330,
++    id_msg_set_rt_zzhdr_off_ret_t,
++    id_msg_set_rt_dgain_on_ret_t,
++    id_msg_set_rt_dgain_off_ret_t,
++
++    //DSP -> AP notify msg
++    id_msg_picture_prepare_ret_t = 0x37f,
++    id_msg_picture_frame_ret_t = 0x0380,
++    id_msg_stats_data_t,
++
++    //DSP -> AP I2C msg
++    id_msg_do_i2c_t = 0x0390,
++    //AP -> DSP I2C response msg
++    id_msg_do_i2c_ret_t,
++
++    //DSP -> AP log print msg
++    id_msg_dsp_log_t = 0x0400,
++
++    //user define msg area
++
++	/* xfile */
++	id_msg_xfile_import_t = 0xfe00,
++	id_msg_xfile_export_t,
++    id_msg_xfile_mkdir_t,
++};
++
++typedef struct {
++    uint32_t size; // unit 4 bytes
++    uint16_t type; // msg identification
++    int8_t   camera_id;
++    int8_t   sync;
++} msg_t;
++
++// AP -> DSP msg
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++    uint32_t i2c_bus; //unused
++    uint32_t i2c_clk; //unused
++
++    int8_t in_mipi_phy;
++    int8_t out_mipi_phy;
++    int8_t mipi_lane;
++    int8_t bayer;
++} msg_init_sensor_t;
++
++typedef struct {
++    int8_t   data_id;
++    int8_t   decode_format;
++    int8_t   flag;
++    int8_t   unused;
++
++    uint16_t width;
++    uint16_t height;
++} preisp_vc_cfg_t;
++
++typedef msg_t msg_set_input_size_head_t;
++
++typedef struct {
++    msg_set_input_size_head_t head;
++    preisp_vc_cfg_t channel[0];
++} msg_set_input_size_t;
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++
++    uint16_t width;
++    uint16_t height;
++
++    uint32_t mipi_clk;
++    uint16_t line_length_pclk;
++    uint16_t frame_length_lines;
++} msg_set_output_size_t;
++
++typedef msg_t msg_set_stream_in_on_t;
++typedef msg_t msg_set_stream_in_off_t;
++typedef msg_t msg_set_stream_out_on_t;
++typedef msg_t msg_set_stream_out_off_t;
++typedef msg_t msg_set_fast_3a_on_t;
++typedef msg_t msg_set_fast_3a_off_t;
++
++typedef msg_t msg_set_algo_nightshot_t;
++typedef msg_t msg_set_algo_antishaking_t;
++typedef msg_t msg_set_algo_hdr_t;
++typedef msg_t msg_set_algo_null_t;
++
++typedef msg_t msg_set_sys_mode_bypass_t;
++typedef msg_t msg_set_sys_mode_standby_t;
++
++typedef msg_t msg_next_picture_frame_t;
++typedef msg_t msg_take_picture_done_t;
++
++typedef msg_t msg_set_rt_zzhdr_on_t;
++typedef msg_t msg_set_rt_zzhdr_off_t;
++
++typedef msg_t msg_set_rt_dgain_on_t;
++typedef msg_t msg_set_rt_dgain_off_t;
++
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++    float    redGain;
++    float    blueGain;
++    float    sensorGain;
++    float    ispGain;
++    float    shutter;
++    int32_t  luxIndex;
++    int32_t  expIndex;
++    int32_t  lumIntensity;
++    int16_t  blackLevel[4];
++    int8_t   fusionNum;
++    int8_t   outNum;
++    uint8_t  skipFrames;
++    uint8_t  shading_ch;
++    uint8_t  shading_w;
++    uint8_t  shading_h;
++    uint16_t baseFrame;
++    uint16_t coarseIntegTime;
++    uint16_t anaGainGlobal;
++    float    shading_table[0];
++} msg_take_picture_t;
++
++typedef struct {
++    uint32_t size; // unit 4 bytes
++    uint16_t type; // msg identification
++    int8_t   camera_id;
++    int8_t   index;
++} msg_picture_frame_ret_t;
++
++
++enum {
++    RK_STATS_DIVISION_MODE_32X32,
++    RK_STATS_DIVISION_MODE_16X16,
++    RK_STATS_DIVISION_MODE_8X8,
++    RK_STATS_DIVISION_MODE_4X4,
++    RK_STATS_DIVISION_MODE_1X1,
++};
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++    float    redGain;
++    float    blueGain;
++    float    ispGain;
++    uint8_t  shading_w;
++    uint8_t  shading_h;
++    uint8_t  shading_ch;
++    uint8_t  unused;
++    int16_t  blackLevel[4];
++    float    shading_table[0];
++} msg_rt_now_args_t;
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++    float    sensorGain;
++    float    dGain;
++    float    ratio;
++    uint16_t coarse_integ_time;
++    uint16_t ana_gain_global;
++} msg_rt_delay_args_t;
++
++typedef msg_t msg_set_stats_on_t;
++typedef msg_t msg_set_stats_off_t;
++
++// DSP -> AP msg
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   err;
++} msg_response_t;
++
++typedef msg_response_t msg_init_sensor_ret_t;;
++typedef msg_response_t msg_set_input_size_ret_t;
++typedef msg_response_t msg_set_output_size_ret_t;
++typedef msg_response_t msg_set_stream_in_on_ret_t;
++typedef msg_response_t msg_set_stream_in_off_ret_t;
++typedef msg_response_t msg_set_stream_out_on_ret_t;
++typedef msg_response_t msg_set_stream_out_off_ret_t;
++typedef msg_response_t msg_set_fast_3a_on_ret_t;
++typedef msg_response_t msg_set_fast_3a_off_ret_t;
++typedef msg_response_t msg_set_algo_nightshot_ret_t;
++typedef msg_response_t msg_set_algo_antishaking_ret_t;
++typedef msg_response_t msg_set_algo_hdr_ret_t;
++typedef msg_response_t msg_set_algo_null_ret_t;
++typedef msg_response_t msg_take_picture_ret_t;
++typedef msg_response_t msg_take_picture_done_ret_t;
++typedef msg_response_t msg_set_rt_zzhdr_on_ret_t;
++typedef msg_response_t msg_set_rt_zzhdr_off_ret_t;
++typedef msg_response_t msg_set_stats_on_ret_t;
++typedef msg_response_t msg_set_stats_off_ret_t;
++typedef msg_response_t msg_set_rt_dgain_on_ret_t;
++typedef msg_response_t msg_set_rt_dgain_off_ret_t;
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t  camera_id;
++    int8_t  log_level;
++} msg_dsp_log_t;
++
++typedef msg_dsp_log_t msg_set_log_level_t;
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    uint8_t  division;
++} msg_stats_head_t;
++
++typedef struct {
++    msg_stats_head_t head;
++    uint16_t data[2];
++} msg_stats_data_t;
++
++#define MSG_SIZE(m) ((m).size * 4)
++
++#define MSG(TYPE, ID, var) TYPE var; \
++    var.size = sizeof(TYPE)/4;\
++    var.type = id_ ## TYPE;\
++    var.camera_id = ID
++
++//AP -> DSP sync msg, dsp must send msg_response_t to AP
++#define SYNC_MSG(TYPE, ID, var) MSG(TYPE, ID, var); var.sync = 1
++
++//AP -> DSP async msg, dsp not need to send msg_response_t to AP
++#define ASYNC_MSG(TYPE, ID, var) MSG(TYPE, ID, var); var.sync = 0
++
++//DSP -> AP msg
++#define RET_MSG(TYPE, var) MSG(TYPE, -1, var)
++
++#if defined(__cplusplus)
++}  /* extern "C" */
++#endif
++
++#endif
+diff --git a/rk1608/inc/preisp_thread.h b/rk1608/inc/preisp_thread.h
+new file mode 100644
+index 0000000..f0006ab
+--- /dev/null
++++ b/rk1608/inc/preisp_thread.h
+@@ -0,0 +1,42 @@
++#ifndef _PREISP_THREAD_H_
++#define _PREISP_THREAD_H_
++#include "../oslayer/include/oslayer.h"
++#include "shared_ptr.h"
++
++# ifndef UTIL_GTL_USE_STD_SHARED_PTR
++using google::protobuf::internal::shared_ptr;
++using google::protobuf::internal::enable_shared_from_this;
++using google::protobuf::internal::weak_ptr;
++# endif
++
++class preispthread : public enable_shared_from_this<preispthread> {
++public:
++	// Create a Thread object, but doesn't create or start the associated
++	// thread. See the run() method.
++	preispthread();
++	virtual ~preispthread();
++
++	// Start the thread in threadLoop() which needs to be implemented.
++	virtual int run(const char* name = 0, int32_t priority = OSLAYER_THREAD_PRIO_NORMAL);
++	virtual int readyToRun();
++	virtual bool threadLoop() = 0;
++	int requestExitAndWait();
++	bool isRunning() {
++		bool ret;
++		osMutexLock(&mMutex);
++		ret = mRunning;
++		osMutexUnlock(&mMutex);
++		return ret;
++	};
++	const char* name;
++private:
++	preispthread &operator= (const preispthread&);
++	static  int _threadLoop(void* user);
++	// note that all accesses of mExitPending and mRunning need to hold mLock
++	volatile bool mExitPending;
++	volatile bool mRunning;
++	shared_ptr<preispthread> mHoldSelf;
++	osThread mThread;
++	osMutex mMutex;
++};
++#endif
+diff --git a/rk1608/inc/rk_preisp_dev.h b/rk1608/inc/rk_preisp_dev.h
+new file mode 100644
+index 0000000..ee6065c
+--- /dev/null
++++ b/rk1608/inc/rk_preisp_dev.h
+@@ -0,0 +1,101 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#ifndef __RK_PREISP_SPI_H__
++#define __RK_PREISP_SPI_H__
++
++#include <linux/ioctl.h>
++#include <preisp_msg.h>
++
++#if defined(__cplusplus)
++extern "C" {
++#endif
++
++#define PREISP_DEV_PATH "/dev/rk_preisp"
++#define PREISP_FW_NAME_LEN 128
++
++struct preisp_apb_pkt {
++    int32_t  data_len;
++    int32_t  addr;
++    int32_t *data;
++};
++
++#define PREISP_IRQ_TYPE_MSG 0x12345678
++
++#define PREISP_APB_MAX_OP_BYTES 60000
++
++#ifndef MIN
++#define MIN(a, b) ((a) < (b) ? (a) : (b))
++#endif
++
++enum {
++    PREISP_SLEEP_MODE_BYPASS = 0,
++    PREISP_SLEEP_MODE_STANDBY,
++    PREISP_SLEEP_MODE_MAX
++};
++
++#define PREISP_POWER_ON     _IO('p',   1)
++#define PREISP_POWER_OFF    _IO('p',   2)
++#define PREISP_REQUEST_SLEEP _IOW('p',  3, int32_t)
++#define PREISP_WAKEUP       _IO('p',   4)
++#define PREISP_DOWNLOAD_FW _IOW('p',  5, char[PREISP_FW_NAME_LEN])
++#define PREISP_APB_WRITE   _IOW('p',  6, struct preisp_apb_pkt)
++#define PREISP_APB_READ    _IOR('p',  7, struct preisp_apb_pkt)
++#define PREISP_ST_QUERY    _IOR('p',  8, int32_t)
++#define PREISP_IRQ_REQUEST _IOW('p',  9, int32_t)
++#define PREISP_SEND_MSG    _IOW('p', 11, int32_t)
++#define PREISP_QUERY_MSG   _IOR('p', 12, int32_t)
++#define PREISP_RECV_MSG    _IOR('p', 13, int32_t)
++#define PREISP_CLIENT_CONNECT    _IOW('p', 15, int32_t)
++#define PREISP_CLIENT_DISCONNECT  _IO('p', 16)
++
++int preisp_open(void);
++int preisp_close(int fd);
++int preisp_power_on(int fd);
++int preisp_power_off(int fd);
++int preisp_request_sleep(int fd, int32_t mode);
++int preisp_wakeup(int fd);
++int preisp_download_fw(int fd, const char *fw_name);
++int preisp_apb_write(int fd, int32_t write_addr,
++        int32_t *data, int32_t len);
++int preisp_apb_read(int fd, int32_t read_addr,
++        int32_t *data, int32_t len);
++int preisp_state_query(int fd, int32_t *state);
++int preisp_interrupt_request(int fd, int32_t irq);
++int preisp_send_msg(int fd, msg_t *msg);
++int preisp_recv_msg(int fd, msg_t **msg);
++void preisp_free_received_msg(msg_t *msg);
++int preisp_client_connect(int fd, int id);
++int preisp_client_disconnect(int fd);
++
++#if defined(__cplusplus)
++}  /* extern "C" */
++#endif
++
++#endif
+diff --git a/rk1608/inc/shared_ptr.h b/rk1608/inc/shared_ptr.h
+new file mode 100644
+index 0000000..497f158
+--- /dev/null
++++ b/rk1608/inc/shared_ptr.h
+@@ -0,0 +1,484 @@
++// Protocol Buffers - Google's data interchange format
++// Copyright 2014 Google Inc.  All rights reserved.
++// https://developers.google.com/protocol-buffers/
++//
++// Redistribution and use in source and binary forms, with or without
++// modification, are permitted provided that the following conditions are
++// met:
++//
++//     * Redistributions of source code must retain the above copyright
++// notice, this list of conditions and the following disclaimer.
++//     * Redistributions in binary form must reproduce the above
++// copyright notice, this list of conditions and the following disclaimer
++// in the documentation and/or other materials provided with the
++// distribution.
++//     * Neither the name of Google Inc. nor the names of its
++// contributors may be used to endorse or promote products derived from
++// this software without specific prior written permission.
++//
++// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++// from google3/util/gtl/shared_ptr.h
++#ifndef GOOGLE_PROTOBUF_STUBS_SHARED_PTR_H__
++#define GOOGLE_PROTOBUF_STUBS_SHARED_PTR_H__
++#include <algorithm>  // for swap
++#include <stddef.h>
++#include <memory>
++typedef  uint32_t Atomic32;
++
++namespace google {
++namespace protobuf {
++namespace internal {
++// Alias to std::shared_ptr for any C++11 platform,
++// and for any supported MSVC compiler.
++#if !defined(UTIL_GTL_USE_STD_SHARED_PTR) && \
++    (defined(COMPILER_MSVC) || defined(LANG_CXX11))
++#define UTIL_GTL_USE_STD_SHARED_PTR 1
++#endif
++
++#if defined(UTIL_GTL_USE_STD_SHARED_PTR) && UTIL_GTL_USE_STD_SHARED_PTR
++
++// These are transitional.  They will be going away soon.
++// Please just #include <memory> and just type std::shared_ptr yourself, instead
++// of relying on this file.
++//
++// Migration doc: http://go/std-shared-ptr-lsc
++using std::enable_shared_from_this;
++using std::shared_ptr;
++using std::static_pointer_cast;
++using std::weak_ptr;
++
++#else  // below, UTIL_GTL_USE_STD_SHARED_PTR not set or set to 0.
++// For everything else there is the google3 implementation.
++
++
++template <typename T> class shared_ptr;
++template <typename T> class weak_ptr;
++
++// This class is an internal implementation detail for shared_ptr. If two
++// shared_ptrs point to the same object, they also share a control block.
++// An "empty" shared_pointer refers to NULL and also has a NULL control block.
++// It contains all of the state that's needed for reference counting or any
++// other kind of resource management. In this implementation the control block
++// happens to consist of two atomic words, the reference count (the number
++// of shared_ptrs that share ownership of the object) and the weak count
++// (the number of weak_ptrs that observe the object, plus 1 if the
++// refcount is nonzero).
++//
++// The "plus 1" is to prevent a race condition in the shared_ptr and
++// weak_ptr destructors. We need to make sure the control block is
++// only deleted once, so we need to make sure that at most one
++// object sees the weak count decremented from 1 to 0.
++class SharedPtrControlBlock {
++  template <typename T> friend class shared_ptr;
++  template <typename T> friend class weak_ptr;
++ private:
++  SharedPtrControlBlock() : refcount_(1), weak_count_(1) {
++    osAtomicInit();
++  }
++  virtual ~SharedPtrControlBlock() {
++    osAtomicShutdown();
++  }
++  Atomic32 refcount_;
++  Atomic32 weak_count_;
++
++  bool RefCountDec(volatile Atomic32* ptr) {
++    //return Barrier_AtomicIncrement(ptr, -1) != 0;
++    return osAtomicDecrement((Atomic32*)ptr) != 0;
++  }
++
++  void RefCountInc(volatile Atomic32* ptr) {
++    //NoBarrier_AtomicIncrement(ptr, 1);
++    osAtomicIncrement((Atomic32*)ptr);
++  }
++
++  Atomic32 compareAndSwap(volatile Atomic32* ptr, Atomic32 oldVal, Atomic32 newVal) {
++    return  osAtomicCompareAndSwap((Atomic32*)ptr, oldVal, newVal);
++  }
++};
++
++// Forward declaration. The class is defined below.
++template <typename T> class enable_shared_from_this;
++template <typename T>
++class shared_ptr {
++  template <typename U> friend class weak_ptr;
++ public:
++  typedef T element_type;
++
++  shared_ptr() : ptr_(NULL), control_block_(NULL) {}
++
++  explicit shared_ptr(T* ptr)
++    : ptr_(ptr),
++      control_block_(ptr != NULL ? new SharedPtrControlBlock : NULL) {
++    // If p is non-null and T inherits from enable_shared_from_this, we
++    // set up the data that shared_from_this needs.
++    MaybeSetupWeakThis(ptr);
++  }
++
++  // Copy constructor: makes this object a copy of ptr, and increments
++  // the reference count.
++  template <typename U>
++  shared_ptr(const shared_ptr<U>& ptr)
++    : ptr_(NULL),
++      control_block_(NULL) {
++    Initialize(ptr);
++  }
++  // Need non-templated version to prevent the compiler-generated default
++  shared_ptr(const shared_ptr<T>& ptr)
++    : ptr_(NULL),
++      control_block_(NULL) {
++    Initialize(ptr);
++  }
++
++  // Assignment operator. Replaces the existing shared_ptr with ptr.
++  // Increment ptr's reference count and decrement the one being replaced.
++  template <typename U>
++  shared_ptr<T>& operator=(const shared_ptr<U>& ptr) {
++    if (ptr_ != ptr.ptr_) {
++      shared_ptr<T> me(ptr);   // will hold our previous state to be destroyed.
++      swap(me);
++    }
++    return *this;
++  }
++
++  // Need non-templated version to prevent the compiler-generated default
++  shared_ptr<T>& operator=(const shared_ptr<T>& ptr) {
++    if (ptr_ != ptr.ptr_) {
++      shared_ptr<T> me(ptr);   // will hold our previous state to be destroyed.
++      swap(me);
++    }
++    return *this;
++  }
++
++  // TODO(austern): Consider providing this constructor. The draft C++ standard
++  // (20.8.10.2.1) includes it. However, it says that this constructor throws
++  // a bad_weak_ptr exception when ptr is expired. Is it better to provide this
++  // constructor and make it do something else, like fail with a CHECK, or to
++  // leave this constructor out entirely?
++  //
++  // template <typename U>
++  // shared_ptr(const weak_ptr<U>& ptr);
++
++  ~shared_ptr() {
++    if (ptr_ != NULL) {
++      if (!control_block_->RefCountDec(&control_block_->refcount_)) {
++        delete ptr_;
++
++        // weak_count_ is defined as the number of weak_ptrs that observe
++        // ptr_, plus 1 if refcount_ is nonzero.
++        if (!control_block_->RefCountDec(&control_block_->weak_count_)) {
++          delete control_block_;
++        }
++      }
++    }
++  }
++
++  // Replaces underlying raw pointer with the one passed in.  The reference
++  // count is set to one (or zero if the pointer is NULL) for the pointer
++  // being passed in and decremented for the one being replaced.
++  //
++  // If you have a compilation error with this code, make sure you aren't
++  // passing NULL, nullptr, or 0 to this function.  Call reset without an
++  // argument to reset to a null ptr.
++  template <typename Y>
++  void reset(Y* p) {
++    if (p != ptr_) {
++      shared_ptr<T> tmp(p);
++      tmp.swap(*this);
++    }
++  }
++
++  void reset() {
++    reset(static_cast<T*>(NULL));
++  }
++
++  // Exchanges the contents of this with the contents of r.  This function
++  // supports more efficient swapping since it eliminates the need for a
++  // temporary shared_ptr object.
++  void swap(shared_ptr<T>& r) {
++    using std::swap;  // http://go/using-std-swap
++    swap(ptr_, r.ptr_);
++    swap(control_block_, r.control_block_);
++  }
++
++  // The following function is useful for gaining access to the underlying
++  // pointer when a shared_ptr remains in scope so the reference-count is
++  // known to be > 0 (e.g. for parameter passing).
++  T* get() const {
++    return ptr_;
++  }
++
++  T& operator*() const {
++    return *ptr_;
++  }
++
++  T* operator->() const {
++    return ptr_;
++  }
++
++  long use_count() const {
++    return control_block_ ? control_block_->refcount_ : 1;
++  }
++
++  bool unique() const {
++    return use_count() == 1;
++  }
++
++ private:
++  // If r is non-empty, initialize *this to share ownership with r,
++  // increasing the underlying reference count.
++  // If r is empty, *this remains empty.
++  // Requires: this is empty, namely this->ptr_ == NULL.
++  template <typename U>
++  void Initialize(const shared_ptr<U>& r) {
++    // This performs a static_cast on r.ptr_ to U*, which is a no-op since it
++    // is already a U*. So initialization here requires that r.ptr_ is
++    // implicitly convertible to T*.
++    InitializeWithStaticCast<U>(r);
++  }
++
++  // Initializes *this as described in Initialize, but additionally performs a
++  // static_cast from r.ptr_ (V*) to U*.
++  // NOTE(gfc): We'd need a more general form to support const_pointer_cast and
++  // dynamic_pointer_cast, but those operations are sufficiently discouraged
++  // that supporting static_pointer_cast is sufficient.
++  template <typename U, typename V>
++  void InitializeWithStaticCast(const shared_ptr<V>& r) {
++    if (r.control_block_ != NULL) {
++      r.control_block_->RefCountInc(&r.control_block_->refcount_);
++
++      ptr_ = static_cast<U*>(r.ptr_);
++      control_block_ = r.control_block_;
++    }
++  }
++
++  // Helper function for the constructor that takes a raw pointer. If T
++  // doesn't inherit from enable_shared_from_this<T> then we have nothing to
++  // do, so this function is trivial and inline. The other version is declared
++  // out of line, after the class definition of enable_shared_from_this.
++  void MaybeSetupWeakThis(enable_shared_from_this<T>* ptr);
++  void MaybeSetupWeakThis(...) { }
++  //U SHOULD BE DERIVED FROM T
++  template <typename U>
++  void MaybeSetupWeakThis(enable_shared_from_this<U>* ptr) {
++    MaybeSetupWeakThis((enable_shared_from_this<T>*)ptr);
++  }
++  T* ptr_;
++  SharedPtrControlBlock* control_block_;
++
++#ifndef SWIG
++  template <typename U>
++  friend class shared_ptr;
++
++  template <typename U, typename V>
++  friend shared_ptr<U> static_pointer_cast(const shared_ptr<V>& rhs);
++#endif
++};
++
++// Matches the interface of std::swap as an aid to generic programming.
++template <typename T> void swap(shared_ptr<T>& r, shared_ptr<T>& s) {
++  r.swap(s);
++}
++
++template <typename T, typename U>
++shared_ptr<T> static_pointer_cast(const shared_ptr<U>& rhs) {
++  shared_ptr<T> lhs;
++  lhs.template InitializeWithStaticCast<T>(rhs);
++  return lhs;
++}
++
++// See comments at the top of the file for a description of why this
++// class exists, and the draft C++ standard (as of July 2009 the
++// latest draft is N2914) for the detailed specification.
++template <typename T>
++class weak_ptr {
++  template <typename U> friend class weak_ptr;
++ public:
++  typedef T element_type;
++
++  // Create an empty (i.e. already expired) weak_ptr.
++  weak_ptr() : ptr_(NULL), control_block_(NULL) { }
++
++  // Create a weak_ptr that observes the same object that ptr points
++  // to.  Note that there is no race condition here: we know that the
++  // control block can't disappear while we're looking at it because
++  // it is owned by at least one shared_ptr, ptr.
++  template <typename U> weak_ptr(const shared_ptr<U>& ptr) {
++    CopyFrom(ptr.ptr_, ptr.control_block_);
++  }
++
++  // Copy a weak_ptr. The object it points to might disappear, but we
++  // don't care: we're only working with the control block, and it can't
++  // disappear while we're looking at because it's owned by at least one
++  // weak_ptr, ptr.
++  template <typename U> weak_ptr(const weak_ptr<U>& ptr) {
++    CopyFrom(ptr.ptr_, ptr.control_block_);
++  }
++
++  // Need non-templated version to prevent default copy constructor
++  weak_ptr(const weak_ptr& ptr) {
++    CopyFrom(ptr.ptr_, ptr.control_block_);
++  }
++
++  // Destroy the weak_ptr. If no shared_ptr owns the control block, and if
++  // we are the last weak_ptr to own it, then it can be deleted. Note that
++  // weak_count_ is defined as the number of weak_ptrs sharing this control
++  // block, plus 1 if there are any shared_ptrs. We therefore know that it's
++  // safe to delete the control block when weak_count_ reaches 0, without
++  // having to perform any additional tests.
++  ~weak_ptr() {
++    if (control_block_ != NULL &&
++        !control_block_->RefCountDec(&control_block_->weak_count_)) {
++      delete control_block_;
++    }
++  }
++
++  weak_ptr& operator=(const weak_ptr& ptr) {
++    if (&ptr != this) {
++      weak_ptr tmp(ptr);
++      tmp.swap(*this);
++    }
++    return *this;
++  }
++  template <typename U> weak_ptr& operator=(const weak_ptr<U>& ptr) {
++    weak_ptr tmp(ptr);
++    tmp.swap(*this);
++    return *this;
++  }
++  template <typename U> weak_ptr& operator=(const shared_ptr<U>& ptr) {
++    weak_ptr tmp(ptr);
++    tmp.swap(*this);
++    return *this;
++  }
++
++  void swap(weak_ptr& ptr) {
++    using std::swap;  // http://go/using-std-swap
++    swap(ptr_, ptr.ptr_);
++    swap(control_block_, ptr.control_block_);
++  }
++
++  void reset() {
++    weak_ptr tmp;
++    tmp.swap(*this);
++  }
++
++  // Return the number of shared_ptrs that own the object we are observing.
++  // Note that this number can be 0 (if this pointer has expired).
++  long use_count() const {
++    return control_block_ != NULL ? control_block_->refcount_ : 0;
++  }
++
++  bool expired() const { return use_count() == 0; }
++
++  // Return a shared_ptr that owns the object we are observing. If we
++  // have expired, the shared_ptr will be empty. We have to be careful
++  // about concurrency, though, since some other thread might be
++  // destroying the last owning shared_ptr while we're in this
++  // function.  We want to increment the refcount only if it's nonzero
++  // and get the new value, and we want that whole operation to be
++  // atomic.
++  shared_ptr<T> lock() const {
++    shared_ptr<T> result;
++    if (control_block_ != NULL) {
++      Atomic32 old_refcount;
++      do {
++        old_refcount = control_block_->refcount_;
++        if (old_refcount == 0)
++          break;
++      } while (old_refcount !=
++               osAtomicCompareAndSwap(
++                   &control_block_->refcount_, old_refcount,
++                   old_refcount + 1));
++      if (old_refcount > 0) {
++        result.ptr_ = ptr_;
++        result.control_block_ = control_block_;
++      }
++    }
++
++    return result;
++  }
++
++ private:
++  void CopyFrom(T* ptr, SharedPtrControlBlock* control_block) {
++    ptr_ = ptr;
++    control_block_ = control_block;
++    if (control_block_ != NULL)
++      control_block_->RefCountInc(&control_block_->weak_count_);
++  }
++
++ private:
++  element_type* ptr_;
++  SharedPtrControlBlock* control_block_;
++};
++
++template <typename T> void swap(weak_ptr<T>& r, weak_ptr<T>& s) {
++  r.swap(s);
++}
++
++// See comments at the top of the file for a description of why this class
++// exists, and section 20.8.10.5 of the draft C++ standard (as of July 2009
++// the latest draft is N2914) for the detailed specification.
++template <typename T>
++class enable_shared_from_this {
++	friend class shared_ptr<T>;
++public:
++	// Precondition: there must be a shared_ptr that owns *this and that was
++	// created, directly or indirectly, from a raw pointer of type T*. (The
++	// latter part of the condition is technical but not quite redundant; it
++	// rules out some complicated uses involving inheritance hierarchies.)
++	shared_ptr<T> shared_from_this() {
++		// Behavior is undefined if the precondition isn't satisfied; we choose
++		// to die with a CHECK failure.
++		//CHECK(!weak_this_.expired()) << "No shared_ptr owns this object";
++		return weak_this_.lock();
++	}
++	shared_ptr<const T> shared_from_this() const {
++		CHECK(!weak_this_.expired()) << "No shared_ptr owns this object";
++		return weak_this_.lock();
++	}
++
++protected:
++	enable_shared_from_this() {
++	}
++	enable_shared_from_this(const enable_shared_from_this& other) {
++	}
++	enable_shared_from_this& operator=(const enable_shared_from_this& other) {
++		return *this;
++	}
++	~enable_shared_from_this() {
++	}
++
++private:
++	weak_ptr<T> weak_this_;
++};
++
++// This is a helper function called by shared_ptr's constructor from a raw
++// pointer. If T inherits from enable_shared_from_this<T>, it sets up
++// weak_this_ so that shared_from_this works correctly. If T does not inherit
++// from weak_this we get a different overload, defined inline, which does
++// nothing.
++template<typename T>
++void shared_ptr<T>::MaybeSetupWeakThis(enable_shared_from_this<T>* ptr) {
++  if (ptr) {
++    //CHECK(ptr->weak_this_.expired()) << "Object already owned by a shared_ptr";
++    ptr->weak_this_ = *this;
++  }
++}
++
++#endif  // UTIL_GTL_USE_STD_SHARED_PTR
++
++}  // internal
++}  // namespace protobuf
++}  // namespace google
++
++#endif  // GOOGLE_PROTOBUF_STUBS_SHARED_PTR_H__
+diff --git a/rk1608/inc/types.h b/rk1608/inc/types.h
+new file mode 100644
+index 0000000..ce187f4
+--- /dev/null
++++ b/rk1608/inc/types.h
+@@ -0,0 +1,102 @@
++/******************************************************************************
++ *
++ * Copyright 2016, Fuzhou Rockchip Electronics Co.Ltd . All rights reserved.
++ * No part of this work may be reproduced, modified, distributed, transmitted,
++ * transcribed, or translated into any language or computer format, in any form
++ * or by any means without written permission of:
++ * Fuzhou Rockchip Electronics Co.Ltd .
++ * 
++ *
++ *****************************************************************************/
++/**
++ *   @file types.h
++ *
++ *  This file defines some basic type names like the int types.
++ *
++ *****************************************************************************/
++#ifndef TYPES_H_
++#define TYPES_H_
++
++#include <limits.h>
++
++#ifndef __cplusplus
++/* Only C99 compilers know stdbool */
++#if (__STDC_VERSION__ >= 199901L) || defined(CONFIG_HAVE_STDBOOL)
++#include <stdbool.h>
++#else
++#define bool    unsigned int
++#define true    (1)
++#define false   (0)
++#endif
++#endif
++
++
++#if defined(__GNUC__)
++#if !defined(INLINE)
++#define INLINE static inline
++#endif
++#endif
++
++#include <stddef.h>
++
++#if defined(__cplusplus) || ((__STDC_VERSION__ >= 199901L))
++#include <stdint.h>
++#else
++
++/* We only check for __int8_t_defined */
++/* as this is all that gcc defines. */
++#if !defined(__int8_t_defined)
++
++/* In the rare cases that a system does not define
++ * __int8_t_defined (Android p.e.) we check for the
++ * include guard of the stdint header */
++#if !defined(_STDINT_H)
++
++typedef unsigned char        uint8_t;
++typedef signed   char        int8_t;
++typedef unsigned short       uint16_t;
++typedef          short       int16_t;
++typedef unsigned int         uint32_t;
++typedef          int         int32_t;
++
++#if !defined(_MSC_VER)
++typedef signed   long long  int64_t;
++typedef unsigned long long  uint64_t;
++#else
++typedef signed   __int64    int64_t;
++typedef unsigned __int64    uint64_t;
++#endif /* #if !defined(_MSC_VER) */
++
++typedef unsigned int   uint_least32_t;
++typedef          int   int_least32_t;
++typedef unsigned int   uint_least8_t;
++typedef unsigned int   uint;
++typedef unsigned char  uchar;
++
++#endif /* #if !defined(_STDINT_H) */
++#endif /* #if !defined(__int8_t_defined) */
++#endif /* #if defined(__cplusplus) || ((__STDC_VERSION__ >= 199901L)) */
++
++#ifndef NULL
++#define NULL ((void*)0)
++#endif
++
++/* make lint happy: */
++typedef char CHAR;
++typedef char char_t;    /* like suggested in  Misra 6.3 (P. 29) */
++
++typedef enum {
++  BOOL_FALSE = 0,
++  BOOL_TRUE = (!BOOL_FALSE)
++} bool_t;
++
++
++#define UNUSED_PARAM(unref_param)  ((void) (unref_param));
++#define CAST_POINTER_TO_UINT32( pointer ) ((uint32_t) (pointer))
++#define CAST_POINTER_TO_INT32( pointer ) ((int32_t) (pointer))
++#define CAST_UINT32_TO_POINTER( pointerType, value ) ((pointerType)(value))
++#define CAST_INT32_TO_POINTER( value ) ((int32_t*)(value))
++#define N_ELEMENTS(s)      (sizeof(s) / sizeof ((s) [0]))
++#define ABS(a)         ((a) > 0 ? (a) : -(a))
++
++#endif /*TYPES_H_*/
+diff --git a/rk1608/src/preisp_api.c b/rk1608/src/preisp_api.c
+new file mode 100644
+index 0000000..c8b602b
+--- /dev/null
++++ b/rk1608/src/preisp_api.c
+@@ -0,0 +1,95 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include "types.h"
++#include <rk_preisp_dev.h>
++
++typedef struct _preisp_cfg_{
++	int client_id;
++} preisp_cfg;
++
++typedef struct _preisp_context_{
++	int mfd;
++} preisp_context;
++
++int preisp_init(preisp_context *ctx, preisp_cfg *cfg)
++{
++	int client_id = 101;
++	int fd;
++
++	if (cfg) {
++		client_id = cfg->client_id;
++	}
++	fd = preisp_open();
++	if (fd > 0 ) {
++		preisp_client_connect(fd, client_id);
++		ctx->mfd = fd;
++	}
++}
++
++int preisp_deinit(preisp_context *ctx)
++{
++	int fd = ctx->mfd;
++	preisp_client_disconnect(fd);
++	preisp_close(fd);
++}
++
++typedef struct {
++    msg_t head;
++    int i;
++} msg_args;
++
++int preisp_setargs(preisp_context *ctx)
++{
++	int size, ret;
++	msg_args *msg;
++
++	size = sizeof(msg_set_input_size_head_t) + sizeof(int);
++	ret = preisp_send_msg(ctx->mfd, (msg_t*)msg);
++
++	free(msg);
++	return ret;
++}
++
++int preisp_hdr_start(preisp_context *ctx)
++{
++	int size, ret;
++	msg_args *msg;
++
++	size = sizeof(msg_set_input_size_head_t) + sizeof(int);
++	ret = preisp_send_msg(ctx->mfd, (msg_t*)msg);
++
++	free(msg);
++	return ret;
++}
++
+diff --git a/rk1608/src/rk_preisp_dev.c b/rk1608/src/rk_preisp_dev.c
+new file mode 100644
+index 0000000..30e98a1
+--- /dev/null
++++ b/rk1608/src/rk_preisp_dev.c
+@@ -0,0 +1,175 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#include "types.h"
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <stdlib.h>
++#include <unistd.h>
++#include <rk_preisp_dev.h>
++
++int preisp_open(void)
++{
++    return open(PREISP_DEV_PATH, O_RDWR);
++}
++
++int preisp_close(int fd)
++{
++    return close(fd);
++}
++
++int preisp_power_on(int fd)
++{
++    return ioctl(fd, PREISP_POWER_ON, NULL);
++}
++
++int preisp_power_off(int fd)
++{
++    return ioctl(fd, PREISP_POWER_OFF, NULL);
++}
++
++int preisp_request_sleep(int fd, int32_t mode)
++{
++    return ioctl(fd, PREISP_REQUEST_SLEEP, mode);
++}
++
++int preisp_wakeup(int fd)
++{
++    return ioctl(fd, PREISP_WAKEUP, NULL);
++}
++
++int preisp_download_fw(int fd, const char *fw_name)
++{
++    return ioctl(fd, PREISP_DOWNLOAD_FW, fw_name);
++}
++
++int _preisp_apb_write(int fd, int32_t write_addr,
++        int32_t *data, int32_t len)
++{
++    struct preisp_apb_pkt pkt;
++
++    pkt.data_len = len;
++    pkt.addr = write_addr;
++    pkt.data = data;
++    return ioctl(fd, PREISP_APB_WRITE, &pkt);
++}
++
++int preisp_apb_write(int fd, int32_t write_addr,
++        int32_t *data, int32_t len)
++{
++    int ret = 0;
++    while (len > 0) {
++        int slen = MIN(len, PREISP_APB_MAX_OP_BYTES);
++
++        ret = _preisp_apb_write(fd, write_addr, data, slen);
++        if (ret) {
++            break;
++        }
++
++        len = len - PREISP_APB_MAX_OP_BYTES;;
++        data = (int32_t*)((int8_t*)data + PREISP_APB_MAX_OP_BYTES);
++        write_addr += PREISP_APB_MAX_OP_BYTES;
++    }
++    return ret;
++}
++
++int _preisp_apb_read(int fd, int32_t read_addr,
++        int32_t *data, int32_t len)
++{
++    struct preisp_apb_pkt pkt;
++
++    pkt.data_len = len;
++    pkt.addr = read_addr;
++    pkt.data = data;
++    return ioctl(fd, PREISP_APB_READ, &pkt);
++}
++
++int preisp_apb_read(int fd, int32_t read_addr,
++        int32_t *data, int32_t len)
++{
++    int ret = 0;
++    while (len > 0) {
++        int slen = MIN(len, PREISP_APB_MAX_OP_BYTES);
++
++        ret = _preisp_apb_read(fd, read_addr, data, slen);
++        if (ret) {
++            break;
++        }
++
++        len = len - PREISP_APB_MAX_OP_BYTES;;
++        data = (int32_t*)((int8_t*)data + PREISP_APB_MAX_OP_BYTES);
++        read_addr += PREISP_APB_MAX_OP_BYTES;
++    }
++    return ret;
++}
++
++int preisp_state_query(int fd, int32_t *state)
++{
++    return ioctl(fd, PREISP_ST_QUERY, state);
++}
++
++int preisp_interrupt_request(int fd, int32_t irq)
++{
++    return ioctl(fd, PREISP_IRQ_REQUEST, irq);
++}
++
++int preisp_send_msg(int fd, msg_t *msg)
++{
++    int ret;
++
++    ret = ioctl(fd, PREISP_SEND_MSG, msg);
++    return ret;
++}
++
++int preisp_recv_msg(int fd, msg_t **msg)
++{
++    uint32_t size = 0;
++
++    if (ioctl(fd, PREISP_QUERY_MSG, &size) || size == 0) {
++        return -1;
++    }
++
++    *msg = (msg_t*)malloc(size * 4);
++    return ioctl(fd, PREISP_RECV_MSG, *msg);
++}
++
++void preisp_free_received_msg(msg_t *msg)
++{
++    free(msg);
++}
++
++int preisp_client_connect(int fd, int id)
++{
++    return ioctl(fd, PREISP_CLIENT_CONNECT, id);
++}
++
++int preisp_client_disconnect(int fd)
++{
++    return ioctl(fd, PREISP_CLIENT_DISCONNECT, NULL);
++}
+-- 
+2.7.4
+
