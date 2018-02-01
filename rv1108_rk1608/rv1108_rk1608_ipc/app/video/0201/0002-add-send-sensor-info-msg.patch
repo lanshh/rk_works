@@ -1,0 +1,601 @@
+From 07878f6de29a7f4871a0cb60aef3cfef9b363d90 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 1 Feb 2018 10:42:44 +0800
+Subject: [PATCH 2/2] add send sensor info msg
+
+Change-Id: I9d8434ca90b021c0b5716f8e2eabf28efff763d2
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ parameter.c                   |   9 ++-
+ rk1608/inc/preisp_api.h       |  84 +++++++++++++-------
+ rk1608/inc/preisp_msg.h       |  89 +++++++--------------
+ rk1608/inc/preisp_process.h   |  65 ++++++++--------
+ rk1608/src/preisp_api.c       |  37 +++++++--
+ rk1608/src/preisp_process.cpp | 174 +++++++++++++++++++++++++++++++++++++++++-
+ 6 files changed, 325 insertions(+), 133 deletions(-)
+
+diff --git a/parameter.c b/parameter.c
+index e4fb50f..00cdf5a 100644
+--- a/parameter.c
++++ b/parameter.c
+@@ -1556,10 +1556,10 @@ int parameter_recover(void) {
+   memset((void*)&parameter, 0, sizeof(struct sys_param));
+ 
+   sprintf(parameter.pararater_version, "%s", PARAM_VERSION);
+-  sprintf(parameter.WIFI_SSID, "RK_CVR_%X", randnum);
+-  sprintf(parameter.WIFI_PASS, "%s", "123456789");
+-  sprintf(parameter.STA_WIFI_SSID, "RK_WIFI_TEST");
+-  sprintf(parameter.STA_WIFI_PASS, "%s", "123456789");
++  sprintf(parameter.WIFI_SSID, "lanshh-ap");
++  sprintf(parameter.WIFI_PASS, "%s", "ps56123456");
++  sprintf(parameter.STA_WIFI_SSID, "lanshh-ap");
++  sprintf(parameter.STA_WIFI_PASS, "%s", "ps56123456");
+   parameter.eth_dhcp_en = 0;
+   sprintf(parameter.eth_static_ip, "%s", "192.168.1.100");
+   sprintf(parameter.eth_netmask, "%s", "255.255.255.0");
+@@ -1584,6 +1584,7 @@ int parameter_recover(void) {
+ #else
+   parameter.wifi_mode = WIFI_MODE_P2P;
+ #endif
++  parameter.wifi_mode = WIFI_MODE_STATION;
+   parameter.video_3dnr = 1;
+   parameter.video_odt = 0;
+   parameter.video_lan = 1;
+diff --git a/rk1608/inc/preisp_api.h b/rk1608/inc/preisp_api.h
+index 996e31b..573f170 100644
+--- a/rk1608/inc/preisp_api.h
++++ b/rk1608/inc/preisp_api.h
+@@ -1,27 +1,57 @@
+-#ifndef _PREISP_API_H_
+-#define _PREISP_API_H_
+-#if defined(__cplusplus)
+-extern "C" {
+-#endif
+-
+-typedef struct _preisp_cfg_{
+-	int client_id;
+-} preisp_cfg;
+-
+-typedef struct _preisp_context_{
+-	int mfd;
+-} preisp_context;
+-
+-typedef struct _meta_data_ {
+-	int i;
+-} preisp_meta;
+-int preisp_hdr_start(preisp_meta *meta_data);
+-
+-int preisp_init(preisp_context *ctx, preisp_cfg *cfg);
+-int preisp_deinit(preisp_context *ctx);
+-
+-
+-#if defined(__cplusplus)
+-}
+-#endif
+-#endif
++#include <preisp_msg.h>
++#ifndef _PREISP_API_H_
++#define _PREISP_API_H_
++#if defined(__cplusplus)
++extern "C" {
++#endif
++
++typedef struct _preisp_cfg_{
++    int client_id;
++} preisp_cfg;
++
++typedef struct _preisp_context_{
++    int mfd;
++} preisp_context;
++
++typedef struct _meta_data_ {
++    int i;
++    int s[2148];
++} preisp_meta;
++
++typedef struct {
++    msg_t head;
++    preisp_meta meta_data;
++} msg_meta;
++
++typedef struct _preisp_hdr_ {
++    int start;
++} preisp_hdr;
++
++typedef struct {
++    msg_t head;
++    preisp_hdr hdr;
++} msg_hdr;
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++
++    float r_gain;
++    float b_gain;
++    int exp_time[3];
++    int exp_gain[3];
++    int lsc_table[17*17];
++} msg_set_sensor_info_t;
++
++int preisp_hdr_start(preisp_meta *meta_data);
++
++int preisp_init(preisp_context *ctx, preisp_cfg *cfg);
++int preisp_deinit(preisp_context *ctx);
++
++
++#if defined(__cplusplus)
++}
++#endif
++#endif
+\ No newline at end of file
+diff --git a/rk1608/inc/preisp_msg.h b/rk1608/inc/preisp_msg.h
+index ef02c77..2a33e8d 100644
+--- a/rk1608/inc/preisp_msg.h
++++ b/rk1608/inc/preisp_msg.h
+@@ -65,75 +65,38 @@ enum {
+     id_msg_set_stream_in_off_t,
+     id_msg_set_stream_out_on_t,
+     id_msg_set_stream_out_off_t,
+-    id_msg_set_fast_3a_on_t,
+-    id_msg_set_fast_3a_off_t,
+ 
+-    id_msg_set_algo_nightshot_t = 0x0011,
+-    id_msg_set_algo_antishaking_t,
+-    id_msg_set_algo_hdr_t,
+-    id_msg_set_algo_null_t,
++	/* 1 msg of take picture */
++	id_msg_take_picture_t =         0x0021,
++	id_msg_take_picture_done_t,
+ 
+-    id_msg_take_picture_t = 0x0021,
+-    id_msg_take_picture_done_t,
++	/* 2 msg of realtime parameter */
++	id_msg_rt_args_t =          0x0031,
++	id_msg_set_sensor_info_t,
+ 
+-    id_msg_set_rt_zzhdr_on_t = 0x0031,
+-    id_msg_set_rt_zzhdr_off_t,
+-    id_msg_set_rt_dgain_on_t,
+-    id_msg_set_rt_dgain_off_t,
+-    id_msg_rt_now_args_t,
+-    id_msg_rt_delay_args_t,
+-
+-    //AP -> DSP system msg
+-    id_msg_set_sys_mode_bypass_t = 0x0200,
+-    id_msg_set_sys_mode_standby_t,
+-
+-    id_msg_set_log_level_t = 0x0250,
+-
+-    //DSP -> AP response sensor msg
+-    id_msg_init_sensor_ret_t = 0x0300,
++	/* 5 msg of print log */
++	id_msg_init_sensor_ret_t =      0x0300 + 0x0001,
+     id_msg_set_input_size_ret_t,
+-    id_msg_set_output_size_ret_t,
+-    id_msg_set_stream_in_on_ret_t,
+-    id_msg_set_stream_in_off_ret_t,
+-    id_msg_set_stream_out_on_ret_t,
+-    id_msg_set_stream_out_off_ret_t,
+-    id_msg_set_fast_3a_on_ret_t,
+-    id_msg_set_fast_3a_off_ret_t,
+-
+-    id_msg_set_algo_nightshot_ret_t = 0x0310,
+-    id_msg_set_algo_antishaking_ret_t,
+-    id_msg_set_algo_hdr_ret_t,
+-    id_msg_set_algo_null_ret_t,
+-
+-    id_msg_take_picture_ret_t = 0x0320,
+-    id_msg_take_picture_done_ret_t,
+-
+-    id_msg_set_rt_zzhdr_on_ret_t = 0x0330,
+-    id_msg_set_rt_zzhdr_off_ret_t,
+-    id_msg_set_rt_dgain_on_ret_t,
+-    id_msg_set_rt_dgain_off_ret_t,
+-
+-    //DSP -> AP notify msg
+-    id_msg_picture_prepare_ret_t = 0x37f,
+-    id_msg_picture_frame_ret_t = 0x0380,
+-    id_msg_stats_data_t,
+-
+-    //DSP -> AP I2C msg
+-    id_msg_do_i2c_t = 0x0390,
+-    //AP -> DSP I2C response msg
+-    id_msg_do_i2c_ret_t,
+-
+-    //DSP -> AP log print msg
+-    id_msg_dsp_log_t = 0x0400,
+-
+-    //user define msg area
+-
+-	/* xfile */
+-	id_msg_xfile_import_t = 0xfe00,
++	id_msg_set_output_size_ret_t,
++	id_msg_set_stream_in_on_ret_t,
++	id_msg_set_stream_in_off_ret_t,
++	id_msg_set_stream_out_on_ret_t,
++	id_msg_set_stream_out_off_ret_t,
++
++	/* DSP -> AP
++	 *6 response of take picture msg */
++	id_msg_take_picture_ret_t =			0x0320,
++	id_msg_take_picture_done_ret_t,
++
++	/* DSP -> AP
++	 *7 response of realtime parameter msg */
++	id_msg_rt_args_ret_t =			0x0330,
++
++	/*9 msg of xfile */
++	id_msg_xfile_import_t =         0xfe00,
+ 	id_msg_xfile_export_t,
+-    id_msg_xfile_mkdir_t,
++	id_msg_xfile_mkdir_t,
+ };
+-
+ typedef struct {
+     uint32_t size; // unit 4 bytes
+     uint16_t type; // msg identification
+diff --git a/rk1608/inc/preisp_process.h b/rk1608/inc/preisp_process.h
+index 00e0eaf..c827c80 100644
+--- a/rk1608/inc/preisp_process.h
++++ b/rk1608/inc/preisp_process.h
+@@ -1,31 +1,34 @@
+-#include <CameraHal/StrmPUBase.h>
+-#include <dpp/dpp_frame.h>
+-#include <dpp/dpp_types.h>
+-#include "preisp_api.h"
+-#ifndef _PREISP_PROCESS_H_
+-#define _PREISP_PROCESS_H_
+-
+-using namespace std;
+-
+-#define DPP_OUT_BUFFER_NUM  3
+-
+-class preisp_process : public StreamPUBase
+-{
+-public:
+-    preisp_process(struct Video *video);
+-    ~preisp_process();
+-protected:
+-    virtual bool bufferReady(weak_ptr<BufferBase> buffer, int status);
+-    bool send_meta(struct HAL_Buffer_MetaData* metaData);
+-    //virtual bool processFrame(shared_ptr<BufferBase> inBuf, shared_ptr<BufferBase> outBuf);
+-    struct Video *mVideo;
+-    int ae_status;
+-    void *preisp_ctx;
+-    void *cfg;
+-};
+-#endif
+-
+-
+-
+-
+-
++#include <CameraHal/StrmPUBase.h>
++#include <dpp/dpp_frame.h>
++#include <dpp/dpp_types.h>
++#include "types.h"
++#include "preisp_api.h"
++
++#ifndef _PREISP_PROCESS_H_
++#define _PREISP_PROCESS_H_
++
++using namespace std;
++
++#define DPP_OUT_BUFFER_NUM  3
++
++class preisp_process : public StreamPUBase
++{
++public:
++    preisp_process(struct Video *video, int client_id = 101);
++    ~preisp_process();
++protected:
++    virtual bool prepare(const frm_info_t& frmFmt, unsigned int numBuffers,
++                         shared_ptr<CameraBufferAllocator> allocator);
++    virtual bool bufferReady(weak_ptr<BufferBase> buffer, int status);
++    bool send_meta(struct HAL_Buffer_MetaData* metaData);
++    bool preisp_hdr(int start);
++    bool send_sensor_info(struct HAL_Buffer_MetaData* metaData);
++    bool send_meta_in_all(struct HAL_Buffer_MetaData* metaData);
++    //virtual bool processFrame(shared_ptr<BufferBase> inBuf, shared_ptr<BufferBase> outBuf);
++    struct Video *mVideo;
++    int mclient_id;
++    int ae_status;
++    void *mpreisp_ctx;
++    void *mpreisp_cfg;
++};
++#endif
+\ No newline at end of file
+diff --git a/rk1608/src/preisp_api.c b/rk1608/src/preisp_api.c
+index c721405..6c8823d 100644
+--- a/rk1608/src/preisp_api.c
++++ b/rk1608/src/preisp_api.c
+@@ -42,8 +42,9 @@ inline size_t align4(size_t size)
+ 
+ int preisp_init(preisp_context *ctx, preisp_cfg *cfg)
+ {
+-	int client_id = 101;
++	int ret = -1;
+ 	int fd;
++	int client_id = 101;
+ 
+ 	if (cfg) {
+ 		client_id = cfg->client_id;
+@@ -52,12 +53,15 @@ int preisp_init(preisp_context *ctx, preisp_cfg *cfg)
+ 	if (fd > 0 ) {
+ 		preisp_client_connect(fd, client_id);
+ 		ctx->mfd = fd;
++		ret = 0;
+ 	}
++	return ret;
+ }
+ 
+ int preisp_deinit(preisp_context *ctx)
+ {
+ 	int fd = ctx->mfd;
++
+ 	preisp_client_disconnect(fd);
+ 	preisp_close(fd);
+ }
+@@ -92,10 +96,33 @@ void __preisp_deinit()
+ 	preisp_close(fd);
+ }
+ 
+-typedef struct {
+-    msg_t head;
+-    preisp_meta meta_data;
+-} msg_meta;
++int preisp_send_args(void *meta_data, int count)
++{
++	int size, ret = -1;
++	msg_meta msg;
++	preisp_context *ctx = &__g_preisp_ctx;
++	preisp_cfg cfg = {.client_id = 101};
++
++    size = sizeof(msg_t) +  align4(count);
++    size /= 4;
++	memcpy(&msg.meta_data, meta_data, sizeof(msg.meta_data));
++
++    msg.head.size = align4(sizeof(msg_meta))/4;
++    msg.head.type = 0xff00;
++    msg.head.camera_id = 101;
++    msg.head.sync = 1;
++
++	ret = preisp_send_msg(ctx->mfd, (msg_t*)&msg);
++    if(ret) {
++        printf("preisp_send_msg fail %d", ret);
++        goto exit;
++    }
++
++	ret = 0;
++exit:
++    __preisp_deinit();
++	return ret;
++}
+ 
+ int preisp_hdr_start(preisp_meta *meta_data)
+ {
+diff --git a/rk1608/src/preisp_process.cpp b/rk1608/src/preisp_process.cpp
+index d629ec5..79b31af 100644
+--- a/rk1608/src/preisp_process.cpp
++++ b/rk1608/src/preisp_process.cpp
+@@ -1,19 +1,37 @@
+ #include "video.h"
+ #include "preisp_process.h"
+ 
+-preisp_process::preisp_process(struct Video *video) : StreamPUBase("ispprocess", false, true)
++extern "C" int preisp_send_msg(int fd, msg_t *msg);
++inline size_t align4(size_t size)
++{
++    return (size + 3) & ~3;
++}
++
++preisp_process::preisp_process(struct Video *video, int client_id) :
++    StreamPUBase("ispprocess", false, true)
+ {
+     printf("preisp_process\n");
+     mVideo = video;
++    mclient_id = client_id;
+     ae_status = -1;
++    mpreisp_ctx = 0;
++    mpreisp_cfg= 0;
+ }
+ 
+ preisp_process::~preisp_process()
+ {
++    preisp_context *ctx = (preisp_context *)mpreisp_ctx;
++    preisp_cfg *cfg = (preisp_cfg*)mpreisp_cfg;
++
+ 	printf("~preisp_process\n");
++    preisp_deinit(ctx);
++    mpreisp_cfg = 0;
++    mpreisp_ctx = 0;
++    delete ctx;
++    delete cfg;
+ }
+ 
+-bool preisp_process::send_meta(struct HAL_Buffer_MetaData* metaData)
++bool preisp_process::send_meta_in_all(struct HAL_Buffer_MetaData* metaData)
+ {
+     preisp_meta meta;
+ 
+@@ -27,8 +45,157 @@ exit:
+     return false;
+ }
+ 
++
++bool preisp_process::preisp_hdr(int start)
++{
++	int size, ret = -1;
++	msg_hdr msg;
++    preisp_context *ctx = (preisp_context *)mpreisp_ctx;
++    preisp_cfg *cfg = (preisp_cfg *)mpreisp_cfg;
++
++    printf("send_meta:enter....\n");
++    msg.hdr.start = start;
++    msg.head.size = align4(sizeof(msg_hdr))/4;
++    msg.head.type = 0xff01;
++    msg.head.camera_id = cfg->client_id;
++    msg.head.sync = 1;
++
++	ret = preisp_send_msg(ctx->mfd, (msg_t*)&msg);
++    if(ret) {
++        printf("send_meta:preisp_send_msg fail %d", ret);
++        goto exit;
++    }
++	ret = 0;
++exit:
++	return ret;
++}
++
++bool preisp_process::send_sensor_info(struct HAL_Buffer_MetaData* metaData)
++{
++	int size, ret = -1;
++	msg_set_sensor_info_t msg;
++    preisp_context *ctx = (preisp_context *)mpreisp_ctx;
++    preisp_cfg *cfg = (preisp_cfg *)mpreisp_cfg;
++    struct v4l2_buffer_metadata_s *drv_metadata = (struct v4l2_buffer_metadata_s *)metaData->metedata_drv;
++    struct cifisp_isp_metadata *ispdrv_metadata = (struct cifisp_isp_metadata*)drv_metadata->isp;
++
++    printf("send_meta:enter....\n");
++    /* here fill meta_data */
++    //msg.r_gain = metaData->
++    //msg.b_gain;
++    //msg.exp_time[3];
++    //msg.exp_gain[3];
++    //msg.lsc_table[17*17];
++    //msg.exp_gain = metaData->exp_gain;
++    memcpy(msg.lsc_table, ispdrv_metadata->other_cfg.lsc_config.gr_data_tbl, sizeof(msg.lsc_table));
++    //drv_metadata->other_cfg.lsc_config.gb_data_tbl
++
++    msg.size = align4(sizeof(msg_set_sensor_info_t))/4;
++    msg.type = id_msg_set_sensor_info_t;
++    msg.camera_id = cfg->client_id;
++    msg.sync = 1;
++
++	ret = preisp_send_msg(ctx->mfd, (msg_t*)&msg);
++    if(ret) {
++        printf("send_meta:preisp_send_msg fail %d", ret);
++        goto exit;
++    }
++	ret = 0;
++exit:
++	return ret;
++}
++
++bool preisp_process::send_meta(struct HAL_Buffer_MetaData* metaData)
++{
++	int size, ret = -1;
++	msg_meta msg;
++    preisp_context *ctx = (preisp_context *)mpreisp_ctx;
++    preisp_cfg *cfg = (preisp_cfg *)mpreisp_cfg;
++
++    printf("send_meta:enter....\n");
++    /* here fill meta_data */
++
++    msg.head.size = align4(sizeof(msg_meta))/4;
++    msg.head.type = id_msg_set_sensor_info_t;
++    msg.head.camera_id = cfg->client_id;
++    msg.head.sync = 1;
++
++	ret = preisp_send_msg(ctx->mfd, (msg_t*)&msg);
++    if(ret) {
++        printf("send_meta:preisp_send_msg fail %d", ret);
++        goto exit;
++    }
++	ret = 0;
++exit:
++	return ret;
++}
++
++bool preisp_process::prepare(const frm_info_t& frmFmt, unsigned int numBuffers,
++                             shared_ptr<CameraBufferAllocator> allocator)
++{
++    printf("preisp_process::prepare\n");
++    preisp_context *ctx = 0;
++    preisp_cfg *cfg = 0;
++
++    ctx = new preisp_context;
++    if(!ctx) {
++        printf("alloc preisp_context fail\n");
++        goto err_exit;
++    }
++    cfg = new preisp_cfg;
++    if(!cfg) {
++        printf("alloc preisp_cfg fail\n");
++        goto err_exit;
++    }
++    cfg->client_id = mclient_id;
++    if(preisp_init(ctx, cfg)) {
++        printf("preisp_init fail\n");
++        goto err_exit;
++    }
++    printf("preisp_init successfully\n");
++    mpreisp_ctx = ctx;
++    mpreisp_cfg = cfg;
++    return StreamPUBase::prepare(frmFmt, numBuffers, allocator);
++err_exit:
++    mpreisp_ctx = 0;
++    mpreisp_cfg = 0;
++    if(cfg)
++        delete cfg;
++    if(ctx)
++        delete ctx;
++
++    return false;
++}
++
+ bool preisp_process::bufferReady(weak_ptr<BufferBase> buffer, int status)
+ {
++#if 0
++    UNUSED_PARAM(status);
++    shared_ptr<BufferBase> spCamBuf = buffer.lock();
++    enum HAL_AE_STATE ae_state;
++
++    mVideo->hal->dev->getAeState(ae_state);
++    if (ae_status != ae_state) {
++        if (HAL_AE_STATE_STABLE == ae_state) {
++            printf("HAL_AE_STATE_STABLE == ae_state\n");
++            //mVideo->hal->dev->set3ALocks(HAL_3A_LOCKS_EXPOSURE);
++            if (spCamBuf.get()) {
++                struct HAL_Buffer_MetaData* metaData = spCamBuf->getMetaData();
++                if (metaData) {
++                    if (send_meta_inall(metaData)) {
++                        printf("send_meta(metaData) successfully\n");
++                        ae_status = ae_state;
++                    } else {
++                        printf("send_meta(metaData) fail\n");
++                    }
++                }
++            }
++        } else {
++            printf("HAL_AE_STATE_UNSTABLE == ae_state\n");
++            ae_status = ae_state;
++        }
++    }
++#else
+     UNUSED_PARAM(status);
+     shared_ptr<BufferBase> spCamBuf = buffer.lock();
+     enum HAL_AE_STATE ae_state;
+@@ -41,7 +208,7 @@ bool preisp_process::bufferReady(weak_ptr<BufferBase> buffer, int status)
+             if (spCamBuf.get()) {
+                 struct HAL_Buffer_MetaData* metaData = spCamBuf->getMetaData();
+                 if (metaData) {
+-                    if(send_meta(metaData)) {
++                    if(!send_meta(metaData)) {
+                         printf("send_meta(metaData) successfully\n");
+                         ae_status = ae_state;
+                     } else {
+@@ -54,6 +221,7 @@ bool preisp_process::bufferReady(weak_ptr<BufferBase> buffer, int status)
+             ae_status = ae_state;
+         }
+     }
++#endif
+     return true;
+ }
+ 
+-- 
+2.7.4
+

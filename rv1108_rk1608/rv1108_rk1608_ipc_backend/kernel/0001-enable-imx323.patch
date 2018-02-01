@@ -1,0 +1,60 @@
+From d6939d047e4ef00aaf2cad079413babd5386a3db Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 1 Feb 2018 18:47:18 +0800
+Subject: [PATCH] enable imx323
+
+Change-Id: Ib107fc22eaf79eefba73f702a7aa1c3e4bb4e449
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts | 5 ++---
+ arch/arm/boot/dts/rv1108.dtsi               | 4 ++--
+ 2 files changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts b/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts
+index 6e53f6c..5f5c4f9 100644
+--- a/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts
++++ b/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts
+@@ -305,7 +305,7 @@
+ 		wakeup-gpio = <&gpio3 GPIO_B1 GPIO_ACTIVE_HIGH>;
+ 		//powerdown-gpio = <&gpio8 GPIO_A0 GPIO_ACTIVE_HIGH>;
+ 		pinctrl-names = "default";
+-		pinctrl-0 = <&preisp_reset_gpios &preisp_irq_gpios &preisp_wake_gpios &preisp_sleep_gpios &preisp_mclk_gpios>;
++		pinctrl-0 = <&preisp_reset_gpios &preisp_irq_gpios &preisp_wake_gpios &preisp_sleep_gpios>;
+ 		//firmware-nowait-mode = <1>;
+ 		//TODO:
+ 		//regulator config...
+@@ -404,8 +404,7 @@
+ };
+ 
+ &cif_isp0 {
+-	rockchip,camera-modules-attached = <&spi0>;
+-	//rockchip,camera-modules-attached = <&camera0 &camera1 &camera2 &camera3 &camera4>;
++	rockchip,camera-modules-attached = <&camera0 &camera1 &camera2 &camera3 &camera4>;
+ 	status = "okay";
+ };
+ 
+diff --git a/arch/arm/boot/dts/rv1108.dtsi b/arch/arm/boot/dts/rv1108.dtsi
+index 370b274..da8af4a 100644
+--- a/arch/arm/boot/dts/rv1108.dtsi
++++ b/arch/arm/boot/dts/rv1108.dtsi
+@@ -1962,7 +1962,7 @@
+ 						<3 GPIO_C6 RK_FUNC_1 &pcfg_pull_none>; /* cif_vsync */
+ 			};
+ 			cif_dvp_clk_out: cif-dvp-clk-out {
+-				rockchip,pins = <3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
++				rockchip,pins = <3 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>;
+ 			};
+ 			cif_dvp_clk_in: cif-dvp-clk-in {
+ 				rockchip,pins = <3 GPIO_C7 RK_FUNC_1 &pcfg_pull_none>;
+@@ -1978,7 +1978,7 @@
+ 						<3 GPIO_D4 RK_FUNC_GPIO &pcfg_pull_none>;
+ 			};
+ 			cif_dvp_clk_out_sleep: cif-dvp-clk-out-sleep {
+-				rockchip,pins = <3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
++				rockchip,pins = <3 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>;
+ 			};
+ 			cif_dvp_clk_in_sleep: cif-dvp-clk-in-sleep {
+ 				rockchip,pins = <3 GPIO_C7 RK_FUNC_GPIO &pcfg_pull_none>;
+-- 
+2.7.4
+

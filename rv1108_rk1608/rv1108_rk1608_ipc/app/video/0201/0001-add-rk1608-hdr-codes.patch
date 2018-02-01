@@ -1,0 +1,1243 @@
+From 8414baa4287db9f434900d132eca61c3025f4229 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 31 Jan 2018 18:24:17 +0800
+Subject: [PATCH 1/2] add rk1608 hdr codes
+
+Change-Id: I6837efd3a6e7b274a47038abeba465be378a5a12
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ Makefile                      |   3 +-
+ rk1608/inc/preisp_api.h       |  27 ++++
+ rk1608/inc/preisp_c_api.h     |  73 +++++++++
+ rk1608/inc/preisp_msg.h       | 360 ++++++++++++++++++++++++++++++++++++++++++
+ rk1608/inc/preisp_process.h   |  31 ++++
+ rk1608/inc/rk_preisp_dev.h    | 101 ++++++++++++
+ rk1608/inc/types.h            | 102 ++++++++++++
+ rk1608/src/preisp_api.c       | 130 +++++++++++++++
+ rk1608/src/preisp_process.cpp |  59 +++++++
+ rk1608/src/rk_preisp_dev.c    | 175 ++++++++++++++++++++
+ video.cpp                     |  13 ++
+ video.h                       |   6 +-
+ 12 files changed, 1078 insertions(+), 2 deletions(-)
+ create mode 100644 rk1608/inc/preisp_api.h
+ create mode 100644 rk1608/inc/preisp_c_api.h
+ create mode 100644 rk1608/inc/preisp_msg.h
+ create mode 100644 rk1608/inc/preisp_process.h
+ create mode 100644 rk1608/inc/rk_preisp_dev.h
+ create mode 100644 rk1608/inc/types.h
+ create mode 100644 rk1608/src/preisp_api.c
+ create mode 100644 rk1608/src/preisp_process.cpp
+ create mode 100644 rk1608/src/rk_preisp_dev.c
+
+diff --git a/Makefile b/Makefile
+index 51e69d9..e6d6965 100644
+--- a/Makefile
++++ b/Makefile
+@@ -2,7 +2,7 @@ BIN	 = video
+ CC	 = ../../prebuilts/toolschain/usr/bin/arm-linux-gcc
+ CPP	 = ../../prebuilts/toolschain/usr/bin/arm-linux-g++
+ 
+-INCS	 = -I./../../out/system/include/ -I./ -Iav_wrapper/ -I./watermark/ -I./power/ -I./network/ -I./uvc/
++INCS	 = -I./../../out/system/include/ -I./ -Iav_wrapper/ -I./watermark/ -I./power/ -I./network/ -I./uvc/ -Irk1608/inc
+ 
+ 
+ LIBS	 = -L./../../out/system/lib -lcam_hal  \
+@@ -75,6 +75,7 @@ TMP_CSRCS = $(wildcard *.c api/*.c av_wrapper/decoder_demuxing/*.c customer_inte
+ ETCPATH  = ../../out/system/etc
+ RESPATH  = ../../out/system/share/minigui/res/images
+ 
++TMP_CSRCS += $(wildcard rk1608/src/*.c)
+ #Resolution = 320x240 ###Screan Resolution = 852*480; BOARD VERSION=V10/V11
+ #Resolution = 854x480 ###Screan Resolution = 854*480; BOARD VERSION=V10/V11
+ Resolution = 1280x720 ###Screan Resolution = 1280*720; BOARD VERSION=V12
+diff --git a/rk1608/inc/preisp_api.h b/rk1608/inc/preisp_api.h
+new file mode 100644
+index 0000000..996e31b
+--- /dev/null
++++ b/rk1608/inc/preisp_api.h
+@@ -0,0 +1,27 @@
++#ifndef _PREISP_API_H_
++#define _PREISP_API_H_
++#if defined(__cplusplus)
++extern "C" {
++#endif
++
++typedef struct _preisp_cfg_{
++	int client_id;
++} preisp_cfg;
++
++typedef struct _preisp_context_{
++	int mfd;
++} preisp_context;
++
++typedef struct _meta_data_ {
++	int i;
++} preisp_meta;
++int preisp_hdr_start(preisp_meta *meta_data);
++
++int preisp_init(preisp_context *ctx, preisp_cfg *cfg);
++int preisp_deinit(preisp_context *ctx);
++
++
++#if defined(__cplusplus)
++}
++#endif
++#endif
+diff --git a/rk1608/inc/preisp_c_api.h b/rk1608/inc/preisp_c_api.h
+new file mode 100644
+index 0000000..3f69cef
+--- /dev/null
++++ b/rk1608/inc/preisp_c_api.h
+@@ -0,0 +1,73 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#ifndef __RK_PREISP_C_API_H__
++#define __RK_PREISP_C_API_H__
++
++#include "preisp_common.h"
++
++#if defined(__cplusplus)
++extern "C" {
++#endif
++
++int preisp_start_input_stream(int id);
++
++int preisp_stop_input_stream(int id);
++
++int preisp_start_output_stream(int id);
++
++int preisp_stop_output_stream(int id);
++
++int preisp_set_size(int id, int w, int h, int mode);
++
++int preisp_enable_rtalgo(int id, preisp_rt_algo_type type);
++
++int preisp_disable_rtalgo(int id, preisp_rt_algo_type type);
++
++int preisp_set_rt_args_now(int id, const struct preisp_rt_args_now *args);
++
++int preisp_set_rt_args_delay(int id, const struct preisp_rt_args_delay *args);
++
++int preisp_set_algo(int id, preisp_algo_type type);
++
++int preisp_take_picture(int id, const struct preisp_algo_args *args);
++
++int preisp_take_picture_done(int id);
++
++int preisp_sleep_suspend(void);
++
++int preisp_sleep_bypass(void);
++
++int preisp_sleep_wakeup(void);
++
++#if defined(__cplusplus)
++}  /* extern "C" */
++#endif
++
++#endif
+diff --git a/rk1608/inc/preisp_msg.h b/rk1608/inc/preisp_msg.h
+new file mode 100644
+index 0000000..ef02c77
+--- /dev/null
++++ b/rk1608/inc/preisp_msg.h
+@@ -0,0 +1,360 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#ifndef __RK_PREISP_MSG_H__
++#define __RK_PREISP_MSG_H__
++
++#if defined(__cplusplus)
++extern "C" {
++#endif
++
++enum {
++    RK_BAYER_RGGB = 0,
++    RK_BAYER_BGGR = 1,
++    RK_BAYER_GRBG = 2,
++    RK_BAYER_GBRG = 3
++};
++
++#define RK_CSI_EMBED_DATA        0x12
++#define RK_CSI_RESERVED_DATA_0   0x13
++#define RK_CSI_YUV422_8          0x1E
++#define RK_CSI_RAW8              0x2A
++#define RK_CSI_RAW10             0x2B
++#define RK_CSI_RAW12             0x2C
++#define RK_CSI_RAW14             0x2D
++#define RK_CSI_DPCM6             0x32
++#define RK_CSI_DPCM8             0x30
++
++#define RK_CSI_DECODE_8BIT         0x2A
++#define RK_CSI_DECODE_10BIT        0x2B
++#define RK_CSI_DECODE_12BIT        0x2C
++#define RK_CSI_DECODE_14BIT        0x2D
++
++enum {
++    //AP -> DSP sensor msg
++    id_msg_init_sensor_t = 0x0001,
++    id_msg_set_input_size_t,
++    id_msg_set_output_size_t,
++    id_msg_set_stream_in_on_t,
++    id_msg_set_stream_in_off_t,
++    id_msg_set_stream_out_on_t,
++    id_msg_set_stream_out_off_t,
++    id_msg_set_fast_3a_on_t,
++    id_msg_set_fast_3a_off_t,
++
++    id_msg_set_algo_nightshot_t = 0x0011,
++    id_msg_set_algo_antishaking_t,
++    id_msg_set_algo_hdr_t,
++    id_msg_set_algo_null_t,
++
++    id_msg_take_picture_t = 0x0021,
++    id_msg_take_picture_done_t,
++
++    id_msg_set_rt_zzhdr_on_t = 0x0031,
++    id_msg_set_rt_zzhdr_off_t,
++    id_msg_set_rt_dgain_on_t,
++    id_msg_set_rt_dgain_off_t,
++    id_msg_rt_now_args_t,
++    id_msg_rt_delay_args_t,
++
++    //AP -> DSP system msg
++    id_msg_set_sys_mode_bypass_t = 0x0200,
++    id_msg_set_sys_mode_standby_t,
++
++    id_msg_set_log_level_t = 0x0250,
++
++    //DSP -> AP response sensor msg
++    id_msg_init_sensor_ret_t = 0x0300,
++    id_msg_set_input_size_ret_t,
++    id_msg_set_output_size_ret_t,
++    id_msg_set_stream_in_on_ret_t,
++    id_msg_set_stream_in_off_ret_t,
++    id_msg_set_stream_out_on_ret_t,
++    id_msg_set_stream_out_off_ret_t,
++    id_msg_set_fast_3a_on_ret_t,
++    id_msg_set_fast_3a_off_ret_t,
++
++    id_msg_set_algo_nightshot_ret_t = 0x0310,
++    id_msg_set_algo_antishaking_ret_t,
++    id_msg_set_algo_hdr_ret_t,
++    id_msg_set_algo_null_ret_t,
++
++    id_msg_take_picture_ret_t = 0x0320,
++    id_msg_take_picture_done_ret_t,
++
++    id_msg_set_rt_zzhdr_on_ret_t = 0x0330,
++    id_msg_set_rt_zzhdr_off_ret_t,
++    id_msg_set_rt_dgain_on_ret_t,
++    id_msg_set_rt_dgain_off_ret_t,
++
++    //DSP -> AP notify msg
++    id_msg_picture_prepare_ret_t = 0x37f,
++    id_msg_picture_frame_ret_t = 0x0380,
++    id_msg_stats_data_t,
++
++    //DSP -> AP I2C msg
++    id_msg_do_i2c_t = 0x0390,
++    //AP -> DSP I2C response msg
++    id_msg_do_i2c_ret_t,
++
++    //DSP -> AP log print msg
++    id_msg_dsp_log_t = 0x0400,
++
++    //user define msg area
++
++	/* xfile */
++	id_msg_xfile_import_t = 0xfe00,
++	id_msg_xfile_export_t,
++    id_msg_xfile_mkdir_t,
++};
++
++typedef struct {
++    uint32_t size; // unit 4 bytes
++    uint16_t type; // msg identification
++    int8_t   camera_id;
++    int8_t   sync;
++} msg_t;
++
++// AP -> DSP msg
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++    uint32_t i2c_bus; //unused
++    uint32_t i2c_clk; //unused
++
++    int8_t in_mipi_phy;
++    int8_t out_mipi_phy;
++    int8_t mipi_lane;
++    int8_t bayer;
++} msg_init_sensor_t;
++
++typedef struct {
++    int8_t   data_id;
++    int8_t   decode_format;
++    int8_t   flag;
++    int8_t   unused;
++
++    uint16_t width;
++    uint16_t height;
++} preisp_vc_cfg_t;
++
++typedef msg_t msg_set_input_size_head_t;
++
++typedef struct {
++    msg_set_input_size_head_t head;
++    preisp_vc_cfg_t channel[0];
++} msg_set_input_size_t;
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++
++    uint16_t width;
++    uint16_t height;
++
++    uint32_t mipi_clk;
++    uint16_t line_length_pclk;
++    uint16_t frame_length_lines;
++} msg_set_output_size_t;
++
++typedef msg_t msg_set_stream_in_on_t;
++typedef msg_t msg_set_stream_in_off_t;
++typedef msg_t msg_set_stream_out_on_t;
++typedef msg_t msg_set_stream_out_off_t;
++typedef msg_t msg_set_fast_3a_on_t;
++typedef msg_t msg_set_fast_3a_off_t;
++
++typedef msg_t msg_set_algo_nightshot_t;
++typedef msg_t msg_set_algo_antishaking_t;
++typedef msg_t msg_set_algo_hdr_t;
++typedef msg_t msg_set_algo_null_t;
++
++typedef msg_t msg_set_sys_mode_bypass_t;
++typedef msg_t msg_set_sys_mode_standby_t;
++
++typedef msg_t msg_next_picture_frame_t;
++typedef msg_t msg_take_picture_done_t;
++
++typedef msg_t msg_set_rt_zzhdr_on_t;
++typedef msg_t msg_set_rt_zzhdr_off_t;
++
++typedef msg_t msg_set_rt_dgain_on_t;
++typedef msg_t msg_set_rt_dgain_off_t;
++
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++    float    redGain;
++    float    blueGain;
++    float    sensorGain;
++    float    ispGain;
++    float    shutter;
++    int32_t  luxIndex;
++    int32_t  expIndex;
++    int32_t  lumIntensity;
++    int16_t  blackLevel[4];
++    int8_t   fusionNum;
++    int8_t   outNum;
++    uint8_t  skipFrames;
++    uint8_t  shading_ch;
++    uint8_t  shading_w;
++    uint8_t  shading_h;
++    uint16_t baseFrame;
++    uint16_t coarseIntegTime;
++    uint16_t anaGainGlobal;
++    float    shading_table[0];
++} msg_take_picture_t;
++
++typedef struct {
++    uint32_t size; // unit 4 bytes
++    uint16_t type; // msg identification
++    int8_t   camera_id;
++    int8_t   index;
++} msg_picture_frame_ret_t;
++
++
++enum {
++    RK_STATS_DIVISION_MODE_32X32,
++    RK_STATS_DIVISION_MODE_16X16,
++    RK_STATS_DIVISION_MODE_8X8,
++    RK_STATS_DIVISION_MODE_4X4,
++    RK_STATS_DIVISION_MODE_1X1,
++};
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++    float    redGain;
++    float    blueGain;
++    float    ispGain;
++    uint8_t  shading_w;
++    uint8_t  shading_h;
++    uint8_t  shading_ch;
++    uint8_t  unused;
++    int16_t  blackLevel[4];
++    float    shading_table[0];
++} msg_rt_now_args_t;
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   sync;
++    float    sensorGain;
++    float    dGain;
++    float    ratio;
++    uint16_t coarse_integ_time;
++    uint16_t ana_gain_global;
++} msg_rt_delay_args_t;
++
++typedef msg_t msg_set_stats_on_t;
++typedef msg_t msg_set_stats_off_t;
++
++// DSP -> AP msg
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    int8_t   err;
++} msg_response_t;
++
++typedef msg_response_t msg_init_sensor_ret_t;;
++typedef msg_response_t msg_set_input_size_ret_t;
++typedef msg_response_t msg_set_output_size_ret_t;
++typedef msg_response_t msg_set_stream_in_on_ret_t;
++typedef msg_response_t msg_set_stream_in_off_ret_t;
++typedef msg_response_t msg_set_stream_out_on_ret_t;
++typedef msg_response_t msg_set_stream_out_off_ret_t;
++typedef msg_response_t msg_set_fast_3a_on_ret_t;
++typedef msg_response_t msg_set_fast_3a_off_ret_t;
++typedef msg_response_t msg_set_algo_nightshot_ret_t;
++typedef msg_response_t msg_set_algo_antishaking_ret_t;
++typedef msg_response_t msg_set_algo_hdr_ret_t;
++typedef msg_response_t msg_set_algo_null_ret_t;
++typedef msg_response_t msg_take_picture_ret_t;
++typedef msg_response_t msg_take_picture_done_ret_t;
++typedef msg_response_t msg_set_rt_zzhdr_on_ret_t;
++typedef msg_response_t msg_set_rt_zzhdr_off_ret_t;
++typedef msg_response_t msg_set_stats_on_ret_t;
++typedef msg_response_t msg_set_stats_off_ret_t;
++typedef msg_response_t msg_set_rt_dgain_on_ret_t;
++typedef msg_response_t msg_set_rt_dgain_off_ret_t;
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t  camera_id;
++    int8_t  log_level;
++} msg_dsp_log_t;
++
++typedef msg_dsp_log_t msg_set_log_level_t;
++
++typedef struct {
++    uint32_t size;
++    uint16_t type;
++    int8_t   camera_id;
++    uint8_t  division;
++} msg_stats_head_t;
++
++typedef struct {
++    msg_stats_head_t head;
++    uint16_t data[2];
++} msg_stats_data_t;
++
++#define MSG_SIZE(m) ((m).size * 4)
++
++#define MSG(TYPE, ID, var) TYPE var; \
++    var.size = sizeof(TYPE)/4;\
++    var.type = id_ ## TYPE;\
++    var.camera_id = ID
++
++//AP -> DSP sync msg, dsp must send msg_response_t to AP
++#define SYNC_MSG(TYPE, ID, var) MSG(TYPE, ID, var); var.sync = 1
++
++//AP -> DSP async msg, dsp not need to send msg_response_t to AP
++#define ASYNC_MSG(TYPE, ID, var) MSG(TYPE, ID, var); var.sync = 0
++
++//DSP -> AP msg
++#define RET_MSG(TYPE, var) MSG(TYPE, -1, var)
++
++#if defined(__cplusplus)
++}  /* extern "C" */
++#endif
++
++#endif
+diff --git a/rk1608/inc/preisp_process.h b/rk1608/inc/preisp_process.h
+new file mode 100644
+index 0000000..00e0eaf
+--- /dev/null
++++ b/rk1608/inc/preisp_process.h
+@@ -0,0 +1,31 @@
++#include <CameraHal/StrmPUBase.h>
++#include <dpp/dpp_frame.h>
++#include <dpp/dpp_types.h>
++#include "preisp_api.h"
++#ifndef _PREISP_PROCESS_H_
++#define _PREISP_PROCESS_H_
++
++using namespace std;
++
++#define DPP_OUT_BUFFER_NUM  3
++
++class preisp_process : public StreamPUBase
++{
++public:
++    preisp_process(struct Video *video);
++    ~preisp_process();
++protected:
++    virtual bool bufferReady(weak_ptr<BufferBase> buffer, int status);
++    bool send_meta(struct HAL_Buffer_MetaData* metaData);
++    //virtual bool processFrame(shared_ptr<BufferBase> inBuf, shared_ptr<BufferBase> outBuf);
++    struct Video *mVideo;
++    int ae_status;
++    void *preisp_ctx;
++    void *cfg;
++};
++#endif
++
++
++
++
++
+diff --git a/rk1608/inc/rk_preisp_dev.h b/rk1608/inc/rk_preisp_dev.h
+new file mode 100644
+index 0000000..ee6065c
+--- /dev/null
++++ b/rk1608/inc/rk_preisp_dev.h
+@@ -0,0 +1,101 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#ifndef __RK_PREISP_SPI_H__
++#define __RK_PREISP_SPI_H__
++
++#include <linux/ioctl.h>
++#include <preisp_msg.h>
++
++#if defined(__cplusplus)
++extern "C" {
++#endif
++
++#define PREISP_DEV_PATH "/dev/rk_preisp"
++#define PREISP_FW_NAME_LEN 128
++
++struct preisp_apb_pkt {
++    int32_t  data_len;
++    int32_t  addr;
++    int32_t *data;
++};
++
++#define PREISP_IRQ_TYPE_MSG 0x12345678
++
++#define PREISP_APB_MAX_OP_BYTES 60000
++
++#ifndef MIN
++#define MIN(a, b) ((a) < (b) ? (a) : (b))
++#endif
++
++enum {
++    PREISP_SLEEP_MODE_BYPASS = 0,
++    PREISP_SLEEP_MODE_STANDBY,
++    PREISP_SLEEP_MODE_MAX
++};
++
++#define PREISP_POWER_ON     _IO('p',   1)
++#define PREISP_POWER_OFF    _IO('p',   2)
++#define PREISP_REQUEST_SLEEP _IOW('p',  3, int32_t)
++#define PREISP_WAKEUP       _IO('p',   4)
++#define PREISP_DOWNLOAD_FW _IOW('p',  5, char[PREISP_FW_NAME_LEN])
++#define PREISP_APB_WRITE   _IOW('p',  6, struct preisp_apb_pkt)
++#define PREISP_APB_READ    _IOR('p',  7, struct preisp_apb_pkt)
++#define PREISP_ST_QUERY    _IOR('p',  8, int32_t)
++#define PREISP_IRQ_REQUEST _IOW('p',  9, int32_t)
++#define PREISP_SEND_MSG    _IOW('p', 11, int32_t)
++#define PREISP_QUERY_MSG   _IOR('p', 12, int32_t)
++#define PREISP_RECV_MSG    _IOR('p', 13, int32_t)
++#define PREISP_CLIENT_CONNECT    _IOW('p', 15, int32_t)
++#define PREISP_CLIENT_DISCONNECT  _IO('p', 16)
++
++int preisp_open(void);
++int preisp_close(int fd);
++int preisp_power_on(int fd);
++int preisp_power_off(int fd);
++int preisp_request_sleep(int fd, int32_t mode);
++int preisp_wakeup(int fd);
++int preisp_download_fw(int fd, const char *fw_name);
++int preisp_apb_write(int fd, int32_t write_addr,
++        int32_t *data, int32_t len);
++int preisp_apb_read(int fd, int32_t read_addr,
++        int32_t *data, int32_t len);
++int preisp_state_query(int fd, int32_t *state);
++int preisp_interrupt_request(int fd, int32_t irq);
++int preisp_send_msg(int fd, msg_t *msg);
++int preisp_recv_msg(int fd, msg_t **msg);
++void preisp_free_received_msg(msg_t *msg);
++int preisp_client_connect(int fd, int id);
++int preisp_client_disconnect(int fd);
++
++#if defined(__cplusplus)
++}  /* extern "C" */
++#endif
++
++#endif
+diff --git a/rk1608/inc/types.h b/rk1608/inc/types.h
+new file mode 100644
+index 0000000..ce187f4
+--- /dev/null
++++ b/rk1608/inc/types.h
+@@ -0,0 +1,102 @@
++/******************************************************************************
++ *
++ * Copyright 2016, Fuzhou Rockchip Electronics Co.Ltd . All rights reserved.
++ * No part of this work may be reproduced, modified, distributed, transmitted,
++ * transcribed, or translated into any language or computer format, in any form
++ * or by any means without written permission of:
++ * Fuzhou Rockchip Electronics Co.Ltd .
++ * 
++ *
++ *****************************************************************************/
++/**
++ *   @file types.h
++ *
++ *  This file defines some basic type names like the int types.
++ *
++ *****************************************************************************/
++#ifndef TYPES_H_
++#define TYPES_H_
++
++#include <limits.h>
++
++#ifndef __cplusplus
++/* Only C99 compilers know stdbool */
++#if (__STDC_VERSION__ >= 199901L) || defined(CONFIG_HAVE_STDBOOL)
++#include <stdbool.h>
++#else
++#define bool    unsigned int
++#define true    (1)
++#define false   (0)
++#endif
++#endif
++
++
++#if defined(__GNUC__)
++#if !defined(INLINE)
++#define INLINE static inline
++#endif
++#endif
++
++#include <stddef.h>
++
++#if defined(__cplusplus) || ((__STDC_VERSION__ >= 199901L))
++#include <stdint.h>
++#else
++
++/* We only check for __int8_t_defined */
++/* as this is all that gcc defines. */
++#if !defined(__int8_t_defined)
++
++/* In the rare cases that a system does not define
++ * __int8_t_defined (Android p.e.) we check for the
++ * include guard of the stdint header */
++#if !defined(_STDINT_H)
++
++typedef unsigned char        uint8_t;
++typedef signed   char        int8_t;
++typedef unsigned short       uint16_t;
++typedef          short       int16_t;
++typedef unsigned int         uint32_t;
++typedef          int         int32_t;
++
++#if !defined(_MSC_VER)
++typedef signed   long long  int64_t;
++typedef unsigned long long  uint64_t;
++#else
++typedef signed   __int64    int64_t;
++typedef unsigned __int64    uint64_t;
++#endif /* #if !defined(_MSC_VER) */
++
++typedef unsigned int   uint_least32_t;
++typedef          int   int_least32_t;
++typedef unsigned int   uint_least8_t;
++typedef unsigned int   uint;
++typedef unsigned char  uchar;
++
++#endif /* #if !defined(_STDINT_H) */
++#endif /* #if !defined(__int8_t_defined) */
++#endif /* #if defined(__cplusplus) || ((__STDC_VERSION__ >= 199901L)) */
++
++#ifndef NULL
++#define NULL ((void*)0)
++#endif
++
++/* make lint happy: */
++typedef char CHAR;
++typedef char char_t;    /* like suggested in  Misra 6.3 (P. 29) */
++
++typedef enum {
++  BOOL_FALSE = 0,
++  BOOL_TRUE = (!BOOL_FALSE)
++} bool_t;
++
++
++#define UNUSED_PARAM(unref_param)  ((void) (unref_param));
++#define CAST_POINTER_TO_UINT32( pointer ) ((uint32_t) (pointer))
++#define CAST_POINTER_TO_INT32( pointer ) ((int32_t) (pointer))
++#define CAST_UINT32_TO_POINTER( pointerType, value ) ((pointerType)(value))
++#define CAST_INT32_TO_POINTER( value ) ((int32_t*)(value))
++#define N_ELEMENTS(s)      (sizeof(s) / sizeof ((s) [0]))
++#define ABS(a)         ((a) > 0 ? (a) : -(a))
++
++#endif /*TYPES_H_*/
+diff --git a/rk1608/src/preisp_api.c b/rk1608/src/preisp_api.c
+new file mode 100644
+index 0000000..c721405
+--- /dev/null
++++ b/rk1608/src/preisp_api.c
+@@ -0,0 +1,130 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include "types.h"
++#include <rk_preisp_dev.h>
++#include "preisp_api.h"
++
++inline size_t align4(size_t size)
++{
++    return (size + 3) & ~3;
++}
++
++int preisp_init(preisp_context *ctx, preisp_cfg *cfg)
++{
++	int client_id = 101;
++	int fd;
++
++	if (cfg) {
++		client_id = cfg->client_id;
++	}
++	fd = preisp_open();
++	if (fd > 0 ) {
++		preisp_client_connect(fd, client_id);
++		ctx->mfd = fd;
++	}
++}
++
++int preisp_deinit(preisp_context *ctx)
++{
++	int fd = ctx->mfd;
++	preisp_client_disconnect(fd);
++	preisp_close(fd);
++}
++
++preisp_context __g_preisp_ctx;
++
++int __preisp_init(preisp_cfg *cfg)
++{
++	int ret = -1;
++	int fd;
++	int client_id = 101;
++	preisp_context *ctx = &__g_preisp_ctx;
++
++	if (cfg) {
++		client_id = cfg->client_id;
++	}
++	fd = preisp_open();
++	if (fd > 0 ) {
++		preisp_client_connect(fd, client_id);
++		ctx->mfd = fd;
++		ret = 0;
++	}
++	return ret;
++}
++
++void __preisp_deinit()
++{
++	preisp_context *ctx = &__g_preisp_ctx;
++	int fd = ctx->mfd;
++
++	preisp_client_disconnect(fd);
++	preisp_close(fd);
++}
++
++typedef struct {
++    msg_t head;
++    preisp_meta meta_data;
++} msg_meta;
++
++int preisp_hdr_start(preisp_meta *meta_data)
++{
++	int size, ret = -1;
++	msg_meta msg;
++	preisp_context *ctx = &__g_preisp_ctx;
++	preisp_cfg cfg = {.client_id = 101};
++
++	ret = __preisp_init(&cfg);
++	if(ret) {
++		printf("__preisp_init fail %d", ret);
++        return ret;
++	}
++	memcpy(&msg.meta_data, meta_data, sizeof(msg.meta_data));
++
++    msg.head.size = align4(sizeof(msg_meta))/4;
++    msg.head.type = 0xff00;
++    msg.head.camera_id = 101;
++    msg.head.sync = 1;
++
++	ret = preisp_send_msg(ctx->mfd, (msg_t*)&msg);
++    if(ret) {
++        printf("preisp_send_msg fail %d", ret);
++        goto exit;
++    }
++
++	ret = 0;
++exit:
++    __preisp_deinit();
++	return ret;
++}
++
+diff --git a/rk1608/src/preisp_process.cpp b/rk1608/src/preisp_process.cpp
+new file mode 100644
+index 0000000..d629ec5
+--- /dev/null
++++ b/rk1608/src/preisp_process.cpp
+@@ -0,0 +1,59 @@
++#include "video.h"
++#include "preisp_process.h"
++
++preisp_process::preisp_process(struct Video *video) : StreamPUBase("ispprocess", false, true)
++{
++    printf("preisp_process\n");
++    mVideo = video;
++    ae_status = -1;
++}
++
++preisp_process::~preisp_process()
++{
++	printf("~preisp_process\n");
++}
++
++bool preisp_process::send_meta(struct HAL_Buffer_MetaData* metaData)
++{
++    preisp_meta meta;
++
++    printf("preisp_process::send_meta....\n");
++    if(preisp_hdr_start(&meta)) {
++        printf("preisp_process::send_meta fail\n");
++        goto exit;
++    }
++    return true;
++exit:
++    return false;
++}
++
++bool preisp_process::bufferReady(weak_ptr<BufferBase> buffer, int status)
++{
++    UNUSED_PARAM(status);
++    shared_ptr<BufferBase> spCamBuf = buffer.lock();
++    enum HAL_AE_STATE ae_state;
++
++    mVideo->hal->dev->getAeState(ae_state);
++    if (ae_status != ae_state) {
++        if (HAL_AE_STATE_STABLE == ae_state) {
++            printf("HAL_AE_STATE_STABLE == ae_state\n");
++            //mVideo->hal->dev->set3ALocks(HAL_3A_LOCKS_EXPOSURE);
++            if (spCamBuf.get()) {
++                struct HAL_Buffer_MetaData* metaData = spCamBuf->getMetaData();
++                if (metaData) {
++                    if(send_meta(metaData)) {
++                        printf("send_meta(metaData) successfully\n");
++                        ae_status = ae_state;
++                    } else {
++                        printf("send_meta(metaData) fail\n");
++                    }
++                }
++            }
++        } else {
++            printf("HAL_AE_STATE_UNSTABLE == ae_state\n");
++            ae_status = ae_state;
++        }
++    }
++    return true;
++}
++
+diff --git a/rk1608/src/rk_preisp_dev.c b/rk1608/src/rk_preisp_dev.c
+new file mode 100644
+index 0000000..30e98a1
+--- /dev/null
++++ b/rk1608/src/rk_preisp_dev.c
+@@ -0,0 +1,175 @@
++/* Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *     * Redistributions of source code must retain the above copyright
++ *       notice, this list of conditions and the following disclaimer.
++ *     * Redistributions in binary form must reproduce the above
++ *       copyright notice, this list of conditions and the following
++ *       disclaimer in the documentation and/or other materials provided
++ *       with the distribution.
++ *     * Neither the name of The Linux Foundation nor the names of its
++ *       contributors may be used to endorse or promote products derived
++ *       from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
++ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ */
++
++#include "types.h"
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <stdlib.h>
++#include <unistd.h>
++#include <rk_preisp_dev.h>
++
++int preisp_open(void)
++{
++    return open(PREISP_DEV_PATH, O_RDWR);
++}
++
++int preisp_close(int fd)
++{
++    return close(fd);
++}
++
++int preisp_power_on(int fd)
++{
++    return ioctl(fd, PREISP_POWER_ON, NULL);
++}
++
++int preisp_power_off(int fd)
++{
++    return ioctl(fd, PREISP_POWER_OFF, NULL);
++}
++
++int preisp_request_sleep(int fd, int32_t mode)
++{
++    return ioctl(fd, PREISP_REQUEST_SLEEP, mode);
++}
++
++int preisp_wakeup(int fd)
++{
++    return ioctl(fd, PREISP_WAKEUP, NULL);
++}
++
++int preisp_download_fw(int fd, const char *fw_name)
++{
++    return ioctl(fd, PREISP_DOWNLOAD_FW, fw_name);
++}
++
++int _preisp_apb_write(int fd, int32_t write_addr,
++        int32_t *data, int32_t len)
++{
++    struct preisp_apb_pkt pkt;
++
++    pkt.data_len = len;
++    pkt.addr = write_addr;
++    pkt.data = data;
++    return ioctl(fd, PREISP_APB_WRITE, &pkt);
++}
++
++int preisp_apb_write(int fd, int32_t write_addr,
++        int32_t *data, int32_t len)
++{
++    int ret = 0;
++    while (len > 0) {
++        int slen = MIN(len, PREISP_APB_MAX_OP_BYTES);
++
++        ret = _preisp_apb_write(fd, write_addr, data, slen);
++        if (ret) {
++            break;
++        }
++
++        len = len - PREISP_APB_MAX_OP_BYTES;;
++        data = (int32_t*)((int8_t*)data + PREISP_APB_MAX_OP_BYTES);
++        write_addr += PREISP_APB_MAX_OP_BYTES;
++    }
++    return ret;
++}
++
++int _preisp_apb_read(int fd, int32_t read_addr,
++        int32_t *data, int32_t len)
++{
++    struct preisp_apb_pkt pkt;
++
++    pkt.data_len = len;
++    pkt.addr = read_addr;
++    pkt.data = data;
++    return ioctl(fd, PREISP_APB_READ, &pkt);
++}
++
++int preisp_apb_read(int fd, int32_t read_addr,
++        int32_t *data, int32_t len)
++{
++    int ret = 0;
++    while (len > 0) {
++        int slen = MIN(len, PREISP_APB_MAX_OP_BYTES);
++
++        ret = _preisp_apb_read(fd, read_addr, data, slen);
++        if (ret) {
++            break;
++        }
++
++        len = len - PREISP_APB_MAX_OP_BYTES;;
++        data = (int32_t*)((int8_t*)data + PREISP_APB_MAX_OP_BYTES);
++        read_addr += PREISP_APB_MAX_OP_BYTES;
++    }
++    return ret;
++}
++
++int preisp_state_query(int fd, int32_t *state)
++{
++    return ioctl(fd, PREISP_ST_QUERY, state);
++}
++
++int preisp_interrupt_request(int fd, int32_t irq)
++{
++    return ioctl(fd, PREISP_IRQ_REQUEST, irq);
++}
++
++int preisp_send_msg(int fd, msg_t *msg)
++{
++    int ret;
++
++    ret = ioctl(fd, PREISP_SEND_MSG, msg);
++    return ret;
++}
++
++int preisp_recv_msg(int fd, msg_t **msg)
++{
++    uint32_t size = 0;
++
++    if (ioctl(fd, PREISP_QUERY_MSG, &size) || size == 0) {
++        return -1;
++    }
++
++    *msg = (msg_t*)malloc(size * 4);
++    return ioctl(fd, PREISP_RECV_MSG, *msg);
++}
++
++void preisp_free_received_msg(msg_t *msg)
++{
++    free(msg);
++}
++
++int preisp_client_connect(int fd, int id)
++{
++    return ioctl(fd, PREISP_CLIENT_CONNECT, id);
++}
++
++int preisp_client_disconnect(int fd)
++{
++    return ioctl(fd, PREISP_CLIENT_DISCONNECT, NULL);
++}
+diff --git a/video.cpp b/video.cpp
+index 9c87e4c..1476da1 100644
+--- a/video.cpp
++++ b/video.cpp
+@@ -810,6 +810,11 @@ static int video_isp_add_mp_policy_fix(struct Video* video)
+     if (hal_add_pu(video->hal->mpath, video->hal->gb_transport,
+                video->frmFmt, 0, NULL))
+         return -1;
++
++    video->hal->isp_process = shared_ptr<preisp_process>(new preisp_process(video));
++    if (hal_add_pu(video->hal->mpath, video->hal->isp_process, video->frmFmt, 0, NULL))
++        return -1;
++
+     return 0;
+ }
+ 
+@@ -994,6 +999,9 @@ static void video_isp_remove_mp_policy1(struct Video* video)
+ 
+     hal_remove_pu(video->hal->mpath, video->hal->mp_display);
+     video->hal->mp_display.reset();
++
++    hal_remove_pu(video->hal->mpath, video->hal->isp_process);
++    video->hal->isp_process.reset();
+ }
+ 
+ static int video_isp_add_mp_policy_fix(struct Video* video)
+@@ -1020,6 +1028,9 @@ static int video_isp_add_mp_policy_fix(struct Video* video)
+         return -1;
+ #endif
+ #endif
++    video->hal->isp_process = shared_ptr<preisp_process>(new preisp_process(video));
++    if (hal_add_pu(video->hal->mpath, video->hal->isp_process, video->frmFmt, 0, NULL))
++        return -1;
+     return 0;
+ }
+ 
+@@ -1037,6 +1048,8 @@ static void video_isp_remove_mp_policy_fix(struct Video* video)
+         rk_rga_close(video->raw_fd);
+ #endif
+ #endif
++    hal_remove_pu(video->hal->mpath, video->hal->isp_process);
++    video->hal->isp_process.reset();
+ }
+ #endif
+ /* sp path[0]
+diff --git a/video.h b/video.h
+index 13d6c63..801825e 100644
+--- a/video.h
++++ b/video.h
+@@ -65,7 +65,7 @@ extern "C" {
+ #include "display_process.h"
+ #include "transport_process.h"
+ #include "odt_process.h"
+-
++#include "preisp_process.h"
+ #ifdef ENABLE_RS_FACE
+ #include "face_detect_process.h"
+ #endif
+@@ -127,6 +127,7 @@ struct hal {
+   shared_ptr<TransportProcess> mp_transport;
+   shared_ptr<UvcProcess> mp_uvc;
+   shared_ptr<GBStreamProcess> gb_transport;
++  shared_ptr<preisp_process> isp_process;
+   shared_ptr<NV12_RAW> nv12_raw;
+   shared_ptr<OdtProcess> nv12_odt;
+ #ifdef ENABLE_RS_FACE
+@@ -229,6 +230,9 @@ struct Video {
+   int type;
+   int usb_type;
+   pthread_t record_id;
++  pthread_t ae_dec_id;
++  int ae_st;
++
+   int deviceid;
+   volatile int pthread_run;
+ 
+-- 
+2.7.4
+
