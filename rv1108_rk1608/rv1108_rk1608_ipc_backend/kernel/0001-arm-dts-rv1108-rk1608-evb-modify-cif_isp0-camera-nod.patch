@@ -1,28 +1,38 @@
-From d6939d047e4ef00aaf2cad079413babd5386a3db Mon Sep 17 00:00:00 2001
+From 6c9386e5145ebfce22206bb48cda656d9a550fc0 Mon Sep 17 00:00:00 2001
 From: lanshh <lsh@rock-chips.com>
-Date: Thu, 1 Feb 2018 18:47:18 +0800
-Subject: [PATCH] enable imx323
+Date: Fri, 2 Feb 2018 09:49:44 +0800
+Subject: [PATCH] arm: dts: rv1108-rk1608-evb: modify cif_isp0 camera nodes and
+ cif_dvp_clk_out pinctrl
 
-Change-Id: Ib107fc22eaf79eefba73f702a7aa1c3e4bb4e449
+Change-Id: I665baf1ab8c2aefdcfe139b5a45f84c823eb6288
 Signed-off-by: lanshh <lsh@rock-chips.com>
 ---
- arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts | 5 ++---
+ arch/arm/boot/dts/rv1108-camb-v13.dtsi      | 4 ++--
+ arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts | 3 +--
  arch/arm/boot/dts/rv1108.dtsi               | 4 ++--
- 2 files changed, 4 insertions(+), 5 deletions(-)
+ 3 files changed, 5 insertions(+), 6 deletions(-)
 
+diff --git a/arch/arm/boot/dts/rv1108-camb-v13.dtsi b/arch/arm/boot/dts/rv1108-camb-v13.dtsi
+index bbc8d27..b1b125a 100644
+--- a/arch/arm/boot/dts/rv1108-camb-v13.dtsi
++++ b/arch/arm/boot/dts/rv1108-camb-v13.dtsi
+@@ -68,10 +68,10 @@ camera2: camera-module@1a {
+ 	clock-names = "clk_cif_out";
+ 	pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+ 	pinctrl-0 = <&cif_dvp_d0d1 &cif_dvp_d2d9 &cif_dvp_d10d11
+-		&cif_dvp_clk_in &cif_dvp_clk_out &cif_dvp_sync>;
++		&cif_dvp_clk_in &cif_dvp_sync>;
+ 	pinctrl-1 = <&cif_dvp_d0d1_sleep &cif_dvp_d2d9_sleep
+ 		&cif_dvp_d10d11_sleep &cif_dvp_clk_in_sleep
+-		&cif_dvp_clk_out_sleep &cif_dvp_sync_sleep>;
++		&cif_dvp_sync_sleep>;
+ 	rockchip,pd-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
+ 	rockchip,pwr-gpio = <&gpio3 GPIO_B5 GPIO_ACTIVE_HIGH>;
+ 	rockchip,rst-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_LOW>;
 diff --git a/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts b/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts
-index 6e53f6c..5f5c4f9 100644
+index 6e53f6c..eab8791 100644
 --- a/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts
 +++ b/arch/arm/boot/dts/rv1108-rk1608-evb-v10.dts
-@@ -305,7 +305,7 @@
- 		wakeup-gpio = <&gpio3 GPIO_B1 GPIO_ACTIVE_HIGH>;
- 		//powerdown-gpio = <&gpio8 GPIO_A0 GPIO_ACTIVE_HIGH>;
- 		pinctrl-names = "default";
--		pinctrl-0 = <&preisp_reset_gpios &preisp_irq_gpios &preisp_wake_gpios &preisp_sleep_gpios &preisp_mclk_gpios>;
-+		pinctrl-0 = <&preisp_reset_gpios &preisp_irq_gpios &preisp_wake_gpios &preisp_sleep_gpios>;
- 		//firmware-nowait-mode = <1>;
- 		//TODO:
- 		//regulator config...
 @@ -404,8 +404,7 @@
  };
  
