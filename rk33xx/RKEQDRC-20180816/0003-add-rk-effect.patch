@@ -1,0 +1,2667 @@
+From b686821a150d9734789a4796f064eb98d6a9089a Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 16 Aug 2018 19:46:18 +0800
+Subject: [PATCH 3/3] add rk effect
+
+Change-Id: I99c29049fb5578ace79e0828e6a809e18ddd18f3
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ tinyalsa_hal/audio_hw.c                |   48 +
+ tinyalsa_hal/audio_hw.h                |    5 +-
+ tinyalsa_hal/res/Para_44100Hz_2ch.bin  |  Bin 0 -> 2456 bytes
+ tinyalsa_hal/res/libRK_AudioProcess.so |  Bin 0 -> 101264 bytes
+ tinyalsa_hal/voice_preprocess.c        | 1592 ++++++++++++++++++--------------
+ tinyalsa_hal/voice_preprocess.h        |   21 +-
+ 6 files changed, 979 insertions(+), 687 deletions(-)
+ create mode 100644 tinyalsa_hal/res/Para_44100Hz_2ch.bin
+ create mode 100644 tinyalsa_hal/res/libRK_AudioProcess.so
+
+diff --git a/tinyalsa_hal/audio_hw.c b/tinyalsa_hal/audio_hw.c
+index eb6c899..2bd2a6e 100644
+--- a/tinyalsa_hal/audio_hw.c
++++ b/tinyalsa_hal/audio_hw.c
+@@ -711,6 +711,10 @@ static int start_output_stream(struct stream_out *out)
+            ALOGD("%s HDMIin state open hdmiin route",__FUNCTION__);
+            route_pcm_open(HDMI_IN_NORMAL_ROUTE);
+     }
++#ifdef AUDIO_EQDRC
++    if(adev->effect_api)
++        adev->effect_api->start_record();
++#endif
+     return 0;
+ }
+ 
+@@ -1135,6 +1139,10 @@ static void do_out_standby(struct stream_out *out)
+         route_pcm_close(PLAYBACK_OFF_ROUTE);
+         ALOGD("close device");
+ 
++#ifdef AUDIO_EQDRC
++        if(adev->effect_api)
++            adev->effect_api->stop_record();
++#endif
+         /* Skip resetting the mixer if no output device is active */
+         if (adev->out_device) {
+             route_pcm_open(getRouteFromDevice(adev->out_device));
+@@ -1602,6 +1610,16 @@ false_alarm:
+ 	if (!out->output_direct){
+ 		set_data_slice((void *)buffer,out,bytes);
+ 	}
++
++#ifdef AUDIO_EQDRC
++    if (adev->effect_api != NULL) {
++        int ret = adev->effect_api->rk_effect_process(buffer, buffer, bytes, 2, pcm_format_to_bits(out->config.format));
++        if (ret < 0) {
++            memset((char *)buffer, 0x00, bytes);
++        }
++    }
++#endif
++
+ #ifdef AUDIO_3A
+     if (adev->voice_api != NULL) {
+         int ret = 0;
+@@ -2436,6 +2454,24 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
+     /* out->muted = false; by calloc() */
+     /* out->written = 0; by calloc() */
+ 
++#ifdef AUDIO_EQDRC
++    {
++        const char param[100];
++        unsigned long frame_size = ((out->config.channels*
++                                     pcm_format_to_bits(out->config.format))/8);
++        sprintf(param, "/data/Para_%dHz_%dch.bin",
++                out->config.rate, out->config.channels);
++        ALOGD("creating rk effect para file %s period size %d",
++              param, out->config.period_size);
++        adev->effect_api = rk_effect_create(param, out->config.period_size,
++                                            frame_size);
++        if (adev->effect_api == NULL) {
++            ALOGE("crate rk effect failed!");
++        }
++        ALOGD("rk effect created %x", adev->effect_api);
++    }
++#endif
++
+     pthread_mutex_lock(&adev->lock_outputs);
+     if (adev->outputs[type]) {
+         pthread_mutex_unlock(&adev->lock_outputs);
+@@ -2490,6 +2526,14 @@ static void adev_close_output_stream(struct audio_hw_device *dev,
+         }
+     }
+     pthread_mutex_unlock(&adev->lock_outputs);
++
++#ifdef AUDIO_EQDRC
++    if (adev->effect_api != NULL) {
++        rk_effect_destory();
++        adev->effect_api = NULL;
++    }
++#endif
++
+     free(stream);
+ }
+ 
+@@ -3028,6 +3072,10 @@ static int adev_open(const hw_module_t* module, const char* name,
+     adev->voice_api = NULL;
+ #endif
+ 
++#ifdef AUDIO_EQDRC
++    adev->effect_api = NULL;
++#endif
++
+     *device = &adev->hw_device.common;
+     for(int i =0; i < OUTPUT_TOTAL; i++){
+         adev->outputs[i] = NULL;
+diff --git a/tinyalsa_hal/audio_hw.h b/tinyalsa_hal/audio_hw.h
+index b13341d..ae26ae3 100644
+--- a/tinyalsa_hal/audio_hw.h
++++ b/tinyalsa_hal/audio_hw.h
+@@ -175,7 +175,7 @@ struct pcm_config pcm_config_in = {
+ #else
+ struct pcm_config pcm_config = {
+     .channels = 2,
+-    .rate = 16000,
++    .rate = 44100,
+     .period_size = 512,
+     .period_count = 6,
+     .format = PCM_FORMAT_S16_LE,
+@@ -317,6 +317,9 @@ struct audio_device {
+ #ifdef AUDIO_3A
+     rk_process_api* voice_api;
+ #endif
++#ifdef AUDIO_EQDRC
++    rk_effect_api *effect_api;
++#endif
+ 
+ };
+ 
+diff --git a/tinyalsa_hal/res/Para_44100Hz_2ch.bin b/tinyalsa_hal/res/Para_44100Hz_2ch.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..11859ed6182e1343480bdc6ac17187f23a2b409d
+GIT binary patch
+literal 2456
+zcmZQzU~ph?(Q#*BXs}1c3<C%jI5IF4I59AYIWsVv0OBeah6Za_h6A@;84|MG7%sH9
+zG3@AYV_;Bl0O46PX9C^s0Az!316T|szUP1a{`?<x_UZS!joVt7_kh^5|JLvKQmD7*
+z`dGhT?NY7%tf}?;P2@}LzogfKX@MUZ`)@vtwGVj0wSV((H+!3CPW$YR{dVWO9qd)!
+z&9nQloz+w;=>Bey8HzU<&GW8x?E#r{Nq?5*!?2xuL1rE6d2dyJXgiqQ!>(_;cu)F1
+zkeOP{{dUf;qW6K!bvh+uf8XVe9ms64_b2T9|LKCwe<a{ze{9ZKyLtU{?4GJ?gV_v&
+z9f0D7!2=ji2SDL}2pIN23`<W7fMN_l42n}2hN&$8s^dXY3sMKt2U7>4sSOSQ?Ql2%
+zG!<$OwamwpUXju&EX~5`S-|vI@utT9%CtwOp&JkH0kM(O<~ge>`_I6%IqQ6(y&y1c
+z=1mI+r_DFdG~sCzIUSZP61QCFYPJ`o?_VaLwRZijy&%2)Ykh3**0t{g>3^nn%5G}z
+z?0q0JkkjFiOncOdKC;aLrBPVi1IsA_Wfd&mA@l)Y8dPuqVPeWESUP~w$mzk$@TVQI
+zWfgL|KxQMSk?LEV_G!N_?*o~OoJNLxSp|w8NLh6NSk3^;o`Qpf%PI$89QOd#3LvRv
+S0LI&BSv6W#kzH`$)d&DO_r^8=
+
+literal 0
+HcmV?d00001
+
+diff --git a/tinyalsa_hal/res/libRK_AudioProcess.so b/tinyalsa_hal/res/libRK_AudioProcess.so
+new file mode 100644
+index 0000000000000000000000000000000000000000..ed9b2727e2fbe53e1aa3afc00185ce922dd9384f
+GIT binary patch
+literal 101264
+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%0D9$V?t?XhRdEu9G!5z
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/tinyalsa_hal/voice_preprocess.c b/tinyalsa_hal/voice_preprocess.c
+index 5e7d88a..6623d91 100644
+--- a/tinyalsa_hal/voice_preprocess.c
++++ b/tinyalsa_hal/voice_preprocess.c
+@@ -1,685 +1,907 @@
+-/*
+- * Copyright (C) 2017 The Android Open Source Project
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-/**
+- * @file    voice_preprocess.c
+- * @author  Sun Mingjun <smj@rock-chips.com>
+- * @date    2017-05-08
+- */
+-
+-//#define LOG_NDEBUG 0
+-
+-#include <pthread.h>
+-#include <semaphore.h>
+-#include <unistd.h>
+-#include <errno.h>
+-#include <pthread.h>
+-#include <stdint.h>
+-#include <stdlib.h>
+-#include <sys/time.h>
+-#include <dlfcn.h>  // for dlopen/dlclose
+-#include <fcntl.h>
+-
+-#include <cutils/log.h>
+-#include <cutils/properties.h>
+-#include <cutils/str_parms.h>
+-
+-#include <speex/speex.h>
+-#include <speex/speex_preprocess.h>
+-#include <speex/speex_resampler.h>
+-
+-
+-#include "voice_preprocess.h"
+-
+-#define LOG_TAG "voice_process"
+-
+-
+-#define MAX_BUFFER_SIZE (500 * 1024)
+-#define PROCESS_BUFFER_SIZE (256)
+-#define FILE_PATH "/etc/RK_VoicePara.bin"
+-#define false (0)
+-#define true  (1)
+-#define bool  int
+-
+-//#define ALSA_3A_DEBUG
+-#ifdef ALSA_3A_DEBUG
+-FILE *in_capture_debug;
+-FILE *out_capture_debug;
+-FILE *in_playback_debug;
+-FILE *out_playback_debug;
+-#endif
+-
+-typedef struct voiceThread_t_ {
+-    bool            running;
+-    pthread_t       thread;
+-    sem_t           sem;
+-    int             threadStatus;
+-    pthread_mutex_t queueCapLock;
+-    pthread_mutex_t queuePlyLock;
+-    pthread_mutex_t getCapOutLock;
+-    pthread_mutex_t getPlyOutLock;
+-} voiceThread_t;
+-
+-typedef struct rk_voice_api_ {
+-    int (*init)(char *para);
+-    void  (*processCapture)(short  *in, short *ref, short *out, int len);
+-    void  (*processPlayback)(short *in, short *out, int len);
+-    void  (*deinit)();
+-} rk_voice_api;
+-
+-
+-typedef struct rk_voice_handle_ {
+-    void*   voiceLibHandle;
+-    rk_voice_api *voiceApi;
+-    rk_process_api *processApi;
+-    char*  playBackBuffer;
+-    char*  captureBuffer;
+-    char*  outPlayBuffer;
+-    char*  outCaptureBuffer;
+-    SpeexResamplerState* speexCapureDownResample;
+-    SpeexResamplerState* speexCapureUpResample;
+-    SpeexResamplerState* speexPlaybackDownResample;
+-    SpeexResamplerState* speexPlaybackUpResample;
+-    voiceThread_t voice_thread;
+-    int    playbackBufferSize;
+-    int    captureBufferSize;
+-    int    outPlaybackBufferSize;
+-    int    outCaptureBufferSize;
+-    int    captureInSamplerate;
+-    int    processSamplerate;
+-    int    playbackInSamplerate;
+-    int    captureInChannels;
+-    int    processChannels;
+-    int    playbackInChannels;
+-    int    processBuffersize;
+-    int    minPlaybackBuffersize;
+-    int    minCaptureBuffersize;
+-} rk_voice_handle;
+-
+-
+-static rk_voice_handle *voice_handle = NULL;
+-static int prop_pcm_record = 0;
+-
+-static void thread_loop(rk_voice_handle* handle);
+-static void*  thread_start(void* argv);
+-static void dump_out_data(const void* buffer,size_t bytes, int *size)
+-{
+-    static FILE* fd = NULL;
+-    static int offset = 0;
+-    if(fd == NULL) {
+-        fd=fopen("/data/1.pcm","wb+");
+-        if(fd == NULL) {
+-            ALOGD("DEBUG open  error =%d ,errno = %d",fd,errno);
+-            offset = 0;
+-        }
+-    }
+-    fwrite(buffer,bytes,1,fd);
+-    offset += bytes;
+-    fflush(fd);
+-    if(offset >= (*size)*1024*1024) {
+-        *size = 0;
+-        fclose(fd);
+-        offset = 0;
+-    }
+-}
+-
+-static inline rk_voice_handle* getHandle()
+-{
+-    return voice_handle;
+-}
+-
+-
+-static int start()
+-{
+-    rk_voice_handle* voiceHandle = getHandle();
+-
+-    sem_init(&voice_handle->voice_thread.sem, 0, 1);
+-    voiceHandle->voice_thread.running = true;
+-
+-    if (voiceHandle->voice_thread.threadStatus == -1)
+-        voiceHandle->voice_thread.threadStatus = pthread_create(&voiceHandle->voice_thread.thread, NULL, thread_start, voiceHandle);
+-
+-    ALOGD("voice process start !, ret = %d", voiceHandle->voice_thread.threadStatus);
+-
+-    return 0;
+-}
+-
+-static int queueCaputureBuffer(void *buf, int size)
+-{
+-    rk_voice_handle* voiceHandle = getHandle();
+-
+-    if (voiceHandle->playbackBufferSize <= 0) {
+-        ALOGV("not queue capture buffer until playback buffer queued");
+-        return -1;
+-    }
+-
+-    pthread_mutex_lock(&voiceHandle->voice_thread.queueCapLock);
+-    if (voiceHandle->captureBufferSize + size >= MAX_BUFFER_SIZE) {
+-        ALOGW("capture buffer size out of range, flush");
+-        memset(voiceHandle->captureBuffer, 0x00, MAX_BUFFER_SIZE);
+-        voiceHandle->captureBufferSize = 0;
+-    }
+-    memcpy((char *)voiceHandle->captureBuffer + voiceHandle->captureBufferSize, (char *)buf, size);
+-    voiceHandle->captureBufferSize += size;
+-    pthread_mutex_unlock(&voiceHandle->voice_thread.queueCapLock);
+-
+-
+-    if ((voiceHandle->captureBufferSize >= voiceHandle->minCaptureBuffersize)
+-            && (voiceHandle->playbackBufferSize >= voiceHandle->minPlaybackBuffersize)) {
+-        sem_post(&voiceHandle->voice_thread.sem);
+-    }
+-    return 0;
+-}
+-
+-static int queuePlaybackBuffer(void *buf, int size)
+-{
+-    rk_voice_handle* voiceHandle = getHandle();
+-
+-    pthread_mutex_lock(&voiceHandle->voice_thread.queuePlyLock);
+-    if (voiceHandle->playbackBufferSize + size >= MAX_BUFFER_SIZE) {
+-        ALOGW("capture buffer size out of range, flush");
+-        memset(voiceHandle->playBackBuffer, 0x00, MAX_BUFFER_SIZE);
+-        voiceHandle->playbackBufferSize = 0;
+-    }
+-    memcpy((char *)voiceHandle->playBackBuffer+ voiceHandle->playbackBufferSize, (char *)buf, size);
+-    voiceHandle->playbackBufferSize+= size;
+-    pthread_mutex_unlock(&voiceHandle->voice_thread.queuePlyLock);
+-
+-    if ((voiceHandle->captureBufferSize >= voiceHandle->minCaptureBuffersize)
+-            && (voiceHandle->playbackBufferSize >= voiceHandle->minPlaybackBuffersize)) {
+-        sem_post(&voiceHandle->voice_thread.sem);
+-    }
+-    return 0;
+-}
+-
+-static int getCapureBuffer(void *buf, int size)
+-{
+-    rk_voice_handle* voiceHandle = getHandle();
+-
+-    if (voiceHandle->outCaptureBufferSize < size) {
+-        ALOGW("cannot get caputre buffer currently, try next time");
+-        return -1;
+-    }
+-    pthread_mutex_lock(&voiceHandle->voice_thread.getCapOutLock);
+-    memcpy((char *)buf, voiceHandle->outCaptureBuffer, size);
+-    memcpy(voiceHandle->outCaptureBuffer, voiceHandle->outCaptureBuffer+size, MAX_BUFFER_SIZE-size);
+-    voiceHandle->outCaptureBufferSize -= size;
+-    pthread_mutex_unlock(&voiceHandle->voice_thread.getCapOutLock);
+-    return 0;
+-}
+-
+-static int getPlaybackBuffer(void *buf, int size)
+-{
+-    rk_voice_handle* voiceHandle = getHandle();
+-
+-    if (voiceHandle->outPlaybackBufferSize < size) {
+-        ALOGW("cannot get playback buffer currently, try next time");
+-        return -1;
+-    }
+-    pthread_mutex_lock(&voiceHandle->voice_thread.getPlyOutLock);
+-    memcpy((char *)buf, (char *)voiceHandle->outPlayBuffer, size);
+-    memcpy((char *)voiceHandle->outPlayBuffer, (char *)voiceHandle->outPlayBuffer+size, MAX_BUFFER_SIZE-size);
+-    voiceHandle->outPlaybackBufferSize -= size;
+-    pthread_mutex_unlock(&voiceHandle->voice_thread.getPlyOutLock);
+-
+-    return 0;
+-}
+-
+-static int flush()
+-{
+-    rk_voice_handle* voiceHandle = getHandle();
+-
+-    pthread_mutex_lock(&voiceHandle->voice_thread.queuePlyLock);
+-    memset((char *)voiceHandle->playBackBuffer, 0x00, MAX_BUFFER_SIZE);
+-    voiceHandle->playbackBufferSize = 0;
+-    pthread_mutex_unlock(&voiceHandle->voice_thread.queuePlyLock);
+-
+-    pthread_mutex_lock(&voiceHandle->voice_thread.queueCapLock);
+-    memset((char *)voiceHandle->captureBuffer, 0x00, MAX_BUFFER_SIZE);
+-    voiceHandle->captureBufferSize = 0;
+-    pthread_mutex_unlock(&voiceHandle->voice_thread.queueCapLock);
+-
+-    return 0;
+-}
+-
+-
+-rk_process_api* rk_voiceprocess_create(int ply_sr, int ply_ch, int cap_sr, int cap_ch)
+-{
+-    if (voice_handle != NULL) {
+-        ALOGW(" voice handle has already opened, return");
+-        return voice_handle->processApi;
+-    }
+-
+-    voice_handle = (rk_voice_handle *)malloc(sizeof(rk_voice_handle));
+-
+-    if (voice_handle== NULL) {
+-        ALOGE("voice Handle malloc failed!");
+-        goto failed;
+-    }
+-
+-    voice_handle->voiceLibHandle        = NULL;
+-    voice_handle->voiceApi              = NULL;
+-    voice_handle->processApi            = NULL;
+-    voice_handle->playBackBuffer        = NULL;
+-    voice_handle->captureBuffer         = NULL;
+-    voice_handle->speexCapureDownResample   = NULL;
+-    voice_handle->speexCapureUpResample     = NULL;
+-    voice_handle->speexPlaybackDownResample = NULL;
+-    voice_handle->speexPlaybackUpResample   = NULL;
+-    voice_handle->playbackBufferSize     = 0;
+-    voice_handle->captureBufferSize      = 0;
+-    voice_handle->outPlaybackBufferSize  = 0;
+-    voice_handle->outCaptureBufferSize   = 0;
+-    voice_handle->captureInSamplerate    = cap_sr;
+-    voice_handle->processSamplerate      = 16000;
+-    voice_handle->playbackInSamplerate   = ply_sr;
+-    voice_handle->captureInChannels      = cap_ch;
+-    voice_handle->processChannels        = 1;
+-    voice_handle->playbackInChannels     = ply_ch;
+-
+-    voice_handle->minPlaybackBuffersize = PROCESS_BUFFER_SIZE * 2 * voice_handle->playbackInSamplerate / voice_handle->processSamplerate * voice_handle->playbackInChannels;
+-    voice_handle->minCaptureBuffersize = PROCESS_BUFFER_SIZE * 2 * voice_handle->captureInSamplerate / voice_handle->processSamplerate * voice_handle->captureInChannels;
+-
+-    voice_handle->voice_thread.running = false;
+-    voice_handle->voice_thread.threadStatus = -1;
+-
+-    // open the voice process lib
+-    voice_handle->voiceLibHandle = dlopen("/system/lib/libvoiceprocess.so", RTLD_LAZY);
+-    if (voice_handle->voiceLibHandle == NULL) {
+-        ALOGW("dlopen libvoiceprocess lib error!");
+-        goto failed;
+-    }
+-    voice_handle->voiceApi = (rk_voice_api *)malloc(sizeof(rk_voice_api));
+-    if (voice_handle->voiceApi == NULL) {
+-        ALOGE("voiceApi malloc error!  return");
+-        goto failed;
+-    }
+-
+-    memset(voice_handle->voiceApi, 0, sizeof(rk_voice_api));
+-
+-    voice_handle->voiceApi->init = (int (*)(char *))dlsym(voice_handle->voiceLibHandle,
+-                                   "RK_VOICE_Init");
+-    voice_handle->voiceApi->processCapture = (void (*)(short  *in,
+-            short *ref, short *out,
+-            int len))dlsym(voice_handle->voiceLibHandle,
+-                           "RK_VOICE_ProcessTx");
+-    voice_handle->voiceApi->processPlayback = (void (*)(short  *in,
+-            short *out,
+-            int len))dlsym(voice_handle->voiceLibHandle,
+-                           "RK_VOICE_ProcessRx");
+-    voice_handle->voiceApi->deinit= (void (*)())dlsym(voice_handle->voiceLibHandle,
+-                                    "RK_VOICE_Destory");
+-
+-    if ((voice_handle->voiceApi->init == NULL)
+-            || (voice_handle->voiceApi->processCapture == NULL)
+-            || (voice_handle->voiceApi->processPlayback == NULL)
+-            || (voice_handle->voiceApi->deinit == NULL)) {
+-        ALOGE("dlsym voice process lib failed, return");
+-        goto failed;
+-    }
+-
+-    // init the voice process lib
+-    int ret = 0;
+-    ret = voice_handle->voiceApi->init(FILE_PATH);
+-    ALOGD("voice api init ret = %d", ret);
+-    if (ret != 0) {
+-        ALOGE("init %s failed", FILE_PATH);
+-    }
+-
+-    // init the processApi interface
+-    voice_handle->processApi = (rk_process_api *)malloc(sizeof(rk_process_api));
+-    voice_handle->processApi->start = start;
+-    voice_handle->processApi->getCapureBuffer = getCapureBuffer;
+-    voice_handle->processApi->getPlaybackBuffer = getPlaybackBuffer;
+-    voice_handle->processApi->queuePlaybackBuffer = queuePlaybackBuffer;
+-    voice_handle->processApi->quueCaputureBuffer = queueCaputureBuffer;
+-    voice_handle->processApi->flush = flush;
+-
+-    // malloc process buffers
+-    voice_handle->playBackBuffer = (char *)malloc(MAX_BUFFER_SIZE);
+-    voice_handle->captureBuffer = (char *)malloc(MAX_BUFFER_SIZE);
+-    voice_handle->outPlayBuffer = (char *)malloc(MAX_BUFFER_SIZE);
+-    voice_handle->outCaptureBuffer = (char *)malloc(MAX_BUFFER_SIZE);
+-
+-    if ((voice_handle->playBackBuffer == NULL) || (voice_handle->captureBuffer == NULL)
+-            ||(voice_handle->outPlayBuffer == NULL) || (voice_handle->outCaptureBuffer == NULL)) {
+-        ALOGE("malloc playback or capure buffer falied!");
+-        goto failed;
+-    }
+-
+-    pthread_mutex_init(&voice_handle->voice_thread.queuePlyLock, NULL);
+-    pthread_mutex_init(&voice_handle->voice_thread.queueCapLock, NULL);
+-    pthread_mutex_init(&voice_handle->voice_thread.getCapOutLock, NULL);
+-    pthread_mutex_init(&voice_handle->voice_thread.getPlyOutLock, NULL);
+-
+-    if (voice_handle->captureInSamplerate != voice_handle->processSamplerate) {
+-        voice_handle->speexCapureDownResample = speex_resampler_init(1, voice_handle->captureInSamplerate, voice_handle->processSamplerate, SPEEX_RESAMPLER_QUALITY_DESKTOP, NULL);
+-        voice_handle->speexCapureUpResample = speex_resampler_init(1, voice_handle->processSamplerate, voice_handle->captureInSamplerate, SPEEX_RESAMPLER_QUALITY_DESKTOP, NULL);
+-    }
+-
+-    if (voice_handle->playbackInSamplerate!= voice_handle->processSamplerate) {
+-        voice_handle->speexPlaybackDownResample = speex_resampler_init(1, voice_handle->playbackInSamplerate, voice_handle->processSamplerate, SPEEX_RESAMPLER_QUALITY_DESKTOP, NULL);
+-        voice_handle->speexPlaybackUpResample = speex_resampler_init(1, voice_handle->processSamplerate, voice_handle->playbackInSamplerate, SPEEX_RESAMPLER_QUALITY_DESKTOP, NULL);
+-    }
+-
+-    ALOGD("voice proceess handle create success!");
+-
+-    return voice_handle->processApi;
+-
+-failed :
+-
+-    rk_voiceprocess_destory();
+-    ALOGD("voice process handle create failed");
+-    return NULL;
+-}
+-
+-
+-int rk_voiceprocess_destory()
+-{
+-    ALOGD("voiceprocess_destory");
+-    if (voice_handle == NULL) {
+-        ALOGD("voiceprocess_destory return");
+-        return 0;
+-    }
+-    if (voice_handle->voice_thread.threadStatus >= 0) {
+-        voice_handle->voice_thread.running = false;
+-        sem_post(&voice_handle->voice_thread.sem);
+-        ALOGD("join thread in");
+-        pthread_join(voice_handle->voice_thread.thread, NULL);
+-        voice_handle->voice_thread.threadStatus = -1;
+-        ALOGD("join thread out");
+-
+-        sem_destroy(&voice_handle->voice_thread.sem);
+-    }
+-
+-    if (voice_handle->speexCapureDownResample) {
+-        speex_resampler_destroy(voice_handle->speexCapureDownResample);
+-        voice_handle->speexCapureDownResample = NULL;
+-    }
+-
+-    if (voice_handle->speexCapureDownResample) {
+-        speex_resampler_destroy(voice_handle->speexCapureDownResample);
+-        voice_handle->speexCapureDownResample = NULL;
+-    }
+-
+-    if (voice_handle->speexPlaybackUpResample) {
+-        speex_resampler_destroy(voice_handle->speexPlaybackUpResample);
+-        voice_handle->speexPlaybackUpResample = NULL;
+-    }
+-
+-    if (voice_handle->speexPlaybackDownResample) {
+-        speex_resampler_destroy(voice_handle->speexPlaybackDownResample);
+-        voice_handle->speexPlaybackDownResample = NULL;
+-    }
+-
+-    if (voice_handle->playBackBuffer != NULL) {
+-        pthread_mutex_lock(&voice_handle->voice_thread.queuePlyLock);
+-        free(voice_handle->playBackBuffer);
+-        voice_handle->playBackBuffer = NULL;
+-        voice_handle->playbackBufferSize = 0;
+-        pthread_mutex_unlock(&voice_handle->voice_thread.queuePlyLock);
+-    }
+-
+-    if (voice_handle->captureBuffer != NULL) {
+-        pthread_mutex_lock(&voice_handle->voice_thread.queueCapLock);
+-        free(voice_handle->captureBuffer);
+-        voice_handle->captureBuffer = NULL;
+-        voice_handle->captureBufferSize = 0;
+-        pthread_mutex_unlock(&voice_handle->voice_thread.queueCapLock);
+-    }
+-
+-    if (voice_handle->outPlayBuffer != NULL) {
+-        pthread_mutex_lock(&voice_handle->voice_thread.getPlyOutLock);
+-        free(voice_handle->outPlayBuffer);
+-        voice_handle->outPlayBuffer = NULL;
+-        voice_handle->outPlaybackBufferSize = 0;
+-        pthread_mutex_unlock(&voice_handle->voice_thread.getPlyOutLock);
+-    }
+-
+-    if (voice_handle->outCaptureBuffer != NULL) {
+-        pthread_mutex_lock(&voice_handle->voice_thread.getCapOutLock);
+-        free(voice_handle->outCaptureBuffer);
+-        voice_handle->outCaptureBuffer = NULL;
+-        voice_handle->outCaptureBufferSize = 0;
+-        pthread_mutex_unlock(&voice_handle->voice_thread.getCapOutLock);
+-    }
+-
+-    if (voice_handle->processApi) {
+-        free(voice_handle->processApi);
+-        voice_handle->processApi = NULL;
+-    }
+-
+-    if (voice_handle->voiceApi) {
+-        voice_handle->voiceApi->deinit();
+-    }
+-
+-    if (voice_handle->voiceApi != NULL) {
+-        free(voice_handle->voiceApi);
+-        voice_handle->voiceApi = NULL;
+-    }
+-    if (voice_handle->voiceLibHandle != NULL) {
+-        dlclose(voice_handle->voiceLibHandle);
+-        voice_handle->voiceLibHandle = NULL;
+-    }
+-
+-    if (voice_handle != NULL) {
+-        free(voice_handle);
+-        voice_handle = NULL;
+-    }
+-    ALOGD("voice process handle destory success!");
+-    return 0;
+-}
+-
+-
+-static int processBuffertoMono(void *buffer, int size)
+-{
+-    short *in = (short *)buffer;
+-    short out[size/4];
+-    int i = 0, j = 0;
+-
+-    for(i = 0, j = 0; i < size/4; i++) {
+-        out[i] = (in[j] + in[j+1]) / 2;
+-        j+=2;
+-    }
+-    memset((char *)in, 0x00, size);
+-    memcpy((char *)in, (char *)out, size/2);
+-    return 0;
+-}
+-
+-static int processBuffertoStereo(void *buffer, int size)
+-{
+-    short *in = (short *)buffer;
+-    short out[size];
+-    int i = 0,j = 0;;
+-
+-    for (i = 0, j = 0; i < size/2; i++) {
+-        out[j] = in[i];
+-        out[j+1] = in[i];
+-        j+=2;
+-    }
+-    memcpy((char *)in, (char *)out, size * 2);
+-    return 0;
+-}
+-
+-
+-static void thread_loop(rk_voice_handle* handle)
+-{
+-    int playback_samplerate = handle->playbackInSamplerate;
+-    int capture_samplerate = handle->captureInSamplerate;
+-    int process_samplerate = handle->processSamplerate;
+-    int playback_channel = handle->playbackInChannels;
+-    int capture_channel = handle->captureInChannels;
+-    int process_buffer_size = PROCESS_BUFFER_SIZE * 2;
+-
+-    int playback_min_buffersize = process_buffer_size * playback_samplerate / process_samplerate * playback_channel;
+-    int capture_min_buffersize = process_buffer_size * capture_samplerate / process_samplerate * capture_channel;
+-
+-    char tmp_playback_buffer[playback_min_buffersize];
+-    char tmp_capture_buffer[capture_min_buffersize];
+-
+-    char tmp_outplayback_buffer[playback_min_buffersize];
+-    char tmp_outcapture_buffer[capture_min_buffersize];
+-#ifdef ALSA_3A_DEBUG
+-    in_capture_debug = fopen("/data/3a_capture_in.pcm","wb");//please touch /data/3a_in.pcm first
+-    out_capture_debug = fopen("/data/3a_capture_out.pcm","wb");//please touch /data/3a_out.pcm first
+-    in_playback_debug = fopen("/data/3a_playback_in.pcm","wb");//please touch /data/3a_ref.pcm first
+-    out_playback_debug = fopen("/data/3a_playback_out.pcm","wb");//please touch /data/3a_rx.pcm first
+-#endif
+-
+-    while (handle->voice_thread.running) {
+-
+-        bool isGetBuffer = false;
+-
+-        //wait the enough raw buffer
+-        if ((handle->captureBufferSize < capture_min_buffersize) || (handle->playbackBufferSize < playback_min_buffersize)) {
+-            sem_wait(&handle->voice_thread.sem);
+-        }
+-
+-        char value[PROPERTY_VALUE_MAX] = "";
+-        property_get("media.audio.record", value, NULL);
+-        prop_pcm_record = atoi(value);
+-
+-        // try to get the raw buffer to process
+-        if ((handle->captureBufferSize >= capture_min_buffersize) && (handle->playbackBufferSize >= playback_min_buffersize)) {
+-            pthread_mutex_lock(&handle->voice_thread.queueCapLock);
+-            memcpy(tmp_capture_buffer, handle->captureBuffer, capture_min_buffersize);
+-            memcpy(handle->captureBuffer, handle->captureBuffer+capture_min_buffersize, MAX_BUFFER_SIZE-capture_min_buffersize);
+-            handle->captureBufferSize -= capture_min_buffersize;
+-            pthread_mutex_unlock(&handle->voice_thread.queueCapLock);
+-
+-            pthread_mutex_lock(&handle->voice_thread.queuePlyLock);
+-            memcpy(tmp_playback_buffer, handle->playBackBuffer, playback_min_buffersize);
+-            memcpy(handle->playBackBuffer, handle->playBackBuffer+playback_min_buffersize, MAX_BUFFER_SIZE-playback_min_buffersize);
+-            handle->playbackBufferSize -= playback_min_buffersize;
+-            pthread_mutex_unlock(&handle->voice_thread.queuePlyLock);
+-            isGetBuffer = true;
+-        }
+-
+-        // process the raw buffer and queue to output list
+-        if (isGetBuffer) {
+-            // process buffer to mono
+-            if (playback_channel > 1) {
+-                processBuffertoMono(tmp_playback_buffer, playback_min_buffersize);
+-            }
+-
+-            if (capture_channel > 1) {
+-                processBuffertoMono(tmp_capture_buffer, capture_min_buffersize);
+-            }
+-
+-            // resample raw buffer to processed samplerate
+-            if (playback_samplerate != process_samplerate) {
+-                int in_sample = playback_min_buffersize / playback_channel / 2;
+-                int out_sample = in_sample;
+-                char tmp_resample_buffer[playback_min_buffersize];
+-
+-                memcpy(tmp_resample_buffer, tmp_playback_buffer, playback_min_buffersize);
+-                memset(tmp_playback_buffer, 0x00, playback_min_buffersize);
+-                speex_resampler_process_interleaved_int(handle->speexPlaybackDownResample,
+-                                                        (spx_int16_t *)tmp_resample_buffer, &in_sample,
+-                                                        (spx_int16_t *)tmp_playback_buffer, &out_sample);
+-                ALOGV("playback down resample process, in_sample = %d, out_sample = %d", in_sample, out_sample);
+-            }
+-
+-            if (capture_samplerate != process_samplerate) {
+-                int in_sample = capture_min_buffersize / capture_channel / 2;
+-                int out_sample = in_sample;
+-                char tmp_resample_buffer[playback_min_buffersize];
+-                memcpy(tmp_resample_buffer, tmp_capture_buffer, capture_min_buffersize);
+-                memset(tmp_capture_buffer, 0x00, capture_min_buffersize);
+-                speex_resampler_process_interleaved_int(handle->speexCapureDownResample,
+-                                                        (spx_int16_t *)tmp_resample_buffer, &in_sample,
+-                                                        (spx_int16_t *)tmp_capture_buffer, &out_sample);
+-                ALOGV("capture down resample process, in_sample = %d, out_sample = %d,capture_samplerate = %d", in_sample, out_sample,capture_samplerate);
+-            }
+-
+-            // main process call
+-            if (handle->voiceApi) {
+-                //memcpy((char *)tmp_outplayback_buffer, (char *)tmp_playback_buffer, PROCESS_BUFFER_SIZE * 2);
+-                //memcpy((char *)tmp_outcapture_buffer, (char *)tmp_capture_buffer, PROCESS_BUFFER_SIZE * 2);
+-                handle->voiceApi->processPlayback((short *)tmp_playback_buffer, (short *)tmp_outplayback_buffer, PROCESS_BUFFER_SIZE);
+-                handle->voiceApi->processCapture((short *)tmp_capture_buffer, (short *)tmp_outplayback_buffer, (short *)tmp_outcapture_buffer, PROCESS_BUFFER_SIZE);
+-#ifdef ALSA_3A_DEBUG           
+-                fwrite(tmp_capture_buffer,sizeof(short),PROCESS_BUFFER_SIZE,in_capture_debug);
+-                fwrite(tmp_outcapture_buffer,sizeof(short),PROCESS_BUFFER_SIZE,out_capture_debug);
+-                fwrite(tmp_playback_buffer,sizeof(short),PROCESS_BUFFER_SIZE,in_playback_debug);
+-		fwrite(tmp_outplayback_buffer,sizeof(short),PROCESS_BUFFER_SIZE,out_playback_debug);
+-#endif
+-            }
+-
+-            // upresample the processed buffer to raw buffer samplerate
+-            if (playback_samplerate != process_samplerate) {
+-                int in_sample = PROCESS_BUFFER_SIZE;
+-                int out_sample = playback_min_buffersize;
+-                memset(tmp_playback_buffer, 0x00, playback_min_buffersize);
+-                memcpy(tmp_playback_buffer, tmp_outplayback_buffer, process_buffer_size);
+-                speex_resampler_process_interleaved_int(handle->speexPlaybackUpResample,
+-                                                        (spx_int16_t *)tmp_playback_buffer, &in_sample,
+-                                                        (spx_int16_t *)tmp_outplayback_buffer, &out_sample);
+-                ALOGV("playback up resample process, in_sample = %d, out_sample = %d", in_sample, out_sample);
+-
+-            }
+-
+-            if (capture_samplerate != process_samplerate) {
+-                int in_sample = PROCESS_BUFFER_SIZE;
+-                int out_sample = capture_min_buffersize;
+-                memset(tmp_capture_buffer, 0x00, capture_min_buffersize);
+-                memcpy(tmp_capture_buffer, tmp_outcapture_buffer, process_buffer_size);
+-                speex_resampler_process_interleaved_int(handle->speexCapureUpResample,
+-                                                        (spx_int16_t *)tmp_capture_buffer, &in_sample,
+-                                                        (spx_int16_t *)tmp_outcapture_buffer, &out_sample);
+-                ALOGV("capture up resample process, in_sample = %d, out_sample = %d", in_sample, out_sample);
+-            }
+-
+-            // up adjust channel to raw buffer channels
+-            if (playback_channel > 1) {
+-                processBuffertoStereo(tmp_outplayback_buffer, playback_min_buffersize/2);
+-            }
+-
+-            if (capture_channel > 1) {
+-                processBuffertoStereo(tmp_outcapture_buffer, capture_min_buffersize/2);
+-            }
+-
+-            // queue processed buffer to output list
+-            pthread_mutex_lock(&handle->voice_thread.getCapOutLock);
+-            memcpy((char *)handle->outCaptureBuffer + handle->outCaptureBufferSize, tmp_outcapture_buffer, capture_min_buffersize);
+-            handle->outCaptureBufferSize += capture_min_buffersize;
+-            pthread_mutex_unlock(&handle->voice_thread.getCapOutLock);
+-
+-            pthread_mutex_lock(&handle->voice_thread.getPlyOutLock);
+-            memcpy((char *)handle->outPlayBuffer + handle->outPlaybackBufferSize, tmp_outplayback_buffer, playback_min_buffersize);
+-            handle->outPlaybackBufferSize += playback_min_buffersize;
+-            pthread_mutex_unlock(&handle->voice_thread.getPlyOutLock);
+-        }
+-    }
+-
+-#ifdef ALSA_3A_DEBUG
+-    fclose(in_capture_debug);
+-    fclose(out_capture_debug);
+-    fclose(in_playback_debug);
+-    fclose(out_playback_debug);
+-#endif
+-
+-}
+-
+-static void*  thread_start(void* argv)
+-{
+-    rk_voice_handle* handle = (rk_voice_handle*)argv;
+-
+-    thread_loop(handle);
+-
+-    return NULL;
+-}
+-
++/*
++ * Copyright (C) 2017 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++/**
++ * @file    voice_preprocess.c
++ * @author  Sun Mingjun <smj@rock-chips.com>
++ * @date    2017-05-08
++ */
++
++//#define LOG_NDEBUG 0
++
++#include <pthread.h>
++#include <semaphore.h>
++#include <unistd.h>
++#include <errno.h>
++#include <pthread.h>
++#include <stdint.h>
++#include <stdlib.h>
++#include <sys/time.h>
++#include <dlfcn.h>  // for dlopen/dlclose
++#include <fcntl.h>
++ #include <sys/inotify.h>
++#include <cutils/log.h>
++#include <cutils/properties.h>
++#include <cutils/str_parms.h>
++
++#include <speex/speex.h>
++#include <speex/speex_preprocess.h>
++#include <speex/speex_resampler.h>
++
++
++#include "voice_preprocess.h"
++
++#define LOG_TAG "voice_process"
++
++
++#define MAX_BUFFER_SIZE (500 * 1024)
++#define PROCESS_BUFFER_SIZE (256)
++#define FILE_PATH "/etc/RK_VoicePara.bin"
++#define false (0)
++#define true  (1)
++#define bool  int
++
++//#define ALSA_3A_DEBUG
++#ifdef ALSA_3A_DEBUG
++FILE *in_capture_debug;
++FILE *out_capture_debug;
++FILE *in_playback_debug;
++FILE *out_playback_debug;
++#endif
++
++typedef struct voiceThread_t_ {
++    bool            running;
++    pthread_t       thread;
++    sem_t           sem;
++    int             threadStatus;
++    pthread_mutex_t queueCapLock;
++    pthread_mutex_t queuePlyLock;
++    pthread_mutex_t getCapOutLock;
++    pthread_mutex_t getPlyOutLock;
++} voiceThread_t;
++
++typedef struct rk_voice_api_ {
++    int (*init)(char *para);
++    void  (*processCapture)(short  *in, short *ref, short *out, int len);
++    void  (*processPlayback)(short *in, short *out, int len);
++    void  (*deinit)();
++} rk_voice_api;
++
++
++typedef struct rk_voice_handle_ {
++    void*   voiceLibHandle;
++    rk_voice_api *voiceApi;
++    rk_process_api *processApi;
++    char*  playBackBuffer;
++    char*  captureBuffer;
++    char*  outPlayBuffer;
++    char*  outCaptureBuffer;
++    SpeexResamplerState* speexCapureDownResample;
++    SpeexResamplerState* speexCapureUpResample;
++    SpeexResamplerState* speexPlaybackDownResample;
++    SpeexResamplerState* speexPlaybackUpResample;
++    voiceThread_t voice_thread;
++    int    playbackBufferSize;
++    int    captureBufferSize;
++    int    outPlaybackBufferSize;
++    int    outCaptureBufferSize;
++    int    captureInSamplerate;
++    int    processSamplerate;
++    int    playbackInSamplerate;
++    int    captureInChannels;
++    int    processChannels;
++    int    playbackInChannels;
++    int    processBuffersize;
++    int    minPlaybackBuffersize;
++    int    minCaptureBuffersize;
++} rk_voice_handle;
++
++typedef struct rk_effect_handle_ {
++    rk_effect_api *effectApi;
++    void *effectLibHandle;
++    unsigned long period_size;
++    unsigned long frame_size;
++    /* unsigned long frame_count; */
++    char *param_name;
++    char *debug_file; /* "/data/debug.pcm" */
++#ifdef EFFECT_DUMP_AUDIO_DATA
++    char *raw_file;
++    char *processed_file;
++    FILE *raw_fd;
++    FILE *processed_fd;
++#endif
++    void *presidue_audio;
++    int presidue_length;
++} rk_effect_handle;
++
++static rk_voice_handle *voice_handle = NULL;
++static rk_effect_handle *effect_handle = NULL;
++
++static int prop_pcm_record = 0;
++
++static void thread_loop(rk_voice_handle* handle);
++static void*  thread_start(void* argv);
++static void dump_out_data(const void* buffer,size_t bytes, int *size)
++{
++    static FILE* fd = NULL;
++    static int offset = 0;
++    if(fd == NULL) {
++        fd=fopen("/data/1.pcm","wb+");
++        if(fd == NULL) {
++            ALOGD("DEBUG open  error =%d ,errno = %d",fd,errno);
++            offset = 0;
++        }
++    }
++    fwrite(buffer,bytes,1,fd);
++    offset += bytes;
++    fflush(fd);
++    if(offset >= (*size)*1024*1024) {
++        *size = 0;
++        fclose(fd);
++        offset = 0;
++    }
++}
++
++static inline rk_voice_handle* getHandle()
++{
++    return voice_handle;
++}
++
++
++static int start()
++{
++    rk_voice_handle* voiceHandle = getHandle();
++
++    sem_init(&voice_handle->voice_thread.sem, 0, 1);
++    voiceHandle->voice_thread.running = true;
++
++    if (voiceHandle->voice_thread.threadStatus == -1)
++        voiceHandle->voice_thread.threadStatus = pthread_create(&voiceHandle->voice_thread.thread, NULL, thread_start, voiceHandle);
++
++    ALOGD("voice process start !, ret = %d", voiceHandle->voice_thread.threadStatus);
++
++    return 0;
++}
++
++static int queueCaputureBuffer(void *buf, int size)
++{
++    rk_voice_handle* voiceHandle = getHandle();
++
++    if (voiceHandle->playbackBufferSize <= 0) {
++        ALOGV("not queue capture buffer until playback buffer queued");
++        return -1;
++    }
++
++    pthread_mutex_lock(&voiceHandle->voice_thread.queueCapLock);
++    if (voiceHandle->captureBufferSize + size >= MAX_BUFFER_SIZE) {
++        ALOGW("capture buffer size out of range, flush");
++        memset(voiceHandle->captureBuffer, 0x00, MAX_BUFFER_SIZE);
++        voiceHandle->captureBufferSize = 0;
++    }
++    memcpy((char *)voiceHandle->captureBuffer + voiceHandle->captureBufferSize, (char *)buf, size);
++    voiceHandle->captureBufferSize += size;
++    pthread_mutex_unlock(&voiceHandle->voice_thread.queueCapLock);
++
++
++    if ((voiceHandle->captureBufferSize >= voiceHandle->minCaptureBuffersize)
++            && (voiceHandle->playbackBufferSize >= voiceHandle->minPlaybackBuffersize)) {
++        sem_post(&voiceHandle->voice_thread.sem);
++    }
++    return 0;
++}
++
++static int queuePlaybackBuffer(void *buf, int size)
++{
++    rk_voice_handle* voiceHandle = getHandle();
++
++    pthread_mutex_lock(&voiceHandle->voice_thread.queuePlyLock);
++    if (voiceHandle->playbackBufferSize + size >= MAX_BUFFER_SIZE) {
++        ALOGW("capture buffer size out of range, flush");
++        memset(voiceHandle->playBackBuffer, 0x00, MAX_BUFFER_SIZE);
++        voiceHandle->playbackBufferSize = 0;
++    }
++    memcpy((char *)voiceHandle->playBackBuffer+ voiceHandle->playbackBufferSize, (char *)buf, size);
++    voiceHandle->playbackBufferSize+= size;
++    pthread_mutex_unlock(&voiceHandle->voice_thread.queuePlyLock);
++
++    if ((voiceHandle->captureBufferSize >= voiceHandle->minCaptureBuffersize)
++            && (voiceHandle->playbackBufferSize >= voiceHandle->minPlaybackBuffersize)) {
++        sem_post(&voiceHandle->voice_thread.sem);
++    }
++    return 0;
++}
++
++static int getCapureBuffer(void *buf, int size)
++{
++    rk_voice_handle* voiceHandle = getHandle();
++
++    if (voiceHandle->outCaptureBufferSize < size) {
++        ALOGW("cannot get caputre buffer currently, try next time");
++        return -1;
++    }
++    pthread_mutex_lock(&voiceHandle->voice_thread.getCapOutLock);
++    memcpy((char *)buf, voiceHandle->outCaptureBuffer, size);
++    memcpy(voiceHandle->outCaptureBuffer, voiceHandle->outCaptureBuffer+size, MAX_BUFFER_SIZE-size);
++    voiceHandle->outCaptureBufferSize -= size;
++    pthread_mutex_unlock(&voiceHandle->voice_thread.getCapOutLock);
++    return 0;
++}
++
++static int getPlaybackBuffer(void *buf, int size)
++{
++    rk_voice_handle* voiceHandle = getHandle();
++
++    if (voiceHandle->outPlaybackBufferSize < size) {
++        ALOGW("cannot get playback buffer currently, try next time");
++        return -1;
++    }
++    pthread_mutex_lock(&voiceHandle->voice_thread.getPlyOutLock);
++    memcpy((char *)buf, (char *)voiceHandle->outPlayBuffer, size);
++    memcpy((char *)voiceHandle->outPlayBuffer, (char *)voiceHandle->outPlayBuffer+size, MAX_BUFFER_SIZE-size);
++    voiceHandle->outPlaybackBufferSize -= size;
++    pthread_mutex_unlock(&voiceHandle->voice_thread.getPlyOutLock);
++
++    return 0;
++}
++
++static int flush()
++{
++    rk_voice_handle* voiceHandle = getHandle();
++
++    pthread_mutex_lock(&voiceHandle->voice_thread.queuePlyLock);
++    memset((char *)voiceHandle->playBackBuffer, 0x00, MAX_BUFFER_SIZE);
++    voiceHandle->playbackBufferSize = 0;
++    pthread_mutex_unlock(&voiceHandle->voice_thread.queuePlyLock);
++
++    pthread_mutex_lock(&voiceHandle->voice_thread.queueCapLock);
++    memset((char *)voiceHandle->captureBuffer, 0x00, MAX_BUFFER_SIZE);
++    voiceHandle->captureBufferSize = 0;
++    pthread_mutex_unlock(&voiceHandle->voice_thread.queueCapLock);
++
++    return 0;
++}
++
++int rk_effect_destory()
++{
++    if (voice_handle == NULL) {
++        ALOGD("rk_effect_destory return");
++        return 0;
++    }
++
++    if(effect_handle->effectLibHandle) {
++        dlclose(effect_handle->effectLibHandle);
++        effect_handle->effectLibHandle = NULL;
++    }
++
++    /* AudioPost_Destroy(); */
++    if(effect_handle->effectApi) {
++        free(effect_handle->effectApi);
++    }
++    free(effect_handle);
++    effect_handle = NULL;
++    ALOGD("rk_effect_destory free and return");
++    return 0;
++}
++
++int rk_effect_process(const void *in_buffer, void *out_buffer,
++                      unsigned long size, int pcm_channel, int bit_per_sample)
++{
++    rk_effect_handle *handle =  effect_handle;
++    int frame_size, process_count;
++    float *fin_buffer,*fout_buffer;
++    short *in16, *out16;
++    char *in8, *out8;
++    int x,y;
++
++    frame_size = effect_handle->period_size * effect_handle->frame_size;
++    if(size != frame_size) {
++        ALOGE("input_size:%d must equal to frame_size:%d", size, frame_size);
++    }
++    process_count = 1;
++    fin_buffer = (float *)malloc(effect_handle->period_size * pcm_channel * sizeof(float));
++    fout_buffer = (float *)malloc(effect_handle->period_size * pcm_channel * sizeof(float));
++#ifdef EFFECT_DUMP_AUDIO_DATA
++    if (handle->raw_fd) { /* dump raw data */
++        fwrite(in_buffer, size,1, handle->raw_fd);
++    }
++#endif
++    switch (bit_per_sample) {
++    case 8:
++        in8 = in_buffer;
++        out8 = out_buffer;
++        break;
++    case 16:/* S16_LE */
++        for(x = 0; x < process_count; x++) { /* max frame count can be processed one time */
++            in16 = &in_buffer[x*effect_handle->frame_size];
++            out16 = &out_buffer[x*effect_handle->frame_size];
++            for(y = 0; y < effect_handle->period_size * pcm_channel; y ++) /* max process unit is period_size */
++                fin_buffer[y] = in16[y];
++            effect_handle->effectApi->pfAudioPost_Process(fin_buffer, fout_buffer, pcm_channel, effect_handle->period_size);
++            for(y = 0; y < effect_handle->period_size * pcm_channel; y ++)
++                out16[y] = fout_buffer[y];
++        }
++        break;
++    case 24:
++            break;
++    case 32:
++            break;
++    default:
++            break;
++    }
++#ifdef EFFECT_DUMP_AUDIO_DATA
++    if (handle->processed_fd) { /* dump processed data */
++        fwrite(out_buffer, size,1, handle->processed_fd);
++    }
++#endif
++    free(fin_buffer);
++    free(fout_buffer);
++    return 0;
++}
++
++int start_record()
++{
++    FILE *fp;
++    rk_effect_handle *handle =  effect_handle;
++    float reset_para[614] = {0};
++
++    ALOGD("start_record");
++    if(handle->param_name) {
++        fp = fopen(handle->param_name, "rb");
++        if (fp != NULL) {
++            fread(reset_para,sizeof(float), sizeof(reset_para)/sizeof(reset_para[0]), fp);
++            (*handle->effectApi->pfAudioPost_SetPara)(reset_para, handle->period_size);
++            ALOGD("AudioPost_SetPara %s, %d", handle->param_name, handle->period_size);
++            fclose(fp);
++        } else {
++            ALOGE("ERROR:OPNE NEW BIN FILE FAILED!!!");
++        }
++    }
++#ifdef EFFECT_DUMP_AUDIO_DATA
++    if(handle->raw_file) {
++        handle->raw_fd = fopen(handle->raw_file,"wb");
++        if(!handle->raw_fd) {
++            ALOGE("fopen %s failed", handle->raw_file);
++        }
++    }
++    if(handle->processed_file) {
++        handle->processed_fd = fopen(handle->processed_file,"wb");
++        if(!handle->processed_fd) {
++            ALOGE("fopen %s failed", handle->processed_file);
++        }
++    }
++#endif
++    return 0;
++}
++
++int stop_record()
++{
++    rk_effect_handle *handle =  effect_handle;
++
++    ALOGD("stop_record");
++#ifdef EFFECT_DUMP_AUDIO_DATA
++    if (handle->raw_fd) {
++        fclose(handle->raw_fd);
++    }
++    if (handle->processed_fd) {
++        fclose(handle->processed_fd);
++    }
++#endif
++    return 0;
++}
++
++rk_effect_api *rk_effect_create(const char *param_name, unsigned long period_size, unsigned long frame_size)
++{
++    static char __param_name[100];
++    char *so = "/system/lib/libRK_AudioProcess.so";
++
++    ALOGD("rk_effect_create param_name:%s size:%d", param_name, period_size);
++    if(! period_size ) {
++        ALOGE("wrong parameters param_name:%x size:%d", param_name, period_size);
++        return NULL;
++    }
++    if(effect_handle) {
++        ALOGW(" effect handle has already opened, return");
++        return effect_handle->effectApi;
++    }
++    if(!param_name)
++        param_name = "/sdcard/Para.bin";
++
++    sprintf(__param_name, "%s", param_name);
++    effect_handle = (rk_effect_handle *)malloc(sizeof(rk_effect_handle));
++    if (effect_handle == NULL) {
++        ALOGE("rk_effect_handle malloc failed");
++        return NULL;
++    }
++    effect_handle->effectApi = (rk_effect_api *)malloc(sizeof(rk_effect_api));
++    if(effect_handle->effectApi == NULL) {
++        ALOGE("rk_effect_api malloc failed!");
++        goto failed;
++    }
++    effect_handle->param_name = __param_name;
++#if 1 /* need so */
++    ALOGD("loading %s", so);
++    effect_handle->effectLibHandle = dlopen(so, RTLD_LAZY);
++    if (!effect_handle->effectLibHandle) {
++        ALOGE("open so failed %s", dlerror());
++        goto failed;
++    }
++    effect_handle->effectApi->pfAudioPost_Init = (AudioPost_Init *)dlsym(effect_handle->effectLibHandle, "AudioPost_Init");
++    effect_handle->effectApi->pfAudioPost_Destroy = (AudioPost_Destroy *)dlsym(effect_handle->effectLibHandle, "AudioPost_Destroy");
++    effect_handle->effectApi->pfAudioPost_Process = (AudioPost_Process *)dlsym(effect_handle->effectLibHandle, "AudioPost_Process");
++    effect_handle->effectApi->pfAudioPost_SetPara = (AudioPost_SetPara *)dlsym(effect_handle->effectLibHandle, "AudioPost_SetPara");
++    if((!effect_handle->effectApi->pfAudioPost_Init)|| (!effect_handle->effectApi->pfAudioPost_Destroy)||
++       (!effect_handle->effectApi->pfAudioPost_Process)|| (!effect_handle->effectApi->pfAudioPost_SetPara)) {
++        ALOGE("load api failed!");
++        goto failed;
++    }
++#endif
++    effect_handle->effectApi->rk_effect_process = rk_effect_process;
++    effect_handle->effectApi->start_record = start_record;
++    effect_handle->effectApi->stop_record = stop_record;
++    effect_handle->presidue_audio = NULL;
++    effect_handle->presidue_length = 0;
++    effect_handle->period_size = period_size;
++    effect_handle->frame_size = frame_size;
++    /* effect_handle->frame_count = period_size/frame_size;*/
++#ifdef EFFECT_DUMP_AUDIO_DATA
++    effect_handle->raw_file = "/data/raw.pcm";
++    effect_handle->processed_file = "/data/processed.pcm";
++#endif
++    ALOGD("pfAudioPost_Init %s %d", effect_handle->param_name, effect_handle->period_size);
++    (*effect_handle->effectApi->pfAudioPost_Init)(effect_handle->param_name, effect_handle->period_size);
++    return effect_handle->effectApi;
++failed:
++    if(effect_handle) {
++        if(effect_handle->effectLibHandle) {
++            dlclose(effect_handle->effectLibHandle);
++            effect_handle->effectLibHandle = NULL;
++        }
++        if(effect_handle->effectApi) {
++            free(effect_handle->effectApi);
++        }
++	    free(effect_handle);
++        effect_handle = NULL;
++    }
++    return NULL;
++}
++
++rk_process_api* rk_voiceprocess_create(int ply_sr, int ply_ch, int cap_sr, int cap_ch)
++{
++    if (voice_handle != NULL) {
++        ALOGW(" voice handle has already opened, return");
++        return voice_handle->processApi;
++    }
++
++    voice_handle = (rk_voice_handle *)malloc(sizeof(rk_voice_handle));
++
++    if (voice_handle== NULL) {
++        ALOGE("voice Handle malloc failed!");
++        goto failed;
++    }
++
++    voice_handle->voiceLibHandle        = NULL;
++    voice_handle->voiceApi              = NULL;
++    voice_handle->processApi            = NULL;
++    voice_handle->playBackBuffer        = NULL;
++    voice_handle->captureBuffer         = NULL;
++    voice_handle->speexCapureDownResample   = NULL;
++    voice_handle->speexCapureUpResample     = NULL;
++    voice_handle->speexPlaybackDownResample = NULL;
++    voice_handle->speexPlaybackUpResample   = NULL;
++    voice_handle->playbackBufferSize     = 0;
++    voice_handle->captureBufferSize      = 0;
++    voice_handle->outPlaybackBufferSize  = 0;
++    voice_handle->outCaptureBufferSize   = 0;
++    voice_handle->captureInSamplerate    = cap_sr;
++    voice_handle->processSamplerate      = 16000;
++    voice_handle->playbackInSamplerate   = ply_sr;
++    voice_handle->captureInChannels      = cap_ch;
++    voice_handle->processChannels        = 1;
++    voice_handle->playbackInChannels     = ply_ch;
++
++    voice_handle->minPlaybackBuffersize = PROCESS_BUFFER_SIZE * 2 * voice_handle->playbackInSamplerate / voice_handle->processSamplerate * voice_handle->playbackInChannels;
++    voice_handle->minCaptureBuffersize = PROCESS_BUFFER_SIZE * 2 * voice_handle->captureInSamplerate / voice_handle->processSamplerate * voice_handle->captureInChannels;
++
++    voice_handle->voice_thread.running = false;
++    voice_handle->voice_thread.threadStatus = -1;
++
++    // open the voice process lib
++    voice_handle->voiceLibHandle = dlopen("/system/lib/libvoiceprocess.so", RTLD_LAZY);
++    if (voice_handle->voiceLibHandle == NULL) {
++        ALOGW("dlopen libvoiceprocess lib error!");
++        goto failed;
++    }
++    voice_handle->voiceApi = (rk_voice_api *)malloc(sizeof(rk_voice_api));
++    if (voice_handle->voiceApi == NULL) {
++        ALOGE("voiceApi malloc error!  return");
++        goto failed;
++    }
++
++    memset(voice_handle->voiceApi, 0, sizeof(rk_voice_api));
++
++    voice_handle->voiceApi->init = (int (*)(char *))dlsym(voice_handle->voiceLibHandle,
++                                   "RK_VOICE_Init");
++    voice_handle->voiceApi->processCapture = (void (*)(short  *in,
++            short *ref, short *out,
++            int len))dlsym(voice_handle->voiceLibHandle,
++                           "RK_VOICE_ProcessTx");
++    voice_handle->voiceApi->processPlayback = (void (*)(short  *in,
++            short *out,
++            int len))dlsym(voice_handle->voiceLibHandle,
++                           "RK_VOICE_ProcessRx");
++    voice_handle->voiceApi->deinit= (void (*)())dlsym(voice_handle->voiceLibHandle,
++                                    "RK_VOICE_Destory");
++
++    if ((voice_handle->voiceApi->init == NULL)
++            || (voice_handle->voiceApi->processCapture == NULL)
++            || (voice_handle->voiceApi->processPlayback == NULL)
++            || (voice_handle->voiceApi->deinit == NULL)) {
++        ALOGE("dlsym voice process lib failed, return");
++        goto failed;
++    }
++
++    // init the voice process lib
++    int ret = 0;
++    ret = voice_handle->voiceApi->init(FILE_PATH);
++    ALOGD("voice api init ret = %d", ret);
++    if (ret != 0) {
++        ALOGE("init %s failed", FILE_PATH);
++    }
++
++    // init the processApi interface
++    voice_handle->processApi = (rk_process_api *)malloc(sizeof(rk_process_api));
++    voice_handle->processApi->start = start;
++    voice_handle->processApi->getCapureBuffer = getCapureBuffer;
++    voice_handle->processApi->getPlaybackBuffer = getPlaybackBuffer;
++    voice_handle->processApi->queuePlaybackBuffer = queuePlaybackBuffer;
++    voice_handle->processApi->quueCaputureBuffer = queueCaputureBuffer;
++    voice_handle->processApi->flush = flush;
++
++    // malloc process buffers
++    voice_handle->playBackBuffer = (char *)malloc(MAX_BUFFER_SIZE);
++    voice_handle->captureBuffer = (char *)malloc(MAX_BUFFER_SIZE);
++    voice_handle->outPlayBuffer = (char *)malloc(MAX_BUFFER_SIZE);
++    voice_handle->outCaptureBuffer = (char *)malloc(MAX_BUFFER_SIZE);
++
++    if ((voice_handle->playBackBuffer == NULL) || (voice_handle->captureBuffer == NULL)
++            ||(voice_handle->outPlayBuffer == NULL) || (voice_handle->outCaptureBuffer == NULL)) {
++        ALOGE("malloc playback or capure buffer falied!");
++        goto failed;
++    }
++
++    pthread_mutex_init(&voice_handle->voice_thread.queuePlyLock, NULL);
++    pthread_mutex_init(&voice_handle->voice_thread.queueCapLock, NULL);
++    pthread_mutex_init(&voice_handle->voice_thread.getCapOutLock, NULL);
++    pthread_mutex_init(&voice_handle->voice_thread.getPlyOutLock, NULL);
++
++    if (voice_handle->captureInSamplerate != voice_handle->processSamplerate) {
++        voice_handle->speexCapureDownResample = speex_resampler_init(1, voice_handle->captureInSamplerate, voice_handle->processSamplerate, SPEEX_RESAMPLER_QUALITY_DESKTOP, NULL);
++        voice_handle->speexCapureUpResample = speex_resampler_init(1, voice_handle->processSamplerate, voice_handle->captureInSamplerate, SPEEX_RESAMPLER_QUALITY_DESKTOP, NULL);
++    }
++
++    if (voice_handle->playbackInSamplerate!= voice_handle->processSamplerate) {
++        voice_handle->speexPlaybackDownResample = speex_resampler_init(1, voice_handle->playbackInSamplerate, voice_handle->processSamplerate, SPEEX_RESAMPLER_QUALITY_DESKTOP, NULL);
++        voice_handle->speexPlaybackUpResample = speex_resampler_init(1, voice_handle->processSamplerate, voice_handle->playbackInSamplerate, SPEEX_RESAMPLER_QUALITY_DESKTOP, NULL);
++    }
++
++    ALOGD("voice proceess handle create success!");
++
++    return voice_handle->processApi;
++
++failed :
++
++    rk_voiceprocess_destory();
++    ALOGD("voice process handle create failed");
++    return NULL;
++}
++
++
++int rk_voiceprocess_destory()
++{
++    ALOGD("voiceprocess_destory");
++    if (voice_handle == NULL) {
++        ALOGD("voiceprocess_destory return");
++        return 0;
++    }
++    if (voice_handle->voice_thread.threadStatus >= 0) {
++        voice_handle->voice_thread.running = false;
++        sem_post(&voice_handle->voice_thread.sem);
++        ALOGD("join thread in");
++        pthread_join(voice_handle->voice_thread.thread, NULL);
++        voice_handle->voice_thread.threadStatus = -1;
++        ALOGD("join thread out");
++
++        sem_destroy(&voice_handle->voice_thread.sem);
++    }
++
++    if (voice_handle->speexCapureDownResample) {
++        speex_resampler_destroy(voice_handle->speexCapureDownResample);
++        voice_handle->speexCapureDownResample = NULL;
++    }
++
++    if (voice_handle->speexCapureDownResample) {
++        speex_resampler_destroy(voice_handle->speexCapureDownResample);
++        voice_handle->speexCapureDownResample = NULL;
++    }
++
++    if (voice_handle->speexPlaybackUpResample) {
++        speex_resampler_destroy(voice_handle->speexPlaybackUpResample);
++        voice_handle->speexPlaybackUpResample = NULL;
++    }
++
++    if (voice_handle->speexPlaybackDownResample) {
++        speex_resampler_destroy(voice_handle->speexPlaybackDownResample);
++        voice_handle->speexPlaybackDownResample = NULL;
++    }
++
++    if (voice_handle->playBackBuffer != NULL) {
++        pthread_mutex_lock(&voice_handle->voice_thread.queuePlyLock);
++        free(voice_handle->playBackBuffer);
++        voice_handle->playBackBuffer = NULL;
++        voice_handle->playbackBufferSize = 0;
++        pthread_mutex_unlock(&voice_handle->voice_thread.queuePlyLock);
++    }
++
++    if (voice_handle->captureBuffer != NULL) {
++        pthread_mutex_lock(&voice_handle->voice_thread.queueCapLock);
++        free(voice_handle->captureBuffer);
++        voice_handle->captureBuffer = NULL;
++        voice_handle->captureBufferSize = 0;
++        pthread_mutex_unlock(&voice_handle->voice_thread.queueCapLock);
++    }
++
++    if (voice_handle->outPlayBuffer != NULL) {
++        pthread_mutex_lock(&voice_handle->voice_thread.getPlyOutLock);
++        free(voice_handle->outPlayBuffer);
++        voice_handle->outPlayBuffer = NULL;
++        voice_handle->outPlaybackBufferSize = 0;
++        pthread_mutex_unlock(&voice_handle->voice_thread.getPlyOutLock);
++    }
++
++    if (voice_handle->outCaptureBuffer != NULL) {
++        pthread_mutex_lock(&voice_handle->voice_thread.getCapOutLock);
++        free(voice_handle->outCaptureBuffer);
++        voice_handle->outCaptureBuffer = NULL;
++        voice_handle->outCaptureBufferSize = 0;
++        pthread_mutex_unlock(&voice_handle->voice_thread.getCapOutLock);
++    }
++
++    if (voice_handle->processApi) {
++        free(voice_handle->processApi);
++        voice_handle->processApi = NULL;
++    }
++
++    if (voice_handle->voiceApi) {
++        voice_handle->voiceApi->deinit();
++    }
++
++    if (voice_handle->voiceApi != NULL) {
++        free(voice_handle->voiceApi);
++        voice_handle->voiceApi = NULL;
++    }
++    if (voice_handle->voiceLibHandle != NULL) {
++        dlclose(voice_handle->voiceLibHandle);
++        voice_handle->voiceLibHandle = NULL;
++    }
++
++    if (voice_handle != NULL) {
++        free(voice_handle);
++        voice_handle = NULL;
++    }
++    ALOGD("voice process handle destory success!");
++    return 0;
++}
++
++
++static int processBuffertoMono(void *buffer, int size)
++{
++    short *in = (short *)buffer;
++    short out[size/4];
++    int i = 0, j = 0;
++
++    for(i = 0, j = 0; i < size/4; i++) {
++        out[i] = (in[j] + in[j+1]) / 2;
++        j+=2;
++    }
++    memset((char *)in, 0x00, size);
++    memcpy((char *)in, (char *)out, size/2);
++    return 0;
++}
++
++static int processBuffertoStereo(void *buffer, int size)
++{
++    short *in = (short *)buffer;
++    short out[size];
++    int i = 0,j = 0;;
++
++    for (i = 0, j = 0; i < size/2; i++) {
++        out[j] = in[i];
++        out[j+1] = in[i];
++        j+=2;
++    }
++    memcpy((char *)in, (char *)out, size * 2);
++    return 0;
++}
++
++
++static void thread_loop(rk_voice_handle* handle)
++{
++    int playback_samplerate = handle->playbackInSamplerate;
++    int capture_samplerate = handle->captureInSamplerate;
++    int process_samplerate = handle->processSamplerate;
++    int playback_channel = handle->playbackInChannels;
++    int capture_channel = handle->captureInChannels;
++    int process_buffer_size = PROCESS_BUFFER_SIZE * 2;
++
++    int playback_min_buffersize = process_buffer_size * playback_samplerate / process_samplerate * playback_channel;
++    int capture_min_buffersize = process_buffer_size * capture_samplerate / process_samplerate * capture_channel;
++
++    char tmp_playback_buffer[playback_min_buffersize];
++    char tmp_capture_buffer[capture_min_buffersize];
++
++    char tmp_outplayback_buffer[playback_min_buffersize];
++    char tmp_outcapture_buffer[capture_min_buffersize];
++#ifdef ALSA_3A_DEBUG
++    in_capture_debug = fopen("/data/3a_capture_in.pcm","wb");//please touch /data/3a_in.pcm first
++    out_capture_debug = fopen("/data/3a_capture_out.pcm","wb");//please touch /data/3a_out.pcm first
++    in_playback_debug = fopen("/data/3a_playback_in.pcm","wb");//please touch /data/3a_ref.pcm first
++    out_playback_debug = fopen("/data/3a_playback_out.pcm","wb");//please touch /data/3a_rx.pcm first
++#endif
++
++    while (handle->voice_thread.running) {
++
++        bool isGetBuffer = false;
++
++        //wait the enough raw buffer
++        if ((handle->captureBufferSize < capture_min_buffersize) || (handle->playbackBufferSize < playback_min_buffersize)) {
++            sem_wait(&handle->voice_thread.sem);
++        }
++
++        char value[PROPERTY_VALUE_MAX] = "";
++        property_get("media.audio.record", value, NULL);
++        prop_pcm_record = atoi(value);
++
++        // try to get the raw buffer to process
++        if ((handle->captureBufferSize >= capture_min_buffersize) && (handle->playbackBufferSize >= playback_min_buffersize)) {
++            pthread_mutex_lock(&handle->voice_thread.queueCapLock);
++            memcpy(tmp_capture_buffer, handle->captureBuffer, capture_min_buffersize);
++            memcpy(handle->captureBuffer, handle->captureBuffer+capture_min_buffersize, MAX_BUFFER_SIZE-capture_min_buffersize);
++            handle->captureBufferSize -= capture_min_buffersize;
++            pthread_mutex_unlock(&handle->voice_thread.queueCapLock);
++
++            pthread_mutex_lock(&handle->voice_thread.queuePlyLock);
++            memcpy(tmp_playback_buffer, handle->playBackBuffer, playback_min_buffersize);
++            memcpy(handle->playBackBuffer, handle->playBackBuffer+playback_min_buffersize, MAX_BUFFER_SIZE-playback_min_buffersize);
++            handle->playbackBufferSize -= playback_min_buffersize;
++            pthread_mutex_unlock(&handle->voice_thread.queuePlyLock);
++            isGetBuffer = true;
++        }
++
++        // process the raw buffer and queue to output list
++        if (isGetBuffer) {
++            // process buffer to mono
++            if (playback_channel > 1) {
++                processBuffertoMono(tmp_playback_buffer, playback_min_buffersize);
++            }
++
++            if (capture_channel > 1) {
++                processBuffertoMono(tmp_capture_buffer, capture_min_buffersize);
++            }
++
++            // resample raw buffer to processed samplerate
++            if (playback_samplerate != process_samplerate) {
++                int in_sample = playback_min_buffersize / playback_channel / 2;
++                int out_sample = in_sample;
++                char tmp_resample_buffer[playback_min_buffersize];
++
++                memcpy(tmp_resample_buffer, tmp_playback_buffer, playback_min_buffersize);
++                memset(tmp_playback_buffer, 0x00, playback_min_buffersize);
++                speex_resampler_process_interleaved_int(handle->speexPlaybackDownResample,
++                                                        (spx_int16_t *)tmp_resample_buffer, &in_sample,
++                                                        (spx_int16_t *)tmp_playback_buffer, &out_sample);
++                ALOGV("playback down resample process, in_sample = %d, out_sample = %d", in_sample, out_sample);
++            }
++
++            if (capture_samplerate != process_samplerate) {
++                int in_sample = capture_min_buffersize / capture_channel / 2;
++                int out_sample = in_sample;
++                char tmp_resample_buffer[playback_min_buffersize];
++                memcpy(tmp_resample_buffer, tmp_capture_buffer, capture_min_buffersize);
++                memset(tmp_capture_buffer, 0x00, capture_min_buffersize);
++                speex_resampler_process_interleaved_int(handle->speexCapureDownResample,
++                                                        (spx_int16_t *)tmp_resample_buffer, &in_sample,
++                                                        (spx_int16_t *)tmp_capture_buffer, &out_sample);
++                ALOGV("capture down resample process, in_sample = %d, out_sample = %d,capture_samplerate = %d", in_sample, out_sample,capture_samplerate);
++            }
++
++            // main process call
++            if (handle->voiceApi) {
++                //memcpy((char *)tmp_outplayback_buffer, (char *)tmp_playback_buffer, PROCESS_BUFFER_SIZE * 2);
++                //memcpy((char *)tmp_outcapture_buffer, (char *)tmp_capture_buffer, PROCESS_BUFFER_SIZE * 2);
++                handle->voiceApi->processPlayback((short *)tmp_playback_buffer, (short *)tmp_outplayback_buffer, PROCESS_BUFFER_SIZE);
++                handle->voiceApi->processCapture((short *)tmp_capture_buffer, (short *)tmp_outplayback_buffer, (short *)tmp_outcapture_buffer, PROCESS_BUFFER_SIZE);
++#ifdef ALSA_3A_DEBUG
++                fwrite(tmp_capture_buffer,sizeof(short),PROCESS_BUFFER_SIZE,in_capture_debug);
++                fwrite(tmp_outcapture_buffer,sizeof(short),PROCESS_BUFFER_SIZE,out_capture_debug);
++                fwrite(tmp_playback_buffer,sizeof(short),PROCESS_BUFFER_SIZE,in_playback_debug);
++		fwrite(tmp_outplayback_buffer,sizeof(short),PROCESS_BUFFER_SIZE,out_playback_debug);
++#endif
++            }
++
++            // upresample the processed buffer to raw buffer samplerate
++            if (playback_samplerate != process_samplerate) {
++                int in_sample = PROCESS_BUFFER_SIZE;
++                int out_sample = playback_min_buffersize;
++                memset(tmp_playback_buffer, 0x00, playback_min_buffersize);
++                memcpy(tmp_playback_buffer, tmp_outplayback_buffer, process_buffer_size);
++                speex_resampler_process_interleaved_int(handle->speexPlaybackUpResample,
++                                                        (spx_int16_t *)tmp_playback_buffer, &in_sample,
++                                                        (spx_int16_t *)tmp_outplayback_buffer, &out_sample);
++                ALOGV("playback up resample process, in_sample = %d, out_sample = %d", in_sample, out_sample);
++
++            }
++
++            if (capture_samplerate != process_samplerate) {
++                int in_sample = PROCESS_BUFFER_SIZE;
++                int out_sample = capture_min_buffersize;
++                memset(tmp_capture_buffer, 0x00, capture_min_buffersize);
++                memcpy(tmp_capture_buffer, tmp_outcapture_buffer, process_buffer_size);
++                speex_resampler_process_interleaved_int(handle->speexCapureUpResample,
++                                                        (spx_int16_t *)tmp_capture_buffer, &in_sample,
++                                                        (spx_int16_t *)tmp_outcapture_buffer, &out_sample);
++                ALOGV("capture up resample process, in_sample = %d, out_sample = %d", in_sample, out_sample);
++            }
++
++            // up adjust channel to raw buffer channels
++            if (playback_channel > 1) {
++                processBuffertoStereo(tmp_outplayback_buffer, playback_min_buffersize/2);
++            }
++
++            if (capture_channel > 1) {
++                processBuffertoStereo(tmp_outcapture_buffer, capture_min_buffersize/2);
++            }
++
++            // queue processed buffer to output list
++            pthread_mutex_lock(&handle->voice_thread.getCapOutLock);
++            memcpy((char *)handle->outCaptureBuffer + handle->outCaptureBufferSize, tmp_outcapture_buffer, capture_min_buffersize);
++            handle->outCaptureBufferSize += capture_min_buffersize;
++            pthread_mutex_unlock(&handle->voice_thread.getCapOutLock);
++
++            pthread_mutex_lock(&handle->voice_thread.getPlyOutLock);
++            memcpy((char *)handle->outPlayBuffer + handle->outPlaybackBufferSize, tmp_outplayback_buffer, playback_min_buffersize);
++            handle->outPlaybackBufferSize += playback_min_buffersize;
++            pthread_mutex_unlock(&handle->voice_thread.getPlyOutLock);
++        }
++    }
++
++#ifdef ALSA_3A_DEBUG
++    fclose(in_capture_debug);
++    fclose(out_capture_debug);
++    fclose(in_playback_debug);
++    fclose(out_playback_debug);
++#endif
++
++}
++
++static void*  thread_start(void* argv)
++{
++    rk_voice_handle* handle = (rk_voice_handle*)argv;
++
++    thread_loop(handle);
++
++    return NULL;
++}
++
+diff --git a/tinyalsa_hal/voice_preprocess.h b/tinyalsa_hal/voice_preprocess.h
+index 9efb32f..15c1c4e 100644
+--- a/tinyalsa_hal/voice_preprocess.h
++++ b/tinyalsa_hal/voice_preprocess.h
+@@ -5,7 +5,8 @@
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
+-
++#define EFFECT_DUMP_AUDIO_DATA
++#define AUDIO_EQDRC
+ typedef struct rk_process_api_ {
+     int (*start)();
+     int (*quueCaputureBuffer)(void *buf, int size);
+@@ -18,6 +19,24 @@ typedef struct rk_process_api_ {
+ rk_process_api* rk_voiceprocess_create(int ply_sr, int ply_ch, int cap_sr, int cap_ch);
+ int rk_voiceprocess_destory();
+ 
++typedef int (*Start_Record)();
++typedef int (*Stop_Record)();
++typedef void (*AudioPost_Init)(char *, signed int);
++typedef void (*AudioPost_Destroy)();
++typedef void (*AudioPost_Process)(float *, float *, signed short int, signed int);
++typedef void (*AudioPost_SetPara)(float *, signed int);
++typedef struct rk_effect_api_ {
++    AudioPost_Init pfAudioPost_Init;
++    AudioPost_Destroy pfAudioPost_Destroy;
++    AudioPost_Process pfAudioPost_Process;
++    AudioPost_SetPara pfAudioPost_SetPara;
++    Start_Record start_record;
++    Stop_Record stop_record;
++    int (*rk_effect_process)(const void *in_buffer, void *out_buffer, unsigned long size, int pcm_channel,int bit_per_sample);
++} rk_effect_api;
++
++rk_effect_api* rk_effect_create(const char *param_name, unsigned long size, unsigned long frame_size);
++int rk_effect_destory();
+ #ifdef __cplusplus
+ }
+ #endif
+-- 
+1.9.1
+

@@ -1,0 +1,260 @@
+From cd1f6e272a900af466443c768d32627f32eec27a Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 17 Aug 2018 17:43:29 +0800
+Subject: [PATCH 2/2] add dynamic set para for erdrc
+
+Change-Id: Id2bbacf9d78b4e1de5bdbb19ac7416f487323280
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ tinyalsa_hal/voice_preprocess.c | 174 ++++++++++++++++++++++++++++++++++++----
+ tinyalsa_hal/voice_preprocess.h |   1 +
+ 2 files changed, 161 insertions(+), 14 deletions(-)
+
+diff --git a/tinyalsa_hal/voice_preprocess.c b/tinyalsa_hal/voice_preprocess.c
+index 6623d91..51f6a5e 100644
+--- a/tinyalsa_hal/voice_preprocess.c
++++ b/tinyalsa_hal/voice_preprocess.c
+@@ -32,7 +32,7 @@
+ #include <sys/time.h>
+ #include <dlfcn.h>  // for dlopen/dlclose
+ #include <fcntl.h>
+- #include <sys/inotify.h>
++#include <sys/inotify.h>
+ #include <cutils/log.h>
+ #include <cutils/properties.h>
+ #include <cutils/str_parms.h>
+@@ -123,6 +123,12 @@ typedef struct rk_effect_handle_ {
+     FILE *raw_fd;
+     FILE *processed_fd;
+ #endif
++#ifdef CONFIG_FILE_INOTIFY
++    int inotify_fd;
++    int wd;
++    pthread_t inotify_thread;
++    pthread_mutex_t wait_lock;
++#endif
+     void *presidue_audio;
+     int presidue_length;
+ } rk_effect_handle;
+@@ -274,8 +280,118 @@ static int flush()
+     return 0;
+ }
+ 
++#ifdef CONFIG_FILE_INOTIFY
++
++int open_inotify_fd ()
++{
++    int fd;
++
++    fd = inotify_init ();
++    if (fd < 0) {
++        ALOGE("inotify_init () = ");
++    }
++    return fd;
++}
++
++int close_inotify_fd (int fd)
++{
++    int r;
++
++    if ((r = close (fd)) < 0) {
++        ALOGE("close (fd) = ");
++    }
++    return r;
++}
++
++int event_check (int fd)
++{
++  fd_set rfds;
++  FD_ZERO (&rfds);
++  FD_SET (fd, &rfds);
++  /* Wait until an event happens or we get interrupted
++     by a signal that we catch */
++  return select (fd + 1, &rfds, NULL, NULL, NULL);
++}
++
++void _inotify_event_handler(void *_handle, struct inotify_event *event)
++{
++    FILE *fp;
++    float reset_para[614] = {0};
++    rk_effect_handle *handle =  (rk_effect_handle *)_handle;
++
++    if(handle->wd == event->wd && (event->mask & IN_MODIFY)) {
++        ALOGD("config file changed %d", event->wd);
++        pthread_mutex_lock(&handle->wait_lock);
++        ALOGD("updating config");
++        if(handle->param_name) {
++            fp = fopen(handle->param_name, "rb");
++            if (fp != NULL) {
++                fread(reset_para,sizeof(float), sizeof(reset_para)/sizeof(reset_para[0]), fp);
++                (*handle->effectApi->pfAudioPost_SetPara)(reset_para, handle->period_size);
++                ALOGD("AudioPost_SetPara %s, %d", handle->param_name, handle->period_size);
++                fclose(fp);
++            } else {
++                ALOGE("ERROR:OPNE NEW BIN FILE FAILED!!!");
++            }
++        }
++        pthread_mutex_unlock(&handle->wait_lock);
++    }
++}
++
++int read_events (void *handle, int fd)
++{
++    char buffer[16384];
++    size_t buffer_i;
++    struct inotify_event *pevent;
++    ssize_t r;
++    size_t event_size;
++    int count = 0;
++
++    r = read (fd, buffer, 16384);
++    if (r <= 0)
++        return r;
++    buffer_i = 0;
++    while (buffer_i < r) {
++        pevent = (struct inotify_event *) &buffer[buffer_i];
++        event_size =  offsetof (struct inotify_event, name) + pevent->len;
++        buffer_i += event_size;
++        _inotify_event_handler(handle, pevent);
++        count++;
++    }
++    return count;
++}
++
++int process_inotify_events (void *handle, int fd)
++{
++    ALOGD("process_inotify_events...");
++    while (1) {
++        ALOGD("event_check %d...", fd);
++        if (event_check(fd) > 0) {
++            read_events(handle, fd);
++        }
++    }
++    ALOGD("process_inotify_events exit");
++    return 0;
++}
++
++static void* inotify_threadproc(void *args)
++{
++    rk_effect_handle *handle = (rk_effect_handle *)args;
++
++    ALOGD("inotify_threadproc...");
++    process_inotify_events (handle, handle->inotify_fd);
++    return NULL;
++}
++
++#endif
++
+ int rk_effect_destory()
+ {
++
++#ifdef CONFIG_FILE_INOTIFY
++    /* need some operates to free inotify resources, skip...*/
++
++#endif
+     if (voice_handle == NULL) {
+         ALOGD("rk_effect_destory return");
+         return 0;
+@@ -329,7 +445,13 @@ int rk_effect_process(const void *in_buffer, void *out_buffer,
+             out16 = &out_buffer[x*effect_handle->frame_size];
+             for(y = 0; y < effect_handle->period_size * pcm_channel; y ++) /* max process unit is period_size */
+                 fin_buffer[y] = in16[y];
++#ifdef CONFIG_FILE_INOTIFY
++            pthread_mutex_lock(&handle->wait_lock);
+             effect_handle->effectApi->pfAudioPost_Process(fin_buffer, fout_buffer, pcm_channel, effect_handle->period_size);
++            pthread_mutex_unlock(&handle->wait_lock);
++#else
++            effect_handle->effectApi->pfAudioPost_Process(fin_buffer, fout_buffer, pcm_channel, effect_handle->period_size);
++#endif
+             for(y = 0; y < effect_handle->period_size * pcm_channel; y ++)
+                 out16[y] = fout_buffer[y];
+         }
+@@ -353,22 +475,9 @@ int rk_effect_process(const void *in_buffer, void *out_buffer,
+ 
+ int start_record()
+ {
+-    FILE *fp;
+     rk_effect_handle *handle =  effect_handle;
+-    float reset_para[614] = {0};
+ 
+     ALOGD("start_record");
+-    if(handle->param_name) {
+-        fp = fopen(handle->param_name, "rb");
+-        if (fp != NULL) {
+-            fread(reset_para,sizeof(float), sizeof(reset_para)/sizeof(reset_para[0]), fp);
+-            (*handle->effectApi->pfAudioPost_SetPara)(reset_para, handle->period_size);
+-            ALOGD("AudioPost_SetPara %s, %d", handle->param_name, handle->period_size);
+-            fclose(fp);
+-        } else {
+-            ALOGE("ERROR:OPNE NEW BIN FILE FAILED!!!");
+-        }
+-    }
+ #ifdef EFFECT_DUMP_AUDIO_DATA
+     if(handle->raw_file) {
+         handle->raw_fd = fopen(handle->raw_file,"wb");
+@@ -404,6 +513,7 @@ int stop_record()
+ 
+ rk_effect_api *rk_effect_create(const char *param_name, unsigned long period_size, unsigned long frame_size)
+ {
++    int rc;
+     static char __param_name[100];
+     char *so = "/system/lib/libRK_AudioProcess.so";
+ 
+@@ -462,6 +572,42 @@ rk_effect_api *rk_effect_create(const char *param_name, unsigned long period_siz
+ #endif
+     ALOGD("pfAudioPost_Init %s %d", effect_handle->param_name, effect_handle->period_size);
+     (*effect_handle->effectApi->pfAudioPost_Init)(effect_handle->param_name, effect_handle->period_size);
++
++#ifdef CONFIG_FILE_INOTIFY
++    {
++        char *notify_file;
++
++        ALOGD("opening inotify fd....");
++        notify_file = effect_handle->param_name;
++        effect_handle->inotify_fd = open_inotify_fd();
++        if(effect_handle->inotify_fd > 0 ) {
++            ALOGD("adding inotify file %s %d", notify_file, effect_handle->inotify_fd);
++            effect_handle->wd =
++                inotify_add_watch(effect_handle->inotify_fd, notify_file,
++                                  IN_ALL_EVENTS);
++            if(effect_handle->wd < 0) {
++                ALOGE("inotify_add_watch fail %d", errno);
++                close_inotify_fd(effect_handle->inotify_fd);
++                effect_handle->inotify_fd = -1;
++            } else {
++                ALOGD("pthread_mutex_init");
++                pthread_mutex_init(&effect_handle->wait_lock, NULL);
++                ALOGD("creating inotify thread");
++                rc = pthread_create(&effect_handle->inotify_thread, NULL,
++                                    inotify_threadproc, effect_handle);
++                if (rc) {
++                    ALOGE("inotify thread is not created.");
++                    inotify_rm_watch (effect_handle->inotify_fd, effect_handle->wd);
++                    close_inotify_fd(effect_handle->inotify_fd);
++                    effect_handle->inotify_fd = -1;
++                }
++            }
++        } else {
++            ALOGE("opening inotify fd fail");
++        }
++    }
++#endif
++
+     return effect_handle->effectApi;
+ failed:
+     if(effect_handle) {
+diff --git a/tinyalsa_hal/voice_preprocess.h b/tinyalsa_hal/voice_preprocess.h
+index 15c1c4e..3caab9c 100644
+--- a/tinyalsa_hal/voice_preprocess.h
++++ b/tinyalsa_hal/voice_preprocess.h
+@@ -6,6 +6,7 @@
+ extern "C" {
+ #endif
+ #define EFFECT_DUMP_AUDIO_DATA
++#define CONFIG_FILE_INOTIFY
+ #define AUDIO_EQDRC
+ typedef struct rk_process_api_ {
+     int (*start)();
+-- 
+1.9.1
+

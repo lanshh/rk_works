@@ -1,0 +1,322 @@
+From 997a62f0c9faae8480c7724685e909e91973202c Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 27 Jul 2018 10:30:24 +0800
+Subject: [PATCH 2/3] add 8 ch record
+
+Change-Id: I90325ee1b5d9d82e27ba1544f578c030c511f6d0
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ tinyalsa_hal/audio_hw.c | 84 +++++++++++++++++++++++++++++++++----------------
+ tinyalsa_hal/audio_hw.h | 13 ++++----
+ 2 files changed, 64 insertions(+), 33 deletions(-)
+ mode change 100755 => 100644 tinyalsa_hal/audio_hw.c
+ mode change 100755 => 100644 tinyalsa_hal/audio_hw.h
+
+diff --git a/tinyalsa_hal/audio_hw.c b/tinyalsa_hal/audio_hw.c
+old mode 100755
+new mode 100644
+index 6e2f9c2..eb6c899
+--- a/tinyalsa_hal/audio_hw.c
++++ b/tinyalsa_hal/audio_hw.c
+@@ -742,9 +742,10 @@ static int get_next_buffer(struct resampler_buffer_provider *buffer_provider,
+     }
+ 
+     if (in->frames_in == 0) {
+-        size = pcm_frames_to_bytes(in->pcm,pcm_get_buffer_size(in->pcm));
+-        in->read_status = pcm_read(in->pcm,
+-                                   (void*)in->buffer,pcm_frames_to_bytes(in->pcm, in->config->period_size));
++        size = pcm_frames_to_bytes(in->pcm, in->config->period_size);
++        ALOGE("pcm_read  %d period_size %d", size, in->config->period_size);
++
++        in->read_status = pcm_read(in->pcm, (void*)in->buffer, size);
+         if (in->read_status != 0) {
+             ALOGE("get_next_buffer() pcm_read error %d", in->read_status);
+             buffer->raw = NULL;
+@@ -752,7 +753,9 @@ static int get_next_buffer(struct resampler_buffer_provider *buffer_provider,
+             return in->read_status;
+         }
+ 
+-        //fwrite(in->buffer,pcm_frames_to_bytes(in->pcm,pcm_get_buffer_size(in->pcm)),1,in_debug);
++#ifdef ALSA_IN_DEBUG
++        fwrite(in->buffer, size, 1, in_debug);
++#endif
+         in->frames_in = in->config->period_size;
+ 
+         /* Do stereo to mono conversion in place by discarding right channel */
+@@ -761,6 +764,8 @@ static int get_next_buffer(struct resampler_buffer_provider *buffer_provider,
+             for (i = 0; i < in->frames_in; i++)
+                 in->buffer[i] = in->buffer[i * 2];
+         }
++    } else {
++        ALOGE("in->frames_in %d", in->frames_in);
+     }
+ 
+     //ALOGV("pcm_frames_to_bytes(in->pcm,pcm_get_buffer_size(in->pcm)):%d",size);
+@@ -814,7 +819,6 @@ static int start_input_stream(struct stream_in *in)
+             (adev->mode == AUDIO_MODE_IN_COMMUNICATION)) {
+         in->config = &pcm_config_in_bt;
+         in->pcm = pcm_open(PCM_BT, PCM_DEVICE, PCM_IN, in->config);
+-
+         if (in->resampler) {
+             release_resampler(in->resampler);
+ 
+@@ -833,8 +837,9 @@ static int start_input_stream(struct stream_in *in)
+         }
+     } else {
+         in->config = &pcm_config_in;
+-        in->pcm = pcm_open(PCM_CARD, PCM_DEVICE, PCM_IN, in->config);
+-
++        ALOGD("pcm_open  D:%d  d:%d  r:%d c:%d p:%d",PCM_CARD, PCM_DEVICE,
++                     in->config->rate, in->config->channels ,in->config->period_size);
++        in->pcm = pcm_open(PCM_CARD, PCM_PDM_DEVICE, PCM_IN, in->config);
+         if (in->resampler) {
+             release_resampler(in->resampler);
+ 
+@@ -853,6 +858,7 @@ static int start_input_stream(struct stream_in *in)
+         }
+     }
+ #else
++    ALOGD("pcm_open  D:%d  d:%d  r:%d",PCM_CARD, PCM_DEVICE, in->config->rate);
+     in->pcm = pcm_open(PCM_CARD, PCM_DEVICE, PCM_IN, in->config);
+ #endif
+     if (in->pcm && !pcm_is_ready(in->pcm)) {
+@@ -901,16 +907,22 @@ static size_t get_input_buffer_size(unsigned int sample_rate,
+     const struct pcm_config *config = is_low_latency ?
+                                               &pcm_config_in_low_latency : &pcm_config_in;
+     size_t size;
++    int frame_size;
++    size_t input_buffer_size;
+ 
+     /*
+      * take resampling into account and return the closest majoring
+      * multiple of 16 frames, as audioflinger expects audio buffers to
+      * be a multiple of 16 frames
+      */
+-    size = (config->period_size * sample_rate) / config->rate;
++    /* size = (config->period_size * sample_rate) / config->rate; */
++    size = config->period_size;
+     size = ((size + 15) / 16) * 16;
+-
+-    return size * channel_count * audio_bytes_per_sample(format);
++    /* frame_size = channel_count * audio_bytes_per_sample(format); */
++    frame_size = config->channels*(pcm_format_to_bits(config->format) >> 3);
++    input_buffer_size = size * frame_size;
++    ALOGD("get_input_buffer_size:%d frame_size:%d", input_buffer_size, frame_size);
++    return input_buffer_size;
+ }
+ 
+ 
+@@ -928,8 +940,9 @@ static size_t get_input_buffer_size(unsigned int sample_rate,
+ static ssize_t read_frames(struct stream_in *in, void *buffer, ssize_t frames)
+ {
+     ssize_t frames_wr = 0;
+-    size_t frame_size = audio_stream_in_frame_size(&in->stream);
++    size_t frame_size = pcm_frames_to_bytes(in->pcm, frames)/frames;
+ 
++    ALOGD("frame_size:%d ====", frame_size);
+     while (frames_wr < frames) {
+         size_t frames_rd = frames - frames_wr;
+         if (in->resampler != NULL) {
+@@ -950,17 +963,16 @@ frame_count :
+                        buf.raw,
+                        buf.frame_count * frame_size);
+                 frames_rd = buf.frame_count;
+-                //ALOGV("====frames_wr:%d,buf.frame_count:%d,frame_size:%d====",frames_wr,buf.frame_count,frame_size);
+-#ifdef ALSA_IN_DEBUG
+-                fwrite(buffer,frames_wr * frame_size,1,in_debug);
+-#endif
++                ALOGD("====frames_wr:%d,buf.frame_count:%d,frame_size:%d====",frames_wr,buf.frame_count,frame_size);
+             }
+             release_buffer(&in->buf_provider, &buf);
+         }
+         /* in->read_status is updated by getNextBuffer() also called by
+          * in->resampler->resample_from_provider() */
+-        if (in->read_status != 0)
++        if (in->read_status != 0) {
++            ALOGD("in->read_status %d", in->read_status);
+             return in->read_status;
++        }
+ 
+         frames_wr += frames_rd;
+     }
+@@ -1783,7 +1795,7 @@ static int out_get_presentation_position(const struct audio_stream_out *stream,
+ static uint32_t in_get_sample_rate(const struct audio_stream *stream)
+ {
+     struct stream_in *in = (struct stream_in *)stream;
+-    //ALOGV("%s:get requested_rate : %d ",__FUNCTION__,in->requested_rate);
++    ALOGD("%s:get requested_rate : %d ",__FUNCTION__,in->requested_rate);
+     return in->requested_rate;
+ }
+ 
+@@ -1811,7 +1823,7 @@ static audio_channel_mask_t in_get_channels(const struct audio_stream *stream)
+ {
+     struct stream_in *in = (struct stream_in *)stream;
+ 
+-    //ALOGV("%s:get channel_mask : %d ",__FUNCTION__,in->channel_mask);
++    ALOGD("%s:get channel_mask : %d ",__FUNCTION__,in->channel_mask);
+     return in->channel_mask;
+ }
+ 
+@@ -1826,7 +1838,6 @@ static audio_channel_mask_t in_get_channels(const struct audio_stream *stream)
+ static size_t in_get_buffer_size(const struct audio_stream *stream)
+ {
+     struct stream_in *in = (struct stream_in *)stream;
+-
+     return get_input_buffer_size(in->requested_rate,
+                                  AUDIO_FORMAT_PCM_16_BIT,
+                                  audio_channel_count_from_in_mask(in_get_channels(stream)),
+@@ -1916,13 +1927,13 @@ static int in_standby(struct audio_stream *stream)
+  */
+ int in_dump(const struct audio_stream *stream, int fd)
+ {
+-    struct stream_out *in = (struct stream_out *)stream;
++    struct stream_in *in = (struct stream_in *)stream;
+ 
+     ALOGD("Device     : 0x%x", in->device);
+-    ALOGD("SampleRate : %d", in->config.rate);
+-    ALOGD("Channels   : %d", in->config.channels);
+-    ALOGD("Formate    : %d", in->config.format);
+-    ALOGD("PreiodSize : %d", in->config.period_size);
++    ALOGD("SampleRate : %d", in->config->rate);
++    ALOGD("Channels   : %d", in->config->channels);
++    ALOGD("Formate    : %d", in->config->format);
++    ALOGD("PreiodSize : %d", in->config->period_size);
+ 
+     return 0;
+ }
+@@ -2074,7 +2085,9 @@ static ssize_t in_read(struct audio_stream_in *stream, void* buffer,
+     struct stream_in *in = (struct stream_in *)stream;
+     struct audio_device *adev = in->dev;
+     size_t frames_rq = bytes / audio_stream_in_frame_size(stream);
++	size_t frames_real;
+ 
++	ALOGD("in_read buffer:%p, bytes:%d", buffer, bytes);
+     /*
+      * acquiring hw device mutex systematically is useful if a low
+      * priority thread is waiting on the input stream mutex - e.g.
+@@ -2095,7 +2108,9 @@ static ssize_t in_read(struct audio_stream_in *stream, void* buffer,
+         }
+ #endif
+     }
+-
++    frames_real = pcm_bytes_to_frames(in->pcm, bytes);
++    ALOGD("in_read buffer:%p,size:%d,frame_rq:%d,frames_real %d", buffer, bytes, frames_rq, frames_real);
++    frames_rq = frames_real;
+     /*if (in->num_preprocessors != 0)
+         ret = process_frames(in, buffer, frames_rq);
+       else */
+@@ -2170,6 +2185,7 @@ exit:
+                in_get_sample_rate(&stream->common));
+ 
+     pthread_mutex_unlock(&in->lock);
++    ALOGD("in_read exit bytes:%d", bytes);
+     return bytes;
+ }
+ 
+@@ -2736,7 +2752,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
+     in_debug = fopen("/data/debug.pcm","wb");//please touch /data/debug.pcm first
+ #endif
+     /* Respond with a request for mono if a different format is given. */
+-    //ALOGV("%s:config->channel_mask %d",__FUNCTION__,config->channel_mask);
++    ALOGD("%s:config->channel_mask %d lanshh",__FUNCTION__,config->channel_mask);
+     if (/*config->channel_mask != AUDIO_CHANNEL_IN_MONO &&
+             config->channel_mask != AUDIO_CHANNEL_IN_FRONT_BACK*/
+         config->channel_mask != AUDIO_CHANNEL_IN_STEREO) {
+@@ -2784,18 +2800,31 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
+     in->config = pcm_config;
+ 
+     in->buffer = malloc(pcm_config->period_size * pcm_config->channels
+-                        * audio_stream_in_frame_size(&in->stream));
++                        * (pcm_format_to_bits(pcm_config->format) >> 3));
+ #ifdef SPEEX_DENOISE_ENABLE
+     in->mSpeexState = NULL;
+     in->mSpeexFrameSize = 0;
+     in->mSpeexPcmIn = NULL;
+ #endif
+ 
++    {
++        struct stream_in *ins = (struct stream_in *)&in->stream;
++        int buffersize = pcm_config->period_size * pcm_config->channels * (pcm_format_to_bits(pcm_config->format) >> 3);
++        ALOGD("pcm_config->period_size %d,pcm_config->channels %d, %d, buffer size %d",
++              pcm_config->period_size, pcm_config->channels, audio_stream_in_frame_size(&in->stream),buffersize);
++        ALOGD("open_input Device     : 0x%x", ins->device);
++        ALOGD("open_input SampleRate : %d", ins->config->rate);
++        ALOGD("open_input Channels   : %d", ins->config->channels);
++        ALOGD("open_input Formate    : %d", ins->config->format);
++        ALOGD("open_input PreiodSize : %d", ins->config->period_size);
++    }
++
+     if (!in->buffer) {
+         ret = -ENOMEM;
+         goto err_malloc;
+     }
+ 
++#if 0
+     if (in->requested_rate != pcm_config->rate) {
+         in->buf_provider.get_next_buffer = get_next_buffer;
+         in->buf_provider.release_buffer = release_buffer;
+@@ -2813,6 +2842,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
+             goto err_resampler;
+         }
+     }
++#endif
+ 
+ #ifdef AUDIO_3A
+     ALOGD("voice process has opened, try to create voice process!");
+diff --git a/tinyalsa_hal/audio_hw.h b/tinyalsa_hal/audio_hw.h
+old mode 100755
+new mode 100644
+index d3c417f..b13341d
+--- a/tinyalsa_hal/audio_hw.h
++++ b/tinyalsa_hal/audio_hw.h
+@@ -88,6 +88,7 @@ int PCM_CARD_SPDIF = 2;
+ int PCM_BT = 1;
+ #define PCM_TOTAL 4
+ #define PCM_DEVICE 0
++#define PCM_PDM_DEVICE 1
+ #define PCM_DEVICE_SCO 1
+ #define PCM_DEVICE_VOICE 2
+ #define PCM_DEVICE_HDMIIN 2
+@@ -112,7 +113,7 @@ int PCM_BT = 1;
+ #define MAX_SUPPORTED_CHANNEL_MASKS 2
+ 
+ #ifndef RK3368
+-#define SPEEX_DENOISE_ENABLE
++//#define SPEEX_DENOISE_ENABLE
+ #endif
+ 
+ #define HW_PARAMS_FLAG_LPCM 0
+@@ -174,7 +175,7 @@ struct pcm_config pcm_config_in = {
+ #else
+ struct pcm_config pcm_config = {
+     .channels = 2,
+-    .rate = 44100,
++    .rate = 16000,
+     .period_size = 512,
+     .period_count = 6,
+     .format = PCM_FORMAT_S16_LE,
+@@ -182,8 +183,8 @@ struct pcm_config pcm_config = {
+ };
+ 
+ struct pcm_config pcm_config_in = {
+-    .channels = 2,
+-    .rate = 44100,
++    .channels = 8,
++    .rate = 16000,
+ #ifdef SPEEX_DENOISE_ENABLE
+     .period_size = 1024,
+ #else
+@@ -196,8 +197,8 @@ struct pcm_config pcm_config_in = {
+ #endif
+ 
+ struct pcm_config pcm_config_in_low_latency = {
+-    .channels = 2,
+-    .rate = 44100,
++    .channels = 8,
++    .rate = 16000,
+     .period_size = 256,
+     .period_count = 4,
+     .format = PCM_FORMAT_S16_LE,
+-- 
+1.9.1
+
