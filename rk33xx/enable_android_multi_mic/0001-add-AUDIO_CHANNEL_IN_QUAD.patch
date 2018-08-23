@@ -1,0 +1,25 @@
+From bd957f679cd076271dc96c60b12a67d9c669f5ca Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Wed, 22 Aug 2018 20:04:02 +0800
+Subject: [PATCH] add AUDIO_CHANNEL_IN_QUAD
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ services/audiopolicy/common/managerdefinitions/src/TypeConverter.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/services/audiopolicy/common/managerdefinitions/src/TypeConverter.cpp b/services/audiopolicy/common/managerdefinitions/src/TypeConverter.cpp
+index 48bfd79..b290c16 100644
+--- a/services/audiopolicy/common/managerdefinitions/src/TypeConverter.cpp
++++ b/services/audiopolicy/common/managerdefinitions/src/TypeConverter.cpp
+@@ -167,6 +167,7 @@ const InputChannelConverter::Table InputChannelConverter::mTable[] = {
+     MAKE_STRING_FROM_ENUM(AUDIO_CHANNEL_IN_MONO),
+     MAKE_STRING_FROM_ENUM(AUDIO_CHANNEL_IN_STEREO),
+     MAKE_STRING_FROM_ENUM(AUDIO_CHANNEL_IN_FRONT_BACK),
++	MAKE_STRING_FROM_ENUM(AUDIO_CHANNEL_IN_QUAD),
+ };
+ template<>
+ const size_t InputChannelConverter::mSize = sizeof(InputChannelConverter::mTable) /
+-- 
+1.9.1
+

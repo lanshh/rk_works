@@ -1,0 +1,199 @@
+From 9f43cd15437af39c5a171516bb8dc5ff948ea8bf Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 23 Aug 2018 14:24:30 +0800
+Subject: [PATCH] add support for channel config
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ tinyalsa_hal/audio_hw.c | 55 ++++++++++++++++++++++++++++++++++++-------------
+ tinyalsa_hal/audio_hw.h | 22 ++++++++++----------
+ 2 files changed, 52 insertions(+), 25 deletions(-)
+
+diff --git a/tinyalsa_hal/audio_hw.c b/tinyalsa_hal/audio_hw.c
+index 246d36d..c951883 100755
+--- a/tinyalsa_hal/audio_hw.c
++++ b/tinyalsa_hal/audio_hw.c
+@@ -823,6 +823,7 @@ static int start_input_stream(struct stream_in *in)
+         }
+     }
+ #else
++    ALOGD("pcm_open D:%d  d:%d r:%d c:%d",PCM_CARD, PCM_DEVICE, in->config->rate, in->config->channels);
+     in->pcm = pcm_open(PCM_CARD, PCM_DEVICE, PCM_IN, in->config);
+ #endif
+     if (in->pcm && !pcm_is_ready(in->pcm)) {
+@@ -1765,7 +1766,7 @@ static int out_get_presentation_position(const struct audio_stream_out *stream,
+ static uint32_t in_get_sample_rate(const struct audio_stream *stream)
+ {
+     struct stream_in *in = (struct stream_in *)stream;
+-    //ALOGV("%s:get requested_rate : %d ",__FUNCTION__,in->requested_rate);
++    ALOGD("%s:get requested_rate : %d ",__FUNCTION__,in->requested_rate);
+     return in->requested_rate;
+ }
+ 
+@@ -1898,13 +1899,13 @@ static int in_standby(struct audio_stream *stream)
+  */
+ int in_dump(const struct audio_stream *stream, int fd)
+ {
+-    struct stream_out *in = (struct stream_out *)stream;
++    struct stream_in *in = (struct stream_in *)stream;
+ 
+     ALOGD("Device     : 0x%x", in->device);
+-    ALOGD("SampleRate : %d", in->config.rate);
+-    ALOGD("Channels   : %d", in->config.channels);
+-    ALOGD("Formate    : %d", in->config.format);
+-    ALOGD("PreiodSize : %d", in->config.period_size);
++    ALOGD("SampleRate : %d", in->config->rate);
++    ALOGD("Channels   : %d", in->config->channels);
++    ALOGD("Formate    : %d", in->config->format);
++    ALOGD("PreiodSize : %d", in->config->period_size);
+ 
+     return 0;
+ }
+@@ -2050,6 +2051,7 @@ static ssize_t in_read(struct audio_stream_in *stream, void* buffer,
+     struct audio_device *adev = in->dev;
+     size_t frames_rq = bytes / audio_stream_in_frame_size(stream);
+ 
++    ALOGD("in_read buffer:0x%08X, bytes:%d frames_rq:%d", buffer, bytes, frames_rq);
+     /*
+      * acquiring hw device mutex systematically is useful if a low
+      * priority thread is waiting on the input stream mutex - e.g.
+@@ -2663,7 +2665,8 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
+     struct audio_device *adev = (struct audio_device *)dev;
+     struct stream_in *in;
+     int ret;
+-
++    int channels;
++    int buffer_size, frame_size;
+ 
+ 
+     *stream_in = NULL;
+@@ -2674,11 +2677,25 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
+     //ALOGV("%s:config->channel_mask %d",__FUNCTION__,config->channel_mask);
+     if (/*config->channel_mask != AUDIO_CHANNEL_IN_MONO &&
+             config->channel_mask != AUDIO_CHANNEL_IN_FRONT_BACK*/
+-        config->channel_mask != AUDIO_CHANNEL_IN_STEREO) {
++        config->channel_mask != AUDIO_CHANNEL_IN_STEREO &&
++        config->channel_mask != AUDIO_CHANNEL_IN_QUAD &&
++        config->channel_mask != AUDIO_CHANNEL_IN_MONO ) {
+         config->channel_mask = AUDIO_CHANNEL_IN_STEREO;
+         ALOGE("%s:channel is not support",__FUNCTION__);
+         return -EINVAL;
+     }
++    switch (config->channel_mask) {
++    case AUDIO_CHANNEL_IN_STEREO:
++        channels = 2;
++        break;
++    case AUDIO_CHANNEL_IN_QUAD:
++        channels = 4;
++        break;
++    case AUDIO_CHANNEL_IN_MONO:
++        channels = 1;
++        break;
++    };
++    ALOGD("adev_open_input_stream: channel_mask 0x%08X channel %d", config->channel_mask, channels);
+ 
+     in = (struct stream_in *)calloc(1, sizeof(struct stream_in));
+     if (!in)
+@@ -2716,21 +2733,31 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
+         pcm_config = &pcm_config_in_bt;
+     }
+ #endif
++    pcm_config->channels = channels;
+     in->config = pcm_config;
+-
+-    in->buffer = malloc(pcm_config->period_size * pcm_config->channels
+-                        * audio_stream_in_frame_size(&in->stream));
++    frame_size = audio_stream_in_frame_size(&in->stream);
++    buffer_size = pcm_config->period_size * pcm_config->channels * (pcm_format_to_bits(pcm_config->format) >> 3);
++    ALOGD("frame_size  %d, buffer_size %d", frame_size , buffer_size);
++    in->buffer = malloc(buffer_size);
+ #ifdef SPEEX_DENOISE_ENABLE
+     in->mSpeexState = NULL;
+     in->mSpeexFrameSize = 0;
+     in->mSpeexPcmIn = NULL;
+ #endif
+-
++    {
++        struct stream_in *ins = (struct stream_in *)&in->stream;
++        ALOGD("open_input latency       : %s", flags & AUDIO_INPUT_FLAG_FAST? "true":"false");
++        ALOGD("open_input Device        : 0x%x", ins->device);
++        ALOGD("open_input SampleRate    : %d", ins->config->rate);
++        ALOGD("open_input Channels      : %d", ins->config->channels);
++        ALOGD("open_input Formate       : %d", ins->config->format);
++        ALOGD("open_input PreiodSize    : %d", ins->config->period_size);
++    }
+     if (!in->buffer) {
+         ret = -ENOMEM;
+         goto err_malloc;
+     }
+-
++#if 0
+     if (in->requested_rate != pcm_config->rate) {
+         in->buf_provider.get_next_buffer = get_next_buffer;
+         in->buf_provider.release_buffer = release_buffer;
+@@ -2748,7 +2775,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
+             goto err_resampler;
+         }
+     }
+-
++#endif
+ #ifdef SPEEX_DENOISE_ENABLE
+     uint32_t size;
+     int denoise = 1;
+diff --git a/tinyalsa_hal/audio_hw.h b/tinyalsa_hal/audio_hw.h
+index a46d3fa..7c7b1b4 100755
+--- a/tinyalsa_hal/audio_hw.h
++++ b/tinyalsa_hal/audio_hw.h
+@@ -106,7 +106,7 @@ int PCM_BT = 3;
+ #define MAX_SUPPORTED_CHANNEL_MASKS 2
+ 
+ #ifndef RK3368
+-#define SPEEX_DENOISE_ENABLE
++//#define SPEEX_DENOISE_ENABLE
+ #endif
+ 
+ #define HW_PARAMS_FLAG_LPCM 0
+@@ -200,20 +200,20 @@ struct pcm_config pcm_config_in = {
+ #else
+ struct pcm_config pcm_config = {
+     .channels = 2,
+-    .rate = 44100,
+-    .period_size = 512,
+-    .period_count = 6,
++    .rate = 48000,
++    .period_size = 192,
++    .period_count = 4,
+     .format = PCM_FORMAT_S16_LE,
+     .flag = HW_PARAMS_FLAG_LPCM,
+ };
+ 
+ struct pcm_config pcm_config_in = {
+-    .channels = 2,
+-    .rate = 44100,
++    .channels = 4,
++    .rate = 48000,
+ #ifdef SPEEX_DENOISE_ENABLE
+-    .period_size = 1024,
++    .period_size = 384,
+ #else
+-    .period_size = 128,
++    .period_size = 384,
+ #endif
+     .period_count = 4,
+     .format = PCM_FORMAT_S16_LE,
+@@ -222,9 +222,9 @@ struct pcm_config pcm_config_in = {
+ #endif
+ 
+ struct pcm_config pcm_config_in_low_latency = {
+-    .channels = 2,
+-    .rate = 44100,
+-    .period_size = 256,
++    .channels = 4,
++    .rate = 48000,
++    .period_size = 384,
+     .period_count = 4,
+     .format = PCM_FORMAT_S16_LE,
+     .flag = HW_PARAMS_FLAG_LPCM,
+-- 
+1.9.1
+
