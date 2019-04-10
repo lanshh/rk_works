@@ -1,0 +1,90 @@
+From e1ab2dc225af84f7494dd1fc67e3c1400d379fa9 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Sun, 9 Dec 2018 16:34:37 +0800
+Subject: [PATCH 3/5] arm64: dts: rk3399: add rt5679 device
+
+Change-Id: I11bb47e22085f5c1eb10b76bb008bc524c036a13
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ .../dts/rockchip/rk3399-excavator-sapphire.dtsi    | 35 ++++++++++++++++++++++
+ .../dts/rockchip/rk3399-sapphire-excavator-edp.dts |  4 +--
+ 2 files changed, 37 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
+index c406e54..b125e74 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
+@@ -66,6 +66,28 @@
+ 		};
+ 	};
+ 
++	rt5679-sound {
++		compatible = "simple-audio-card";
++		simple-audio-card,format = "i2s";
++		simple-audio-card,name = "realtek,rt5679-codec";
++		simple-audio-card,mclk-fs = <256>;
++		rockchip,cru = <&cru>;
++		simple-audio-card,widgets =
++			"Microphone", "Mic Jack",
++			"Headphone", "Headphone Jack";
++		simple-audio-card,routing =
++			"Mic Jack", "MICBIAS1",
++			"IN1P", "Mic Jack",
++			"Headphone Jack", "HPOL",
++			"Headphone Jack", "HPOR";
++		simple-audio-card,cpu {
++			sound-dai = <&i2s0>;
++		};
++		simple-audio-card,codec {
++			sound-dai = <&rt5679 2>;
++		};
++	};
++
+ 	spdif-sound {
+ 		status = "okay";
+ 		compatible = "simple-audio-card";
+@@ -170,6 +192,19 @@
+ 	i2c-scl-rising-time-ns = <300>;
+ 	i2c-scl-falling-time-ns = <15>;
+ 
++	rt5679: rt5679@2d {
++		#sound-dai-cells = <1>;
++		compatible = "realtek,rt5679", "realtek,rt5678";
++		reg = <0x2d>; /* 5678:2c 5679:2d */
++		clocks = <&cru SCLK_I2S_8CH_OUT>;
++		clock-names = "mclk";
++		pinctrl-names = "default";
++		pinctrl-0 = <&i2s_8ch_mclk>;
++		spk-con-gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
++		hp-det-gpio = <&gpio4 28 GPIO_ACTIVE_LOW>;
++		realtek,gpio_reset = <&gpio3 31 GPIO_ACTIVE_LOW>;
++	};
++
+ 	rt5651: rt5651@1a {
+ 		#sound-dai-cells = <0>;
+ 		compatible = "rockchip,rt5651";
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
+index 728b430..665bea8 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
+@@ -109,7 +109,7 @@
+ 		compatible = "rockchip,rockchip-rt5651-tc358749x-sound";
+ 		rockchip,cpu = <&i2s0>;
+ 		rockchip,codec = <&rt5651 &rt5651 &tc358749x>;
+-		status = "okay";
++		status = "disabled";
+ 	};
+ };
+ 
+@@ -156,7 +156,7 @@
+ };
+ 
+ &hdmi_dp_sound {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &dp_in_vopb {
+-- 
+1.9.1
+

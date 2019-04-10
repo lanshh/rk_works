@@ -1,0 +1,181 @@
+From f3b69369d29145b38bf4b012b95e3e144dfd4ea6 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 7 Dec 2018 19:30:29 +0800
+Subject: [PATCH] arch: arm64: dts: modify rt5679 codec configs
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ .../rockchip/rk3399-excavator-sapphire-brio3.dtsi  | 52 ++++++++++++++++++++++
+ .../boot/dts/rockchip/rk3399-sapphire-brio3.dtsi   |  2 +-
+ .../rk3399-sapphire-excavator-edp-brio3.dtsi       | 39 +++++-----------
+ 3 files changed, 64 insertions(+), 29 deletions(-)
+ mode change 100755 => 100644 arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp-brio3.dtsi
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire-brio3.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire-brio3.dtsi
+index 768875c..f654be9 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire-brio3.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire-brio3.dtsi
+@@ -46,6 +46,7 @@
+ 	compatible = "rockchip,rk3399-sapphire-excavator", "rockchip,rk3399";
+ 
+ 	rt5651-sound {
++		status = "disabled";
+ 		compatible = "simple-audio-card";
+ 		simple-audio-card,format = "i2s";
+ 		simple-audio-card,name = "realtek,rt5651-codec";
+@@ -66,6 +67,28 @@
+ 		};
+ 	};
+ 
++	rt5678-sound {
++		compatible = "simple-audio-card";
++		simple-audio-card,format = "i2s";
++		simple-audio-card,name = "realtek,rt5678-codec";
++		simple-audio-card,mclk-fs = <256>;
++		rockchip,cru = <&cru>;
++		simple-audio-card,widgets =
++			"Microphone", "Mic Jack",
++			"Headphone", "Headphone Jack";
++		simple-audio-card,routing =
++			"Mic Jack", "MICBIAS1",
++			"IN1P", "Mic Jack",
++			"Headphone Jack", "HPOL",
++			"Headphone Jack", "HPOR";
++		simple-audio-card,cpu {
++			sound-dai = <&i2s1>;
++		};
++		simple-audio-card,codec {
++			sound-dai = <&rt5678 2>;
++		};
++	};
++
+ 	spdif-sound {
+ 		status = "okay";
+ 		compatible = "simple-audio-card";
+@@ -164,6 +187,35 @@
+ 	#sound-dai-cells = <0>;
+ };
+ 
++&spi5 {
++	status = "okay";
++	max-freq = <50000000>;
++	rt5679-spi{
++		status = "okay";
++		compatible = "realtek,rt5679";
++		reg = <0>;
++		spi-max-frequency = <1000000>;
++		spi-cpha;
++		spi-cpol;
++	};
++
++};
++
++&i2c4 {
++	rt5678: rt5678@2d {
++		#sound-dai-cells = <1>;
++		compatible = "realtek,rt5679", "realtek,rt5678";
++		reg = <0x2d>; /* 5678:2c 5679:2d */
++		clocks = <&cru SCLK_I2S_8CH_OUT>;
++		clock-names = "mclk";
++		pinctrl-names = "default";
++		pinctrl-0 = <&i2s_8ch_mclk>;
++		spk-con-gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
++		hp-det-gpio = <&gpio4 28 GPIO_ACTIVE_LOW>;
++		realtek,gpio_reset = <&gpio3 31 GPIO_ACTIVE_LOW>;
++	};
++};
++
+ &i2c1 {
+ 	status = "okay";
+ 	i2c-scl-rising-time-ns = <300>;
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-brio3.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-brio3.dtsi
+index eb6af54..db468b5 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-brio3.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-brio3.dtsi
+@@ -494,7 +494,7 @@
+ };
+ 
+ &i2s0 {
+-	status = "okay";
++	status = "disabled";
+ 	rockchip,i2s-broken-burst-len;
+ 	rockchip,playback-channels = <8>;
+ 	rockchip,capture-channels = <8>;
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp-brio3.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp-brio3.dtsi
+old mode 100755
+new mode 100644
+index 216a0ff..0277244
+--- a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp-brio3.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp-brio3.dtsi
+@@ -98,38 +98,12 @@
+ 		status = "okay";
+ 	};
+ 
+-	rt5651-sound {
+-		status = "disabled";
+-	};
+-
+ 	hdmiin-sound {
+ 		compatible = "rockchip,rockchip-rt5651-tc358749x-sound";
+ 		rockchip,cpu = <&i2s0>;
+ 		rockchip,codec = <&rt5651 &rt5651 &tc358749x>;
+ 		status = "disabled";
+ 	};
+-
+-	rt5679-sound {
+-		compatible = "simple-audio-card";
+-		simple-audio-card,format = "i2s";
+-		simple-audio-card,name = "realtek,rt5679-codec";
+-		simple-audio-card,mclk-fs = <256>;
+-		simple-audio-card,widgets =
+-			"Microphone", "Mic Jack",
+-			"Headphone", "Headphone Jack";
+-		simple-audio-card,routing =
+-			"Mic Jack", "MICBIAS1",
+-			"IN1P", "Mic Jack",
+-			"Headphone Jack", "HPOL",
+-			"Headphone Jack", "HPOR";
+-		simple-audio-card,cpu {
+-			sound-dai = <&i2s0>;
+-		};
+-		simple-audio-card,codec {
+-			sound-dai = <&rt5679>;
+-		};
+-	};
+-
+ };
+ 
+ 
+@@ -250,7 +224,7 @@
+ };
+ 
+ &rt5651 {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &hdmi_dp_sound {
+@@ -265,10 +239,19 @@
+ 	status = "okay";
+ };
+ 
++&i2s1 {
++	status = "okay";
++	rockchip,i2s-broken-burst-len;
++	rockchip,playback-channels = <8>;
++	rockchip,capture-channels = <8>;
++	#sound-dai-cells = <0>;
++};
++
+ &i2c1 {
+ 	status = "okay";
+ 
+-	rt5679: rt5679@1a {
++	rt5679: rt5679@2d {
++		status = "disabled";
+ 		#sound-dai-cells = <0>;
+ 		compatible = "realtek,rt5679";
+ 		reg = <0x2d>;
+-- 
+1.9.1
+

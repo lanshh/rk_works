@@ -1,0 +1,25 @@
+From c5c20b75f020312e1e6967cc84b8cda3103ac3cb Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 7 Dec 2018 19:32:14 +0800
+Subject: [PATCH 4/5] arm64: rockchip_defconfig: enable rt5679
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm64/configs/rockchip_defconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/configs/rockchip_defconfig b/arch/arm64/configs/rockchip_defconfig
+index 5c60086..2af54c4 100644
+--- a/arch/arm64/configs/rockchip_defconfig
++++ b/arch/arm64/configs/rockchip_defconfig
+@@ -548,6 +548,7 @@ CONFIG_SND_SOC_RK1000=y
+ CONFIG_SND_SOC_RK3328=y
+ CONFIG_SND_SOC_RK817=y
+ CONFIG_SND_SOC_RT5640=y
++CONFIG_SND_SOC_RT5679=y
+ CONFIG_SND_SOC_SPDIF=y
+ CONFIG_SND_SIMPLE_CARD=y
+ CONFIG_HIDRAW=y
+-- 
+1.9.1
+

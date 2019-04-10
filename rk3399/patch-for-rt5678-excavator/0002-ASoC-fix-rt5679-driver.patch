@@ -1,0 +1,280 @@
+From 329012bdc210cf561dcbf2ec5b46fdd8db7ad642 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 7 Dec 2018 19:31:23 +0800
+Subject: [PATCH 2/5] ASoC: fix rt5679 driver
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ sound/soc/codecs/rt5679.c | 110 +++++++++++++++++++++++++++++-----------------
+ 1 file changed, 70 insertions(+), 40 deletions(-)
+
+diff --git a/sound/soc/codecs/rt5679.c b/sound/soc/codecs/rt5679.c
+index 36f3d1a..ff9948b 100644
+--- a/sound/soc/codecs/rt5679.c
++++ b/sound/soc/codecs/rt5679.c
+@@ -37,7 +37,7 @@
+ #include <linux/clk.h>
+ 
+ #include "rt5679.h"
+-//#include "rt5679-spi.h"
++#include "rt5679-spi.h"
+ 
+ //#define DSP_MODE_USE_SPI
+ 
+@@ -2130,7 +2130,7 @@ static const SOC_ENUM_SINGLE_DECL(rt5679_ob_4_7_asrc_enum, RT5679_ASRC7,
+ static int rt5679_da_sto1_asrc_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	switch (ucontrol->value.integer.value[0]) {
+ 	case 1 ... 7: /*enable*/
+@@ -2150,7 +2150,7 @@ static int rt5679_da_sto1_asrc_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_da_mono2l_asrc_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	switch (ucontrol->value.integer.value[0]) {
+ 	case 1 ... 7: /*enable*/
+@@ -2171,7 +2171,7 @@ static int rt5679_da_mono2l_asrc_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_da_mono2r_asrc_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	switch (ucontrol->value.integer.value[0]) {
+ 	case 1 ... 7: /*enable*/
+@@ -2192,7 +2192,7 @@ static int rt5679_da_mono2r_asrc_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_da_mono3l_asrc_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	switch (ucontrol->value.integer.value[0]) {
+ 	case 1 ... 7: /*enable*/
+@@ -2213,7 +2213,7 @@ static int rt5679_da_mono3l_asrc_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_da_mono3r_asrc_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	switch (ucontrol->value.integer.value[0]) {
+ 	case 1 ... 7: /*enable*/
+@@ -2234,7 +2234,7 @@ static int rt5679_da_mono3r_asrc_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_ad_sto1_asrc_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	switch (ucontrol->value.integer.value[0]) {
+ 	case 1 ... 7: /*enable*/
+@@ -2255,7 +2255,7 @@ static int rt5679_ad_sto1_asrc_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_ad_sto2_asrc_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	switch (ucontrol->value.integer.value[0]) {
+ 	case 1 ... 7: /*enable*/
+@@ -2276,7 +2276,7 @@ static int rt5679_ad_sto2_asrc_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_ad_sto3_asrc_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	switch (ucontrol->value.integer.value[0]) {
+ 	case 1 ... 7: /*enable*/
+@@ -2297,7 +2297,7 @@ static int rt5679_ad_sto3_asrc_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_ad_monol_asrc_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	switch (ucontrol->value.integer.value[0]) {
+ 	case 1 ... 7: /*enable*/
+@@ -2318,7 +2318,7 @@ static int rt5679_ad_monol_asrc_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_ad_monor_asrc_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	switch (ucontrol->value.integer.value[0]) {
+ 	case 1 ... 7: /*enable*/
+@@ -2354,7 +2354,7 @@ static int rt5679_jack_type_get(struct snd_kcontrol *kcontrol,
+ static int rt5679_jack_type_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 	int jack_insert = ucontrol->value.integer.value[0];
+ 
+ 	dev_info(codec->dev, "ret=0x%x\n",
+@@ -2366,7 +2366,7 @@ static int rt5679_jack_type_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_dsp_mode_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 
+ 	rt5679_set_dsp_mode(codec, ucontrol->value.integer.value[0]);
+ 
+@@ -2376,7 +2376,7 @@ static int rt5679_dsp_mode_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_hp_vol_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 	int ret = snd_soc_put_volsw(kcontrol, ucontrol);
+ 
+ 	if (snd_soc_read(codec, RT5679_STO_HP_NG2_CTRL1) & 0x8000) {
+@@ -2392,7 +2392,7 @@ static int rt5679_hp_vol_put(struct snd_kcontrol *kcontrol,
+ static int rt5679_mono_vol_put(struct snd_kcontrol *kcontrol,
+ 		struct snd_ctl_elem_value *ucontrol)
+ {
+-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
++	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+ 	int ret = snd_soc_put_volsw(kcontrol, ucontrol);
+ 
+ 	if (snd_soc_read(codec, RT5679_MONO_AMP_NG2_CTRL1) & 0x8000) {
+@@ -4214,6 +4214,29 @@ static int rt5679_mono_event(struct snd_soc_dapm_widget *w,
+ 	return 0;
+ }
+ 
++//#define RT5679_TEST
++#ifdef RT5679_TEST
++static int rt5679_dsp_init(struct device *dev)
++{
++	const struct firmware *fw;
++	int ret;
++
++	printk("rt5679_dsp_init");
++	ret = request_firmware(&fw, "ALC5679_50000000", dev);
++	if (ret == 0) {
++		rt5679_spi_burst_write(0x50000000, fw->data, fw->size);
++		release_firmware(fw);
++	}
++
++	ret = request_firmware(&fw, "ALC5679_60000000", dev);
++	if (ret == 0) {
++		rt5679_spi_burst_write(0x60000000, fw->data, fw->size);
++		release_firmware(fw);
++	}
++	return 0;
++}
++#endif
++
+ static int rt5679_dsp_event(struct snd_soc_dapm_widget *w,
+ 	struct snd_kcontrol *kcontrol, int event)
+ {
+@@ -4254,17 +4277,13 @@ static int rt5679_dsp_event(struct snd_soc_dapm_widget *w,
+ 
+ 		ret = request_firmware(&fw, "ALC5679_50000000", codec->dev);
+ 		if (ret == 0) {
+-			printk("rt5679_spi_burst_write(0x50000000, fw->data, %ld)\n",
+-				   fw->size);
+-			//rt5679_spi_burst_write(0x50000000, fw->data, fw->size);
++			rt5679_spi_burst_write(0x50000000, fw->data, fw->size);
+ 			release_firmware(fw);
+ 		}
+ 
+ 		ret = request_firmware(&fw, "ALC5679_60000000", codec->dev);
+ 		if (ret == 0) {
+-			printk("rt5679_spi_burst_write(0x60000000, fw->data, %ld)\n",
+-				   fw->size);
+-			//rt5679_spi_burst_write(0x60000000, fw->data, fw->size);
++			rt5679_spi_burst_write(0x60000000, fw->data, fw->size);
+ 			release_firmware(fw);
+ 		}
+ 
+@@ -6992,22 +7011,22 @@ static int rt5679_set_bias_level(struct snd_soc_codec *codec,
+ 	case SND_SOC_BIAS_ON:
+ 		break;
+ 
+-	case SND_SOC_BIAS_PREPARE:		if (snd_soc_codec_get_bias_level(codec) == SND_SOC_BIAS_STANDBY) {
+-			/* regmap_update_bits(rt5679->regmap,
+-				RT5679_MCLK_GATING_CTRL, RT5679_MCLK_GATE_MASK,
+-				RT5679_MCLK_GATE_EN); */
+-            if (!IS_ERR(rt5679->mclk))
+-                clk_prepare_enable(rt5679->mclk);
++	case SND_SOC_BIAS_PREPARE:
++		if (snd_soc_codec_get_bias_level(codec) == SND_SOC_BIAS_STANDBY) {
++			regmap_update_bits(rt5679->regmap, RT5679_MCLK_GATING_CTRL,
++							   RT5679_MCLK_GATE_MASK, RT5679_MCLK_GATE_EN);
++			if (!IS_ERR(rt5679->mclk))
++				clk_prepare_enable(rt5679->mclk);
+ 		}
+ 		break;
+ 	case SND_SOC_BIAS_STANDBY:
+ 		if (SND_SOC_BIAS_PREPARE == snd_soc_codec_get_bias_level(codec))
+ 			if (!IS_ERR(rt5679->mclk))
+-               clk_disable_unprepare(rt5679->mclk);
++				clk_disable_unprepare(rt5679->mclk);
+ 		break;
+ 	case SND_SOC_BIAS_OFF:
+ 		regmap_update_bits(rt5679->regmap, RT5679_MCLK_GATING_CTRL,
+-			RT5679_MCLK_GATE_MASK, RT5679_MCLK_GATE_DIS);
++						   RT5679_MCLK_GATE_MASK, RT5679_MCLK_GATE_DIS);
+ 		break;
+ 
+ 	default:
+@@ -7674,17 +7693,25 @@ static int rt5679_i2c_probe(struct i2c_client *i2c,
+ 		}
+ 	}
+ 
+-	ret = devm_gpio_request_one(&i2c->dev, rt5679->pdata.gpio_ldo,
+-		GPIOF_OUT_INIT_HIGH, "rt5679");
+-	if (ret)
+-		dev_err(&i2c->dev, "Fail gpio_request_one gpio_ldo: %d\n", ret);
+-
+-	ret = devm_gpio_request_one(&i2c->dev, rt5679->pdata.gpio_reset,
+-		GPIOF_OUT_INIT_HIGH, "rt5679");
+-	if (ret)
+-		dev_err(&i2c->dev, "Fail gpio_request_one gpio_reset: %d\n",
+-			ret);
+-
++	if (rt5679->pdata.gpio_ldo >= 0) {
++		ret = devm_gpio_request_one(&i2c->dev, rt5679->pdata.gpio_ldo,
++									GPIOF_OUT_INIT_HIGH, "rt5679");
++		if (ret)
++			dev_err(&i2c->dev, "Fail gpio_request_one gpio_ldo: %d\n", ret);
++	} else {
++		dev_info(&i2c->dev, "no gpio_ldo pin set\n");
++	}
++	if (rt5679->pdata.gpio_reset >= 0) {
++		ret = devm_gpio_request_one(&i2c->dev, rt5679->pdata.gpio_reset,
++									GPIOF_OUT_INIT_LOW, "rt5679");
++		if (ret)
++			dev_err(&i2c->dev, "Fail gpio_request_one gpio_reset: %d\n", ret);
++		dev_info(&i2c->dev, "Sleep wait for reset\n");
++		msleep(100);
++		gpio_set_value(rt5679->pdata.gpio_reset, 1);
++	} else {
++		dev_info(&i2c->dev, "no gpio_reset pin set\n");
++	}
+ 	msleep(100);
+ 
+ 	rt5679->regmap_physical = devm_regmap_init_i2c(i2c,
+@@ -7716,6 +7743,9 @@ static int rt5679_i2c_probe(struct i2c_client *i2c,
+ 
+ 	rt5679_calibrate(rt5679);
+ 
++#ifdef RT5679_TEST
++	rt5679_dsp_init(&i2c->dev);
++#endif
+ 	regmap_write(rt5679->regmap_physical, RT5679_RESET, 0x10ec);
+ 
+ 	/* IN/OUT diff mode*/
+-- 
+1.9.1
+

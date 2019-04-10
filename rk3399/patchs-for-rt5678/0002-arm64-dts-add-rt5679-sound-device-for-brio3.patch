@@ -1,0 +1,68 @@
+From b4f6db5e6893fd84fd33ce10034f78a47c6a28fe Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 23 Nov 2018 17:22:36 +0800
+Subject: [PATCH] arm64: dts: add rt5679-sound device for brio3
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ .../rk3399-sapphire-excavator-edp-brio3.dtsi       | 36 +++++++++++++++++++++-
+ 1 file changed, 35 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp-brio3.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp-brio3.dtsi
+index 9414553..4c9a6bd 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp-brio3.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp-brio3.dtsi
+@@ -106,8 +106,30 @@
+ 		compatible = "rockchip,rockchip-rt5651-tc358749x-sound";
+ 		rockchip,cpu = <&i2s0>;
+ 		rockchip,codec = <&rt5651 &rt5651 &tc358749x>;
+-		status = "okay";
++		status = "disabled";
++	};
++
++	rt5679-sound {
++		compatible = "simple-audio-card";
++		simple-audio-card,format = "i2s";
++		simple-audio-card,name = "realtek,rt5679-codec";
++		simple-audio-card,mclk-fs = <256>;
++		simple-audio-card,widgets =
++			"Microphone", "Mic Jack",
++			"Headphone", "Headphone Jack";
++		simple-audio-card,routing =
++			"Mic Jack", "MICBIAS1",
++			"IN1P", "Mic Jack",
++			"Headphone Jack", "HPOL",
++			"Headphone Jack", "HPOR";
++		simple-audio-card,cpu {
++			sound-dai = <&i2s0>;
++		};
++		simple-audio-card,codec {
++			sound-dai = <&rt5679>;
++		};
+ 	};
++
+ };
+ 
+ 
+@@ -235,6 +257,18 @@
+ &i2c1 {
+ 	status = "okay";
+ 
++	rt5679: rt5679@1a {
++		#sound-dai-cells = <0>;
++		compatible = "realtek,rt5679";
++		reg = <0x2d>;
++		clocks = <&cru SCLK_I2S_8CH_OUT>;
++		clock-names = "mclk";
++		pinctrl-names = "default";
++		pinctrl-0 = <&i2s_8ch_mclk>;
++		spk-con-gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
++		hp-det-gpio = <&gpio4 28 GPIO_ACTIVE_LOW>;
++	};
++
+ 	gsl3673: gsl3673@40 {
+ 		compatible = "GSL,GSL3673";
+ 		reg = <0x40>;
+-- 
+1.9.1
+
