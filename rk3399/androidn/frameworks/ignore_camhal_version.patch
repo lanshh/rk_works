@@ -1,0 +1,18 @@
+diff --git a/media/libmedia/MediaProfiles.cpp b/media/libmedia/MediaProfiles.cpp
+index 60e833c..3c2145b 100644
+--- a/media/libmedia/MediaProfiles.cpp
++++ b/media/libmedia/MediaProfiles.cpp
+@@ -656,11 +656,11 @@ MediaProfiles::getInstance()
+                 property_get("sys_graphic.cam_hal.ver", camerahal_value, "0.0.0");
+                 sscanf(camerahal_value,"%d.%d.%d" ,&camHal_0,&camHal_1,&camHal_2);
+                 ver = (camHal_0<<16)|(camHal_1<<8)|(camHal_2);
+-                if (ver == 0x00) {
++                /* if (ver == 0x00) {
+                     sleep(1);
+                     delay_s++;
+                     ALOGD("Delay for CameraHal: %d s!",delay_s);
+-                }
++                }*/
+             } while((ver==0x00) && (delay_s<5));
+ 
+             if (autoXml==true) {
