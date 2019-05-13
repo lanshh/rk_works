@@ -1,0 +1,72 @@
+From 1a922c64f2cd1c61676c17c1748afec9ff8293ed Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Mon, 13 May 2019 17:08:37 +0800
+Subject: [PATCH] force 32-bit build to fix garbled output
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ pico/Android.mk            | 1 +
+ pico/compat/jni/Android.mk | 1 +
+ pico/lib/Android.mk        | 1 +
+ pico/tts/Android.mk        | 2 ++
+ 4 files changed, 5 insertions(+)
+
+diff --git a/pico/Android.mk b/pico/Android.mk
+index 2f6420e..e35e6be 100755
+--- a/pico/Android.mk
++++ b/pico/Android.mk
+@@ -8,6 +8,7 @@ LOCAL_PATH := $(call my-dir)
+ include $(CLEAR_VARS)
+ 
+ LOCAL_PACKAGE_NAME := PicoTts
++LOCAL_MULTILIB := 32
+ 
+ LOCAL_SRC_FILES := \
+     $(call all-java-files-under, src) \
+diff --git a/pico/compat/jni/Android.mk b/pico/compat/jni/Android.mk
+index 5a7180c..9b3ad60 100755
+--- a/pico/compat/jni/Android.mk
++++ b/pico/compat/jni/Android.mk
+@@ -2,6 +2,7 @@ LOCAL_PATH:= $(call my-dir)
+ include $(CLEAR_VARS)
+ 
+ LOCAL_MODULE:= libttscompat
++LOCAL_MULTILIB := 32
+ 
+ LOCAL_SRC_FILES:= \
+ 	com_android_tts_compat_SynthProxy.cpp
+diff --git a/pico/lib/Android.mk b/pico/lib/Android.mk
+index 70f0099..cdf0026 100644
+--- a/pico/lib/Android.mk
++++ b/pico/lib/Android.mk
+@@ -4,6 +4,7 @@ LOCAL_PATH := $(call my-dir)
+ include $(CLEAR_VARS)
+ 
+ LOCAL_MODULE := libsvoxpico
++LOCAL_MULTILIB := 32
+ 
+ LOCAL_SRC_FILES := \
+ 	picoacph.c \
+diff --git a/pico/tts/Android.mk b/pico/tts/Android.mk
+index 335a1c2..0f0d737 100644
+--- a/pico/tts/Android.mk
++++ b/pico/tts/Android.mk
+@@ -7,6 +7,7 @@ LOCAL_PATH := $(call my-dir)
+ include $(CLEAR_VARS)
+ 
+ LOCAL_MODULE := libttspico_engine
++LOCAL_MULTILIB := 32
+ 
+ LOCAL_SRC_FILES := \
+ 	com_svox_picottsengine.cpp \
+@@ -36,6 +37,7 @@ include $(BUILD_STATIC_LIBRARY)
+ include $(CLEAR_VARS)
+ 
+ LOCAL_MODULE := libttspico
++LOCAL_MULTILIB := 32
+ 	
+ LOCAL_SRC_FILES := \
+ 	com_svox_picottsengine.cpp \
+-- 
+1.9.1
+

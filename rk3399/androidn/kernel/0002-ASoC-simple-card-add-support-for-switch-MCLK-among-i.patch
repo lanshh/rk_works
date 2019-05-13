@@ -1,0 +1,54 @@
+From 0f8bf534e443bab33cba281d09c0893e0a4d04f5 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 11 Dec 2018 14:28:41 +0800
+Subject: [PATCH 2/2] ASoC: simple-card: add support for switch MCLK among i2s
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ sound/soc/generic/simple-card.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/generic/simple-card.c b/sound/soc/generic/simple-card.c
+index 974bfaa..efffa3e 100644
+--- a/sound/soc/generic/simple-card.c
++++ b/sound/soc/generic/simple-card.c
+@@ -20,6 +20,7 @@
+ #include <sound/simple_card.h>
+ #include <sound/soc-dai.h>
+ #include <sound/soc.h>
++#include <linux/mfd/syscon.h>
+ 
+ struct simple_card_data {
+ 	struct snd_soc_card snd_card;
+@@ -559,7 +560,9 @@ static int asoc_simple_card_probe(struct platform_device *pdev)
+ 	struct snd_soc_dai_link *dai_link;
+ 	struct device_node *np = pdev->dev.of_node;
+ 	struct device *dev = &pdev->dev;
++	struct regmap *cru;
+ 	int num_links, ret;
++	u32 val = 0;
+ 
+ 	/* Get the number of DAI links */
+ 	if (np && of_get_child_by_name(np, "simple-audio-card,dai-link"))
+@@ -635,7 +638,17 @@ static int asoc_simple_card_probe(struct platform_device *pdev)
+ 					sizeof(priv->dai_props->codec_dai));
+ 
+ 	}
+-
++	ret = of_property_read_u32(np, "simple-audio-card,mclk-src", &val);
++	if (ret == 0) {
++		cru = syscon_regmap_lookup_by_phandle(np, "rockchip,cru");
++		if (IS_ERR(cru)) {
++			dev_err(dev, "Missing 'rockchip,cru' property\n");
++			return PTR_ERR(cru);
++		}
++		val = 0x00030000 | val;
++		dev_info(dev, "switch clk i2s ch to 0x%08X\n", val);
++		regmap_write(cru, 0x017c, val);/* clk_i2s_ch_sel */
++	}
+ 	snd_soc_card_set_drvdata(&priv->snd_card, priv);
+ 
+ 	ret = devm_snd_soc_register_card(&pdev->dev, &priv->snd_card);
+-- 
+1.9.1
+
