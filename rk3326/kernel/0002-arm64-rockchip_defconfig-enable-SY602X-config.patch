@@ -1,0 +1,25 @@
+From 1241ab052f36c8b12eefe2285a381262b7bd141f Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 21 May 2019 19:55:42 +0800
+Subject: [PATCH 2/2] arm64: rockchip_defconfig: enable SY602X config
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ arch/arm64/configs/rockchip_defconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/configs/rockchip_defconfig b/arch/arm64/configs/rockchip_defconfig
+index d252840..55aab9d 100644
+--- a/arch/arm64/configs/rockchip_defconfig
++++ b/arch/arm64/configs/rockchip_defconfig
+@@ -559,6 +559,7 @@ CONFIG_SND_SOC_RK3328=y
+ CONFIG_SND_SOC_RK817=y
+ CONFIG_SND_SOC_RT5640=y
+ CONFIG_SND_SOC_SPDIF=y
++CONFIG_SND_SOC_SY602X=y
+ CONFIG_SND_SIMPLE_CARD=y
+ CONFIG_HIDRAW=y
+ CONFIG_UHID=y
+-- 
+1.9.1
+

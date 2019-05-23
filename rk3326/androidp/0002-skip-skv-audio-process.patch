@@ -1,0 +1,33 @@
+From a3cfa3fbf8ed2f142e212598e2e02ca6ced6e594 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 23 May 2019 10:49:07 +0800
+Subject: [PATCH 2/2] skip skv audio process
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ tinyalsa_hal/audio_hw.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/tinyalsa_hal/audio_hw.c b/tinyalsa_hal/audio_hw.c
+index da0b9c9..3ad26c7 100755
+--- a/tinyalsa_hal/audio_hw.c
++++ b/tinyalsa_hal/audio_hw.c
+@@ -912,8 +912,14 @@ static int get_next_buffer(struct resampler_buffer_provider *buffer_provider,
+ #ifdef skv_debug
+         {
+             PAP_CONTEXT pAudioContex  = (PAP_CONTEXT)in->cxt;
+-            if (pAudioContex && (1 == pAudioContex->init))
++            if (pAudioContex && (1 == pAudioContex->init)) {
++#if 1
++            for (i = 0; i < in->config->period_size; i++)
++                in->buffer[i] = in->buffer1[i * 6 + 5];
++#else
+                 pAudioContex->pfn_process((char *)in->buffer1, (char *)in->buffer, size, 1, 2, 2);
++#endif
++            }
+             if (skv_in_debug_raw)
+                 fwrite((char *)in->buffer1, size, 1, skv_in_debug_raw);
+             if (skv_in_debug)
+-- 
+1.9.1
+

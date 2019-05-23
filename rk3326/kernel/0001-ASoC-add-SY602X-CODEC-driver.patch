@@ -1,0 +1,812 @@
+From 6ae061f0a5aa6733490c3aa6ae9029e5fb8dcc02 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Tue, 21 May 2019 19:54:28 +0800
+Subject: [PATCH 1/2] ASoC: add SY602X CODEC driver
+
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ sound/soc/codecs/Kconfig  |   4 +
+ sound/soc/codecs/Makefile |   2 +
+ sound/soc/codecs/sy602x.c | 727 ++++++++++++++++++++++++++++++++++++++++++++++
+ sound/soc/codecs/sy602x.h |  19 ++
+ 4 files changed, 752 insertions(+)
+ create mode 100755 sound/soc/codecs/sy602x.c
+ create mode 100755 sound/soc/codecs/sy602x.h
+
+diff --git a/sound/soc/codecs/Kconfig b/sound/soc/codecs/Kconfig
+index b0bc586..8142160 100644
+--- a/sound/soc/codecs/Kconfig
++++ b/sound/soc/codecs/Kconfig
+@@ -735,6 +735,10 @@ config SND_SOC_TAS2552
+ 	tristate "Texas Instruments TAS2552 Mono Audio amplifier"
+ 	depends on I2C
+ 
++config SND_SOC_SY602X
++	tristate "Silergy Audio amplifier"
++	depends on I2C
++
+ config SND_SOC_TAS5086
+ 	tristate "Texas Instruments TAS5086 speaker amplifier"
+ 	depends on I2C
+diff --git a/sound/soc/codecs/Makefile b/sound/soc/codecs/Makefile
+index 7fe7433..e927ecbd 100644
+--- a/sound/soc/codecs/Makefile
++++ b/sound/soc/codecs/Makefile
+@@ -130,6 +130,7 @@ snd-soc-sta350-objs := sta350.o
+ snd-soc-sta529-objs := sta529.o
+ snd-soc-stac9766-objs := stac9766.o
+ snd-soc-sti-sas-objs := sti-sas.o
++snd-soc-sy602x-objs := sy602x.o
+ snd-soc-tas5086-objs := tas5086.o
+ snd-soc-tas571x-objs := tas571x.o
+ snd-soc-tc358749x-objs := tc358749x.o
+@@ -339,6 +340,7 @@ obj-$(CONFIG_SND_SOC_STA350)   += snd-soc-sta350.o
+ obj-$(CONFIG_SND_SOC_STA529)   += snd-soc-sta529.o
+ obj-$(CONFIG_SND_SOC_STAC9766)	+= snd-soc-stac9766.o
+ obj-$(CONFIG_SND_SOC_STI_SAS)	+= snd-soc-sti-sas.o
++obj-$(CONFIG_SND_SOC_SY602X)   += snd-soc-sy602x.o
+ obj-$(CONFIG_SND_SOC_TAS2552)	+= snd-soc-tas2552.o
+ obj-$(CONFIG_SND_SOC_TAS5086)	+= snd-soc-tas5086.o
+ obj-$(CONFIG_SND_SOC_TAS571X)	+= snd-soc-tas571x.o
+diff --git a/sound/soc/codecs/sy602x.c b/sound/soc/codecs/sy602x.c
+new file mode 100755
+index 0000000..7da158e
+--- /dev/null
++++ b/sound/soc/codecs/sy602x.c
+@@ -0,0 +1,727 @@
++/*
++ * soc-util.c  --  ALSA SoC Audio Layer utility functions
++ *
++ * Copyright 2009 Wolfson Microelectronics PLC.
++ *
++ * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
++ *         Liam Girdwood <lrg@slimlogic.co.uk>
++ *         
++ *
++ *  This program is free software; you can redistribute  it and/or modify it
++ *  under  the terms of  the GNU General  Public License as published by the
++ *  Free Software Foundation;  either version 2 of the  License, or (at your
++ *  option) any later version.
++ */
++#include <linux/i2c.h>
++#include <linux/of.h>
++#include <linux/delay.h>
++#include <linux/module.h>
++#include <linux/clk.h>
++#include <linux/platform_device.h>
++#include <linux/export.h>
++#include <sound/core.h>
++#include <sound/pcm.h>
++#include <sound/pcm_params.h>
++#include <sound/soc.h>
++#include <linux/miscdevice.h>
++#include "sy602x.h"
++//#define USE_REGMAP
++
++#ifdef USE_REGMAP
++static const struct reg_default sy602x_reg[] = {
++ 1,1
++};
++
++static const struct regmap_config sy602x_regmap = {
++	.reg_bits = 8,
++	.val_bits = 16,
++	.max_register = 0x7C,
++	/* .volatile_reg = rt5640_volatile_register,
++	.readable_reg = rt5640_readable_register,*/
++	.cache_type = REGCACHE_NONE,
++	.reg_defaults = sy602x_reg,
++	.num_reg_defaults = ARRAY_SIZE(sy602x_reg),
++};
++#endif
++
++#define STREAM_PLAY			 (0)
++#define STREAM_CAPTURE	     (1)
++
++#define DAC_VERSION        "20190114-2"
++
++#define SY60261
++
++#ifdef SY60261
++#define DAC_DEV_NAME        "X1-DAC"
++#define I2C_DAC_ADDR        (0x2A)
++#define I2C_WRITE_LEN       (32)
++
++#define RATE_32K            (32*1000)
++#define RATE_44_1K          (44100)
++#define RATE_48K            (48*1000)
++#define RATE_96K            (96*1000)
++
++typedef unsigned char       u8;
++struct i2c_client *i2c_client = NULL;
++static int last_rate = 0;
++
++// ***************************************************************************
++// **** below are parameters for setting ****
++// ***************************************************************************
++// you may define these in sy6026l.h instead
++
++//	eq parameters
++// Monitor
++u8 sy6026l_48k_reg_18[] = {0x18, 0x5f};
++
++// Protection
++u8 sy6026l_48k_reg_1b[] = {0x1b, 0x1d};
++u8 sy6026l_48k_reg_23[] = {0x23, 0x00};
++u8 sy6026l_48k_reg_76[] = {0x76, 0x0f};
++u8 sy6026l_48k_reg_85[] = {0x85, 0x00, 0x00, 0x00, 0x03};
++u8 sy6026l_48k_reg_86[] = {0x86, 0x00, 0x00, 0x10, 0x03};
++
++// Checksum
++u8 sy6026l_48k_reg_5a[] = {0x5a, 0x0A, 0x28, 0x1C, 0x69};
++u8 sy6026l_48k_reg_5b[] = {0x5b, 0x1F, 0xFF, 0xFF, 0xFD};
++
++// Mux
++u8 sy6026l_48k_reg_20[] = {0x20, 0x80};
++
++// EQ
++u8 sy6026l_48k_reg_25[] = {0x25, 0x3f};
++//u8 sy6026l_48k_reg_26[] = {0x26, 0x01};
++u8 sy6026l_48k_reg_27[] = {0x27, 0x3f};
++//u8 sy6026l_48k_reg_28[] = {0x28, 0x01};
++u8 sy6026l_48k_reg_30[] = {0x30, 0x1F, 0x81, 0x2D, 0xF3, 0x00, 0xFE, 0xD0, 0xA8, 0x00, 0x7F, 0x68, 0xAD, 0x1F, 0x01, 0x2E, 0xA6, 0x00, 0x7F, 0x68, 0xAD};
++u8 sy6026l_48k_reg_31[] = {0x31, 0x1F, 0x80, 0xD5, 0xC4, 0x00, 0xFF, 0x28, 0xD6, 0x00, 0x7F, 0x94, 0xC5, 0x1F, 0x00, 0xD6, 0x77, 0x00, 0x7F, 0x94, 0xC5};
++u8 sy6026l_48k_reg_32[] = {0x32, 0x1F, 0x80, 0xD1, 0xA3, 0x00, 0xFF, 0x2A, 0x52, 0x00, 0x7E, 0xDC, 0xCA, 0x1F, 0x00, 0xD5, 0xAE, 0x00, 0x80, 0x51, 0x94};
++u8 sy6026l_48k_reg_33[] = {0x33, 0x1F, 0x8B, 0x54, 0x76, 0x00, 0xEE, 0xA3, 0x18, 0x00, 0x76, 0xC2, 0xBD, 0x1F, 0x11, 0x5C, 0xE9, 0x00, 0x7D, 0xE8, 0xCE};
++u8 sy6026l_48k_reg_34[] = {0x34, 0x1F, 0x8A, 0x6C, 0xF5, 0x00, 0xE8, 0x8A, 0xB3, 0x00, 0x78, 0xB6, 0x42, 0x1F, 0x17, 0x75, 0x4D, 0x00, 0x7C, 0xDC, 0xCA};
++u8 sy6026l_48k_reg_35[] = {0x35, 0x1F, 0x9A, 0x9F, 0x57, 0x00, 0xB4, 0x22, 0x54, 0x00, 0x5B, 0x04, 0x8B, 0x1F, 0x4B, 0xDD, 0xAC, 0x00, 0x8A, 0x5C, 0x1F};
++u8 sy6026l_48k_reg_36[] = {0x36, 0x0A, 0x12, 0x47, 0x7C};
++//u8 sy6026l_48k_reg_37[] = {0x37, 0x1f, 0x80, 0xd7, 0xd2, 0x00, 0xff, 0x20, 0x1f, 0x00, 0x7e, 0xfb, 0xaa, 0x1f, 0x00, 0xdf, 0xe1, 0x00, 0x80, 0x2c, 0x84};
++u8 sy6026l_48k_reg_3a[] = {0x3a, 0x1F, 0x81, 0x30, 0x66, 0x00, 0xFE, 0xC7, 0x8E, 0x00, 0x7E, 0xA8, 0x32, 0x1F, 0x01, 0x38, 0x72, 0x00, 0x80, 0x27, 0x68};
++
++u8 sy6026l_48k_reg_43[] = {0x43, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
++u8 sy6026l_48k_reg_44[] = {0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
++u8 sy6026l_48k_reg_45[] = {0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
++u8 sy6026l_48k_reg_46[] = {0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
++
++// DRC
++u8 sy6026l_48k_reg_47[] = {0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B, 0xB7, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x24, 0x55, 0x00, 0x02, 0x24, 0x55};
++u8 sy6026l_48k_reg_4c[] = {0x4c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B, 0xB7, 0x55, 0x00, 0x00, 0x00, 0x00, 0x1F, 0x82, 0x24, 0x56, 0x00, 0x7D, 0xDB, 0xAB};
++u8 sy6026l_48k_reg_52[] = {0x52, 0x00, 0x10, 0x01};
++u8 sy6026l_48k_reg_60[] = {0x60, 0x01, 0x00, 0x00, 0x0B};
++u8 sy6026l_48k_reg_61[] = {0x61, 0x3C, 0x93, 0x08};
++u8 sy6026l_48k_reg_67[] = {0x67, 0x3C, 0x93, 0x08};
++u8 sy6026l_48k_reg_6a[] = {0x6a, 0x00, 0x03, 0x08};
++u8 sy6026l_48k_reg_62[] = {0x62, 0x7F, 0xF7, 0x77};
++u8 sy6026l_48k_reg_68[] = {0x68, 0x7D, 0x5C, 0x65};
++u8 sy6026l_48k_reg_63[] = {0x63, 0x7F, 0xFC, 0x96};
++u8 sy6026l_48k_reg_69[] = {0x69, 0x7F, 0xE4, 0xFF};
++u8 sy6026l_48k_reg_6c[] = {0x6c, 0x7F, 0xF9, 0x2C};
++
++// PowerMeter
++u8 sy6026l_48k_reg_58[] = {0x58, 0x00, 0x74, 0x00};
++u8 sy6026l_48k_reg_59[] = {0x59, 0x00, 0x02, 0x20};
++
++// PWM
++u8 sy6026l_48k_reg_55[] = {0x55, 0x40, 0x20, 0x32, 0x10};
++u8 sy6026l_48k_reg_56[] = {0x56, 0x00, 0x00, 0x00, 0x10};
++//u8 sy6026l_48k_reg_22[] = {0x22, 0x03};
++
++// clock error dectect
++u8 sy6026l_clk_reg_82[] = {0x82, 0x00, 0x00, 0x00, 0x00};
++
++
++//44.1K EQ Setting start.
++// Checksum
++u8 sy6026l_44k_reg_5a[] = {0x5a, 0x0A, 0x29, 0x87, 0x02};
++u8 sy6026l_44k_reg_5b[] = {0x5b, 0x1F, 0xFF, 0xFF, 0xF9};
++/*
++//EQ
++u8 sy6026l_44k_reg_25[] = {0x25, 0x3F};
++u8 sy6026l_44k_reg_27[] = {0x27, 0x3F};
++u8 sy6026l_44k_reg_30[] = {0x30, 0x1F, 0x81, 0x48, 0x84, 0x00, 0xFE, 0xB5, 0xD5, 0x00, 0x7F, 0x5B, 0x54, 0x1F, 0x01, 0x49, 0x58, 0x00, 0x7F, 0x5B, 0x54};
++u8 sy6026l_44k_reg_31[] = {0x31, 0x1F, 0x80, 0xE8, 0x9B, 0x00, 0xFF, 0x15, 0xBE, 0x00, 0x7F, 0x8B, 0x49, 0x1F, 0x00, 0xE9, 0x6F, 0x00, 0x7F, 0x8B, 0x49};
++u8 sy6026l_44k_reg_32[] = {0x32, 0x1F, 0x80, 0xE4, 0x1C, 0x00, 0xFF, 0x17, 0x1A, 0x00, 0x7E, 0xC3, 0x20, 0x1F, 0x00, 0xE8, 0xE6, 0x00, 0x80, 0x58, 0xC4};
++u8 sy6026l_44k_reg_33[] = {0x33, 0x1F, 0x8C, 0x44, 0x15, 0x00, 0xEC, 0x9E, 0x9E, 0x00, 0x75, 0xFF, 0x55, 0x1F, 0x13, 0x61, 0x62, 0x00, 0x7D, 0xBC, 0x97};
++u8 sy6026l_44k_reg_34[] = {0x34, 0x1F, 0x8B, 0x45, 0x62, 0x00, 0xE5, 0x5E, 0x30, 0x00, 0x78, 0x1E, 0xF7, 0x1F, 0x1A, 0xA1, 0xD1, 0x00, 0x7C, 0x9B, 0xA8};
++u8 sy6026l_44k_reg_35[] = {0x35, 0x1F, 0x9C, 0x5A, 0x64, 0x00, 0xAA, 0x25, 0xD4, 0x00, 0x58, 0x9D, 0x16, 0x1F, 0x55, 0xDA, 0x2C, 0x00, 0x8B, 0x08, 0x87};
++u8 sy6026l_44k_reg_36[] = {0x36, 0x0A, 0x12, 0x47, 0x7C};
++//u8 sy6026l_44k_reg_37[] = {0x37, 0x1F, 0x80, 0xEA, 0xD6, 0x00, 0xFF, 0x0B, 0x9F, 0x00, 0x7E, 0xE4, 0xBA, 0x1F, 0x00, 0xF4, 0x61, 0x00, 0x80, 0x30, 0x70};
++u8 sy6026l_44k_reg_3a[] = {0x3a, 0x1F, 0x81, 0x4B, 0x2E, 0x00, 0xFE, 0xAB, 0x4B, 0x00, 0x7E, 0x89, 0xF3, 0x1F, 0x01, 0x54, 0xB5, 0x00, 0x80, 0x2A, 0xE0};
++
++u8 sy6026l_44k_reg_43[] = {0x43, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
++u8 sy6026l_44k_reg_44[] = {0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
++u8 sy6026l_44k_reg_45[] = {0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
++u8 sy6026l_44k_reg_46[] = {0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
++
++//DRC
++u8 sy6026l_44k_reg_47[] = {0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B, 0x58, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x53, 0xF4, 0x00, 0x02, 0x53, 0xF4};
++u8 sy6026l_44k_reg_4c[] = {0x4c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B, 0x58, 0x17, 0x00, 0x00, 0x00, 0x00, 0x1F, 0x82, 0x53, 0xF5, 0x00, 0x7D, 0xAC, 0x0C};
++u8 sy6026l_44k_reg_52[] = {0x52, 0x00, 0x10, 0x01};
++u8 sy6026l_44k_reg_60[] = {0x60, 0x01, 0x00, 0x00, 0x0B};
++u8 sy6026l_44k_reg_67[] = {0x67, 0x3C, 0x93, 0x08};
++u8 sy6026l_44k_reg_6a[] = {0x6a, 0x00, 0x03, 0x08};
++u8 sy6026l_44k_reg_62[] = {0x62, 0x7F, 0xF7, 0x77};
++u8 sy6026l_44k_reg_68[] = {0x68, 0x7D, 0x5C, 0x65};
++u8 sy6026l_44k_reg_6b[] = {0x6b, 0x7F, 0xBB, 0xCD};
++u8 sy6026l_44k_reg_63[] = {0x63, 0x7F, 0xFC, 0x96};
++u8 sy6026l_44k_reg_69[] = {0x69, 0x7F, 0xE4, 0xFF};
++u8 sy6026l_44k_reg_6c[] = {0x6c, 0x7F, 0xF9, 0x2C};
++*/
++/** lsh add **/
++u8 sy6026l_44k_reg_25[] = {0x25, 0x3F};
++u8 sy6026l_44k_reg_27[] = {0x27, 0x3F};
++u8 sy6026l_44k_reg_3a[] = {0x3a, 0x1F, 0x81, 0x4B, 0x2E, 0x00, 0xFE, 0xAB, 0x4B, 0x00, 0x7E, 0x89, 0xF3, 0x1F, 0x01, 0x54, 0xB5, 0x00, 0x80, 0x2A, 0xE0};
++/* add end */
++//// 20190116 from wenjr
++u8 sy6026l_44k_reg_30[] = {0x30, 0x1F, 0x81, 0x48, 0x84, 0x00, 0xFE, 0xB5, 0xD5, 0x00, 0x7F, 0x5B, 0x54, 0x1F, 0x01, 0x49, 0x58, 0x00, 0x7F, 0x5B, 0x54};	// BQ0 coefficient
++u8 sy6026l_44k_reg_31[] = {0x31, 0x1F, 0x80, 0xE8, 0x9B, 0x00, 0xFF, 0x15, 0xBE, 0x00, 0x7F, 0x8B, 0x49, 0x1F, 0x00, 0xE9, 0x6F, 0x00, 0x7F, 0x8B, 0x49};	// BQ1 coefficient
++u8 sy6026l_44k_reg_32[] = {0x32, 0x1F, 0x80, 0xE4, 0x1C, 0x00, 0xFF, 0x17, 0x1A, 0x00, 0x7E, 0xC3, 0x20, 0x1F, 0x00, 0xE8, 0xE6, 0x00, 0x80, 0x58, 0xC4};	// BQ2 coefficient
++u8 sy6026l_44k_reg_33[] = {0x33, 0x1F, 0x8C, 0x44, 0x15, 0x00, 0xEC, 0x9E, 0x9E, 0x00, 0x75, 0xFF, 0x55, 0x1F, 0x13, 0x61, 0x62, 0x00, 0x7D, 0xBC, 0x97};	// BQ3 coefficient
++u8 sy6026l_44k_reg_34[] = {0x34, 0x1F, 0x8B, 0x45, 0x62, 0x00, 0xE5, 0x5E, 0x30, 0x00, 0x78, 0x1E, 0xF7, 0x1F, 0x1A, 0xA1, 0xD1, 0x00, 0x7C, 0x9B, 0xA8};	// BQ4 coefficient
++u8 sy6026l_44k_reg_35[] = {0x35, 0x1F, 0x9C, 0x5A, 0x64, 0x00, 0xAA, 0x25, 0xD4, 0x00, 0x58, 0x9D, 0x16, 0x1F, 0x55, 0xDA, 0x2C, 0x00, 0x8B, 0x08, 0x87};	// BQ5 coefficient
++u8 sy6026l_44k_reg_36[] = {0x36, 0x0A, 0x12, 0x47, 0x7C};                                                                                              
++u8 sy6026l_44k_reg_37[] = {0x3A, 0x1F, 0x81, 0x4B, 0x2E, 0x00, 0xFE, 0xAB, 0x4B, 0x00, 0x7E, 0x89, 0xF3, 0x1F, 0x01, 0x54, 0xB5, 0x00, 0x80, 0x2A, 0xE0};	// BQ9 coefficient
++u8 sy6026l_44k_reg_43[] = {0x43, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};	// SPEQ0 coefficient
++u8 sy6026l_44k_reg_44[] = {0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};	// SPEQ1 coefficient
++u8 sy6026l_44k_reg_45[] = {0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};	// SPEQ2 coefficient
++u8 sy6026l_44k_reg_46[] = {0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};	// SPEQ3 coefficient
++
++//DRC filter
++u8 sy6026l_44k_reg_47[] = {0x47, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B, 0x58, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x53, 0xF4, 0x00, 0x02, 0x53, 0xF4};	// LDRCBQ1 coefficient
++u8 sy6026l_44k_reg_4c[] = {0x4C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B, 0x58, 0x17, 0x00, 0x00, 0x00, 0x00, 0x1F, 0x82, 0x53, 0xF5, 0x00, 0x7D, 0xAC, 0x0C};	// HDRCBQ2 coefficient
++u8 sy6026l_44k_reg_52[] = {0x52, 0x00, 0x10, 0x01};
++u8 sy6026l_44k_reg_60[] = {0x60, 0x01, 0x00, 0x00, 0x0B};
++u8 sy6026l_44k_reg_61[] = {0x61, 0x3C, 0x93, 0x08};
++u8 sy6026l_44k_reg_67[] = {0x67, 0x3C, 0x93, 0x09};
++u8 sy6026l_44k_reg_6a[] = {0x6a, 0x00, 0x02, 0xFD};
++u8 sy6026l_44k_reg_62[] = {0x62, 0x7F, 0xF7, 0x77};
++u8 sy6026l_44k_reg_68[] = {0x68, 0x7D, 0x5C, 0x65};
++u8 sy6026l_44k_reg_6b[] = {0x6b, 0x7F, 0xBB, 0xCD};                                      
++u8 sy6026l_44k_reg_63[] = {0x63, 0x7F, 0xFC, 0x96};
++u8 sy6026l_44k_reg_69[] = {0x69, 0x7F, 0xE4, 0xFF};
++u8 sy6026l_44k_reg_6c[] = {0x6c, 0x7F, 0xF9, 0x2C};
++
++int sy6026l_nbytes_read(u16 addr, u8 len, void *data)
++{
++	struct i2c_client *client;
++	u8 client_addr = i2c_client->addr | ((addr >> 8) & 0x1);
++	u8 addr_lo = addr & 0xFF;
++	int retval;
++	struct i2c_msg msgs[] = {
++		{
++			.addr = client_addr,
++			.flags = 0,
++			.len = 1,
++			.buf = &addr_lo,
++		},
++		{
++			.addr = client_addr,
++			.flags = I2C_M_RD,
++			.len = len,
++			.buf = data,
++		},
++	};
++    if(!data || len <= 0 || !i2c_client){
++        dev_err(&i2c_client->dev, "sy6026l_nbytes_read fail\n");
++        return -1;
++    }
++	client = i2c_client;
++
++	retval = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
++	if (retval < 0)
++		return retval;
++
++	return retval != ARRAY_SIZE(msgs) ? -EIO : 0;
++}
++
++static int sy6026l_byte_read(u16 addr, int *val)
++{
++    u8 data;
++	int ret;
++
++    ret = sy6026l_nbytes_read(addr, 1, &data); 
++    if(ret != 0){
++        dev_err(&i2c_client->dev, "sy6026l_byte_read fail\n");
++		return -1;
++    }
++	*val = data;
++    return ret;
++}
++
++//44.1K EQ Setting end.
++
++static int sy6026l_nbytes_write(u8* data, int len)
++{
++    int ret;
++    
++    if(!data || len <= 0 || !i2c_client){
++        dev_err(&i2c_client->dev, "### [%s:%d] dummy_i2c_client == NULL or data == NULL or len[%d]###\n", __func__, __LINE__, len);
++        return -1;
++    }
++    
++    ret = i2c_master_send(i2c_client, data, len); 
++    if(ret != len){
++        dev_err(&i2c_client->dev, "### [%s:%d] ret[%d] ###\n\n", __func__, __LINE__, ret);
++    }
++    
++    return ret;
++}
++
++static int sy6026l_byte_write(u8 reg, int val)
++{
++    int ret;
++    u8 data[2] = {0};
++    
++    data[0] = reg;
++    data[1] = val;   
++    
++    ret = sy6026l_nbytes_write(data, 2); 
++    if(ret != 2){
++        dev_err(&i2c_client->dev, "### [%s:%d] sy6026l_nbytes_write ret[%d] ###\n\n", __func__, __LINE__, ret);
++    }
++    
++    return ret;
++}
++
++void sy6026l_eq_drc_write_44k(void)
++{    
++    //Checksum
++    sy6026l_nbytes_write(sy6026l_44k_reg_5a, sizeof(sy6026l_44k_reg_5a));
++    sy6026l_nbytes_write(sy6026l_44k_reg_5b, sizeof(sy6026l_44k_reg_5b));
++	
++    //EQ
++    sy6026l_nbytes_write(sy6026l_44k_reg_25, sizeof(sy6026l_44k_reg_25));
++    //sy6026l_nbytes_write(sy6026l_44k_reg_26, sizeof(sy6026l_44k_reg_26));
++	sy6026l_nbytes_write(sy6026l_44k_reg_27, sizeof(sy6026l_44k_reg_27));
++	//sy6026l_nbytes_write(sy6026l_44k_reg_28, sizeof(sy6026l_44k_reg_28));	
++	sy6026l_nbytes_write(sy6026l_44k_reg_30, sizeof(sy6026l_44k_reg_30));
++	sy6026l_nbytes_write(sy6026l_44k_reg_31, sizeof(sy6026l_44k_reg_31));
++	sy6026l_nbytes_write(sy6026l_44k_reg_32, sizeof(sy6026l_44k_reg_32));
++	sy6026l_nbytes_write(sy6026l_44k_reg_33, sizeof(sy6026l_44k_reg_33));
++	sy6026l_nbytes_write(sy6026l_44k_reg_34, sizeof(sy6026l_44k_reg_34));
++	sy6026l_nbytes_write(sy6026l_44k_reg_35, sizeof(sy6026l_44k_reg_35));
++    sy6026l_nbytes_write(sy6026l_44k_reg_36, sizeof(sy6026l_44k_reg_36));
++    sy6026l_nbytes_write(sy6026l_44k_reg_3a, sizeof(sy6026l_44k_reg_3a));
++	//sy6026l_nbytes_write(sy6026l_44k_reg_37, sizeof(sy6026l_44k_reg_37));	
++	sy6026l_nbytes_write(sy6026l_44k_reg_43, sizeof(sy6026l_44k_reg_43));
++	sy6026l_nbytes_write(sy6026l_44k_reg_44, sizeof(sy6026l_44k_reg_44));
++	sy6026l_nbytes_write(sy6026l_44k_reg_45, sizeof(sy6026l_44k_reg_45));
++	sy6026l_nbytes_write(sy6026l_44k_reg_46, sizeof(sy6026l_44k_reg_46));
++    
++    //DRC
++    sy6026l_nbytes_write(sy6026l_44k_reg_47, sizeof(sy6026l_44k_reg_47));
++    sy6026l_nbytes_write(sy6026l_44k_reg_4c, sizeof(sy6026l_44k_reg_4c));
++    sy6026l_nbytes_write(sy6026l_44k_reg_52, sizeof(sy6026l_44k_reg_52));
++    sy6026l_nbytes_write(sy6026l_44k_reg_60, sizeof(sy6026l_44k_reg_60));
++    sy6026l_nbytes_write(sy6026l_44k_reg_67, sizeof(sy6026l_44k_reg_67));
++    sy6026l_nbytes_write(sy6026l_44k_reg_6a, sizeof(sy6026l_44k_reg_6a));
++    sy6026l_nbytes_write(sy6026l_44k_reg_62, sizeof(sy6026l_44k_reg_62));
++    sy6026l_nbytes_write(sy6026l_44k_reg_68, sizeof(sy6026l_44k_reg_68));
++    sy6026l_nbytes_write(sy6026l_44k_reg_6b, sizeof(sy6026l_44k_reg_6b));    
++    sy6026l_nbytes_write(sy6026l_44k_reg_63, sizeof(sy6026l_44k_reg_63));
++    sy6026l_nbytes_write(sy6026l_44k_reg_69, sizeof(sy6026l_44k_reg_69));
++    sy6026l_nbytes_write(sy6026l_44k_reg_6c, sizeof(sy6026l_44k_reg_6c));
++}
++
++void sy6026l_eq_drc_write_32k_48k(void)
++{
++    sy6026l_nbytes_write(sy6026l_48k_reg_18, sizeof(sy6026l_48k_reg_18));
++    sy6026l_nbytes_write(sy6026l_48k_reg_1b, sizeof(sy6026l_48k_reg_1b));
++    sy6026l_nbytes_write(sy6026l_48k_reg_23, sizeof(sy6026l_48k_reg_23));
++    sy6026l_nbytes_write(sy6026l_48k_reg_76, sizeof(sy6026l_48k_reg_76));
++    sy6026l_nbytes_write(sy6026l_48k_reg_85, sizeof(sy6026l_48k_reg_85));
++    sy6026l_nbytes_write(sy6026l_48k_reg_86, sizeof(sy6026l_48k_reg_86));
++    
++    sy6026l_nbytes_write(sy6026l_48k_reg_5a, sizeof(sy6026l_48k_reg_5a));
++    sy6026l_nbytes_write(sy6026l_48k_reg_5b, sizeof(sy6026l_48k_reg_5b));
++    
++    sy6026l_nbytes_write(sy6026l_48k_reg_20, sizeof(sy6026l_48k_reg_20));
++    
++    //EQ
++    sy6026l_nbytes_write(sy6026l_48k_reg_25, sizeof(sy6026l_48k_reg_25));
++    //sy6026l_nbytes_write(sy6026l_48k_reg_26, sizeof(sy6026l_48k_reg_26));
++    sy6026l_nbytes_write(sy6026l_48k_reg_27, sizeof(sy6026l_48k_reg_27));
++    //sy6026l_nbytes_write(sy6026l_48k_reg_28, sizeof(sy6026l_48k_reg_28));
++    
++    sy6026l_nbytes_write(sy6026l_48k_reg_30, sizeof(sy6026l_48k_reg_30));
++    sy6026l_nbytes_write(sy6026l_48k_reg_31, sizeof(sy6026l_48k_reg_31));
++    sy6026l_nbytes_write(sy6026l_48k_reg_32, sizeof(sy6026l_48k_reg_32));
++    sy6026l_nbytes_write(sy6026l_48k_reg_33, sizeof(sy6026l_48k_reg_33));
++    sy6026l_nbytes_write(sy6026l_48k_reg_34, sizeof(sy6026l_48k_reg_34));
++    sy6026l_nbytes_write(sy6026l_48k_reg_35, sizeof(sy6026l_48k_reg_35));
++    sy6026l_nbytes_write(sy6026l_48k_reg_36, sizeof(sy6026l_48k_reg_36));
++    //sy6026l_nbytes_write(sy6026l_48k_reg_37, sizeof(sy6026l_48k_reg_37));
++    sy6026l_nbytes_write(sy6026l_48k_reg_3a, sizeof(sy6026l_48k_reg_3a));
++    
++    sy6026l_nbytes_write(sy6026l_48k_reg_43, sizeof(sy6026l_48k_reg_43));
++    sy6026l_nbytes_write(sy6026l_48k_reg_44, sizeof(sy6026l_48k_reg_44));
++    sy6026l_nbytes_write(sy6026l_48k_reg_45, sizeof(sy6026l_48k_reg_45));
++    sy6026l_nbytes_write(sy6026l_48k_reg_46, sizeof(sy6026l_48k_reg_46));
++    
++    //DRC
++    sy6026l_nbytes_write(sy6026l_48k_reg_47, sizeof(sy6026l_48k_reg_47));
++    sy6026l_nbytes_write(sy6026l_48k_reg_4c, sizeof(sy6026l_48k_reg_4c));
++    sy6026l_nbytes_write(sy6026l_48k_reg_52, sizeof(sy6026l_48k_reg_52));
++    sy6026l_nbytes_write(sy6026l_48k_reg_60, sizeof(sy6026l_48k_reg_60));
++    sy6026l_nbytes_write(sy6026l_48k_reg_61, sizeof(sy6026l_48k_reg_61));
++    sy6026l_nbytes_write(sy6026l_48k_reg_67, sizeof(sy6026l_48k_reg_67));
++    sy6026l_nbytes_write(sy6026l_48k_reg_6a, sizeof(sy6026l_48k_reg_6a));
++    sy6026l_nbytes_write(sy6026l_48k_reg_62, sizeof(sy6026l_48k_reg_62));
++    sy6026l_nbytes_write(sy6026l_48k_reg_68, sizeof(sy6026l_48k_reg_68));
++    sy6026l_nbytes_write(sy6026l_48k_reg_63, sizeof(sy6026l_48k_reg_63));    
++    sy6026l_nbytes_write(sy6026l_48k_reg_69, sizeof(sy6026l_48k_reg_69));
++    sy6026l_nbytes_write(sy6026l_48k_reg_6c, sizeof(sy6026l_48k_reg_6c));
++    
++    sy6026l_nbytes_write(sy6026l_48k_reg_58, sizeof(sy6026l_48k_reg_58));
++    sy6026l_nbytes_write(sy6026l_48k_reg_59, sizeof(sy6026l_48k_reg_59));
++    
++    //sy6026l_nbytes_write(sy6026l_48k_reg_55, sizeof(sy6026l_48k_reg_55));
++    //sy6026l_nbytes_write(sy6026l_48k_reg_56, sizeof(sy6026l_48k_reg_56));
++}
++
++//	EQ write
++void sy6026l_eq_drc_write(int rate)
++{
++    switch(rate){
++		case RATE_32K:
++		case RATE_48K:
++			sy6026l_eq_drc_write_32k_48k();
++			dev_info(&i2c_client->dev, "## [%s:%d]: rate[%d]!\n", __func__, __LINE__, rate);
++			break;
++		case RATE_44_1K:
++			sy6026l_eq_drc_write_44k();
++			dev_info(&i2c_client->dev, "## [%s:%d]: rate[%d]!\n", __func__, __LINE__, rate);
++			break;
++		case RATE_96K:
++		    dev_info(&i2c_client->dev, "## [%s:%d]: rate[%d]!\n", __func__, __LINE__, rate);
++			break;
++		default:
++			dev_info(&i2c_client->dev, "## [%s:%d]: rate[%d]!\n", __func__, __LINE__, rate);
++	}
++}
++
++void sy6026l_before_eq_drc_write(void) // before eq/drc change
++{
++	sy6026l_byte_write(0x06, 0x08); // soft mute 
++	mdelay(20); /* need you add a 20ms delay function; 20ms delay time is for soft mute time */
++	sy6026l_byte_write(0x22, 0x31); // shutdown power stage
++	sy6026l_byte_write(0x03, 0x19); // enable I2C access to RAM (register address: 0x30->0x3a)
++}
++
++void sy6026l_after_eq_drc_write(void) // after eq/drc change
++{
++	sy6026l_byte_write(0x03, 0x18);	// disable I2C access to RAM and enable DAP(audio processor) access to RAM
++	sy6026l_byte_write(0x22, 0x01); // enable power stage; if 0x22=0x31 before sy6026l_before_eq_drc_write() function, then keep 22=31 and ignore this program
++	sy6026l_byte_write(0x06, 0x10); // unmute
++}
++
++void sy6026l_eq_drc_change(int rate)
++{
++    sy6026l_before_eq_drc_write();
++    sy6026l_eq_drc_write(rate);
++    sy6026l_after_eq_drc_write();
++}
++
++void sy6026l_initial_simple_setting(void) // very simple initial program after power up
++{
++	//sy6026l_byte_write(0x22, 0x02);	// enable power stage from HIZ to PWM out; 
++											// initial 31; 01-->BTL ternary mode, 00-->BTL BD mode
++											// 03-->PBTL ternary mode, 02-->PBTL BD mode
++	
++                                            
++    sy6026l_byte_write(0x00, 0x00); //audio detect.
++	sy6026l_nbytes_write(sy6026l_clk_reg_82, sizeof(sy6026l_clk_reg_82)); // disable clock error dectect. 
++	// start
++	sy6026l_byte_write(0x10, 0x00); //audio detect.	
++	sy6026l_nbytes_write(sy6026l_48k_reg_55, sizeof(sy6026l_48k_reg_55));
++    sy6026l_nbytes_write(sy6026l_48k_reg_56, sizeof(sy6026l_48k_reg_56));
++	// end
++    
++    //sy6026l_nbytes_write(sy6026l_reg_filter_85, 4+1);
++    //sy6026l_nbytes_write(sy6026l_reg_filter_86, 4+1);
++	sy6026l_eq_drc_write_32k_48k();
++	sy6026l_byte_write(0x07, 0xff);	// adjust volume from mute to 0dB; initial 00
++											// you need adjust it to a correct volume you want;
++											// here 0dB is the biggest volume 0x07 register can set
++
++	sy6026l_byte_write(0x22, 0x01);	// enable power stage from HIZ to PWM out; 
++											// initial 31; 01-->BTL ternary mode, 00-->BTL BD mode
++											// 03-->PBTL ternary mode, 02-->PBTL BD mode
++	
++	sy6026l_byte_write(0x06, 0x10); // soft unmute 
++	dev_info(&i2c_client->dev, "## [%s:%d]: DAC_VERSION:[%s]\n", __func__, __LINE__, DAC_VERSION);
++}
++
++u8 sy6026l_clk_reg_55[] = {0x55, 0x40, 0x20, 0x32, 0x10};
++u8 sy6026l_clk_reg_56[] = {0x56, 0x00, 0x00, 0x00, 0x2e};
++u8 sy6026l_clk_reg_85[] = {0x85, 0x00, 0x00, 0x00, 0x03};
++u8 sy6026l_clk_reg_86[] = {0x86, 0x00, 0x00, 0x10, 0x03};
++void sy6026l_initial_btl_setting(void) // very simple initial program after power up
++{
++	sy6026l_byte_write(0x07, 0xff);
++    sy6026l_byte_write(0x0a, 0x7f);
++    sy6026l_byte_write(0x11, 0x80);
++	sy6026l_byte_write(0x12, 0x80);
++	sy6026l_byte_write(0x13, 0x7c);
++	sy6026l_byte_write(0x14, 0x7c);
++	sy6026l_byte_write(0x18, 0x7c);
++	sy6026l_byte_write(0x1b, 0x1d);
++	sy6026l_byte_write(0x23, 0x00);
++	sy6026l_nbytes_write(sy6026l_clk_reg_55, sizeof(sy6026l_clk_reg_55));
++	sy6026l_nbytes_write(sy6026l_clk_reg_56, sizeof(sy6026l_clk_reg_56));
++	sy6026l_nbytes_write(sy6026l_clk_reg_85, sizeof(sy6026l_clk_reg_85));
++	sy6026l_nbytes_write(sy6026l_clk_reg_86, sizeof(sy6026l_clk_reg_86));
++	//sy6026l_byte_write(0x22, 0x11);
++	sy6026l_byte_write(0x22, 0x01);		//	应该写入01,----0514
++	dev_info(&i2c_client->dev, "sy6026l_initial_btl_setting\n");
++}
++
++#endif /*SY60261*/
++
++
++
++
++
++
++#define STUB_RATES	SNDRV_PCM_RATE_8000_192000
++#if 1
++#define STUB_FORMATS	(SNDRV_PCM_FMTBIT_S16_LE | \
++			SNDRV_PCM_FMTBIT_U16_LE | \
++			SNDRV_PCM_FMTBIT_S32_LE | \
++			SNDRV_PCM_FMTBIT_U32_LE)
++#else
++#define STUB_FORMATS	(SNDRV_PCM_FMTBIT_S8 | \
++		SNDRV_PCM_FMTBIT_U8 | \
++		SNDRV_PCM_FMTBIT_S16_LE | \
++		SNDRV_PCM_FMTBIT_U16_LE | \
++		SNDRV_PCM_FMTBIT_S24_LE | \
++		SNDRV_PCM_FMTBIT_U24_LE | \
++		SNDRV_PCM_FMTBIT_S32_LE | \
++		SNDRV_PCM_FMTBIT_U32_LE | \
++		SNDRV_PCM_FMTBIT_IEC958_SUBFRAME_LE)
++#endif
++
++/*
++ * The dummy CODEC is only meant to be used in situations where there is no
++ * actual hardware.
++ *
++ * If there is actual hardware even if it does not have a control bus
++ * the hardware will still have constraints like supported samplerates, etc.
++ * which should be modelled. And the data flow graph also should be modelled
++ * using DAPM.
++ */
++static int sy602x_hw_params(struct snd_pcm_substream *substream,
++							struct snd_pcm_hw_params *params,
++							struct snd_soc_dai *dai)
++{
++    int ret;
++#ifdef SY60261
++	unsigned char dac_reg[] = {0x15, 0x10};
++	int width = params_width(params);
++    int rate = params_rate(params);
++	
++	if(STREAM_PLAY != substream->stream){
++		dev_err(&i2c_client->dev, "## [%s:%d]: This is capture stream, do nothing here, dir[%d]!\n", __func__, __LINE__, substream->stream);
++		return 0;
++	}
++    
++    if(last_rate != rate){
++        sy6026l_eq_drc_change(rate);
++        last_rate = rate;
++    }
++    
++	sy6026l_byte_write(0x22, 0x01);
++    
++	switch(width){
++		case 16:
++			dac_reg[1] = 0x13;
++			break;
++        case 18:
++			dac_reg[1] = 0x12;
++			break;
++		case 20:
++			dac_reg[1] = 0x11;
++			break;
++		case 24:
++			dac_reg[1] = 0x10;
++			break;
++		case 32:
++			dac_reg[1] = 0x10;
++			break;
++		default:
++			dac_reg[1] = 0x10;
++	}
++
++	dev_info(&i2c_client->dev, "## [%s:%d]: width:[0x%02x], value:[0x%02x], rate:[%d],\n", __func__, __LINE__, width, dac_reg[1], rate);
++	ret = i2c_master_send(i2c_client, &dac_reg[0], 2); 
++	if(ret != 2){
++		dev_err(&i2c_client->dev, "### [%s:%d] ret[%d] ###\n\n", __func__, __LINE__, ret);
++	}
++#endif	
++    return 0;
++}
++
++int sy602x_hw_free(struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
++{
++    int ret;    
++    
++    if(STREAM_PLAY != substream->stream){
++		dev_err(&i2c_client->dev, "## [%s:%d]: This is capture stream, do nothing here, dir[%d]!\n", __func__, __LINE__, substream->stream);
++		return 0;
++	}
++    
++	sy6026l_byte_write(0x06, 0x08); // soft mute 
++    ret = sy6026l_byte_write(0x22, 0x31);
++    dev_info(&i2c_client->dev, "## [%s:%d]: ret:[%d],\n", __func__, __LINE__, ret); 
++    
++    return 0;
++}
++
++static void sy602x_hw_shut_down(struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
++{    
++    if(STREAM_PLAY == substream->stream) {
++        dev_info(&i2c_client->dev, "## [%s:%d], play123, [%s]\n", __func__, __LINE__, substream->name);
++		sy6026l_byte_write(0x06, 0x18); 	// soft mute 
++		msleep(50);							// delay 50ms
++		sy6026l_byte_write(0x22, 0x31); 	// shutdown
++    }else{
++        dev_info(&i2c_client->dev, "## [%s:%d], capture123\n", __func__, __LINE__);
++    }
++}
++
++static int sy602x_hw_startup(struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
++{
++
++    if(STREAM_PLAY == substream->stream) {
++        dev_info(&i2c_client->dev, "## [%s:%d], play123, [%s]\n", __func__, __LINE__, substream->name);
++		sy6026l_byte_write(0x22, 0x01); 	//exit shutdown
++		sy6026l_byte_write(0x06, 0x10); 	// soft unmute 
++    }else{
++        dev_info(&i2c_client->dev, "## [%s:%d], capture123\n", __func__, __LINE__);
++    }
++	return 0;
++}
++
++static const struct snd_soc_dai_ops sy602x_dai_ops = {
++	.hw_params  = sy602x_hw_params,
++	/*.hw_free    = sy602x_hw_free,*/
++	.startup   = sy602x_hw_startup,
++	.shutdown   = sy602x_hw_shut_down,
++};
++
++static struct snd_soc_dai_driver sy602x_dai = {
++	.name = "snd-soc-dummy-dai",
++	.playback = {
++		.stream_name	= "Playback",
++		.channels_min	= 1,
++		.channels_max	= 2,
++		.rates		= STUB_RATES,
++		.formats	= STUB_FORMATS,
++	},
++	.capture = {
++		.stream_name	= "Capture",
++		.channels_min	= 1,
++		.channels_max	= 8,
++		.rates = STUB_RATES,
++		.formats = STUB_FORMATS,
++	 },
++    .ops = &sy602x_dai_ops,
++};
++
++static struct snd_soc_codec_driver sy602x_codec;
++
++static int sy602x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
++{
++	struct sy602x_priv *sy602x;
++	int ret;
++	int device_id;
++
++	dev_err(&i2c->dev, "sy602x_i2c_probe\n");
++	sy602x = devm_kzalloc(&i2c->dev, sizeof(struct sy602x_priv), GFP_KERNEL);
++	if (NULL == sy602x)
++		return -ENOMEM;
++	i2c_set_clientdata(i2c, sy602x);
++
++	/* Check if MCLK provided */
++	sy602x->mclk = devm_clk_get(&i2c->dev, "mclk");
++	if (PTR_ERR(sy602x->mclk) == -EPROBE_DEFER) {
++		return -EPROBE_DEFER;
++	}
++	clk_set_rate(sy602x->mclk, 11289600);
++	clk_prepare_enable(sy602x->mclk);
++	i2c_client = i2c;
++	if(!sy6026l_byte_read(1, &device_id)) {
++		dev_info(&i2c->dev, "sy602x id 0x%02X\n", device_id);
++	} else {
++		dev_err(&i2c->dev, "sy602x id fail\n");
++	}
++	sy6026l_initial_simple_setting(); // initial program for SY6026L
++	ret = snd_soc_register_codec(&i2c->dev, &sy602x_codec, &sy602x_dai, 1);
++	if (ret < 0)
++		return ret;
++
++#ifdef USE_REGMAP
++	{
++		unsigned int val;
++
++		sy602x->regmap = devm_regmap_init_i2c(i2c, &sy602x_regmap);
++		if (IS_ERR(sy602x->regmap)) {
++			ret = PTR_ERR(sy602x->regmap);
++			dev_err(&i2c->dev, "Failed to allocate register map: %d\n", ret);
++			return ret;
++		}
++
++		ret = regmap_read(sy602x->regmap, 0, &val);
++		if (ret)
++			return -EPROBE_DEFER;
++
++		if (val != RT5640_DEVICE_ID) {
++			dev_err(&i2c->dev,
++				"Device with ID register %#x is not rt5640/39\n", val);
++			return -ENODEV;
++		}
++	}
++#endif
++	return ret;
++}
++
++static int sy602x_i2c_remove(struct i2c_client *i2c)
++{
++	snd_soc_unregister_codec(&i2c->dev);
++	return 0;
++}
++
++#if defined(CONFIG_OF)
++static const struct of_device_id sy602x_of_match[] = {
++	{ .compatible = "rockchip,sy6026", },
++	{},
++};
++MODULE_DEVICE_TABLE(of, sy602x_of_match);
++#endif
++
++static const struct i2c_device_id sy602x_i2c_id[] = {
++	{ "sy6026", 0 },
++	{ }
++};
++MODULE_DEVICE_TABLE(i2c, sy602x_i2c_id);
++
++static struct i2c_driver rt5640_i2c_driver = {
++	.driver = {
++		.name = "sy6026",
++		.of_match_table = of_match_ptr(sy602x_of_match),
++	},
++	.probe = sy602x_i2c_probe,
++	.remove   = sy602x_i2c_remove,
++	.id_table = sy602x_i2c_id,
++};
++module_i2c_driver(rt5640_i2c_driver);
++
++MODULE_DESCRIPTION("ASoC sy602x driver");
++MODULE_AUTHOR("lanshh <lsh@rock-chips.com>");
++MODULE_LICENSE("GPL v2");
++
+diff --git a/sound/soc/codecs/sy602x.h b/sound/soc/codecs/sy602x.h
+new file mode 100755
+index 0000000..ee65bb7a
+--- /dev/null
++++ b/sound/soc/codecs/sy602x.h
+@@ -0,0 +1,19 @@
++#ifndef _SY602X_H_
++#define _SY602X_H_
++
++
++
++
++
++struct sy602x_priv {
++	struct snd_soc_codec *codec;
++	struct regmap *regmap;
++	struct clk *mclk;
++	int sysclk;
++	int sysclk_src;
++	int pll_src;
++	int pll_in;
++	int pll_out;
++	bool hp_mute;
++};
++#endif
+\ No newline at end of file
+-- 
+1.9.1
+
