@@ -8,6 +8,9 @@
         rk3326/kernel/0002-arm64-rockchip_defconfig-enable-SY602X-config.patch
 [RK3368H]
 [RK3399]
+    dummy Codec ²¹¶¡
+        rk3399/androidn/kernel/0001-for-dummy-codec.patch 
+
 
 
 

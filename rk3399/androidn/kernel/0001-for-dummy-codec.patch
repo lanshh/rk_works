@@ -1,0 +1,159 @@
+From 4729be057673128b36292bee39f5bcddb2e858c2 Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Fri, 31 May 2019 09:07:24 +0800
+Subject: [PATCH] for dummy codec
+
+Change-Id: If860bac79df719a72e6cb9b48a51018e1becbf26
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ .../dts/rockchip/rk3399-excavator-sapphire.dtsi    | 32 ++++++++++++++++++++++
+ .../dts/rockchip/rk3399-sapphire-excavator-edp.dts |  8 +++---
+ arch/arm64/configs/rockchip_defconfig              |  1 +
+ sound/soc/codecs/dummy-codec.c                     | 20 ++++++++++++++
+ 4 files changed, 57 insertions(+), 4 deletions(-)
+ mode change 100644 => 100755 arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
+ mode change 100644 => 100755 arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
+ mode change 100644 => 100755 sound/soc/codecs/dummy-codec.c
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
+old mode 100644
+new mode 100755
+index 8bdf703..3923acf
+--- a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
+@@ -66,6 +66,38 @@
+ 		};
+ 	};
+ 
++	dummy_sound: dummy-sound {
++		status = "okay";
++		compatible = "simple-audio-card";
++		simple-audio-card,format = "i2s";
++		simple-audio-card,name = "realtek,rt5651-codec";
++		simple-audio-card,mclk-fs = <256>;
++		simple-audio-card,widgets =
++			"Microphone", "Mic Jack",
++			"Headphone", "Headphone Jack";
++		simple-audio-card,routing =
++			"Mic Jack", "MICBIAS1",
++			"IN1P", "Mic Jack",
++			"Headphone Jack", "HPOL",
++			"Headphone Jack", "HPOR";
++		simple-audio-card,cpu {
++			sound-dai = <&i2s0>;
++		};
++		simple-audio-card,codec {
++			sound-dai = <&dummy_codec>;
++		};
++	};
++
++	dummy_codec: dummy-codec {
++		status = "okay";
++		compatible = "rockchip,dummy-codec";
++		clocks = <&cru SCLK_I2S_8CH_OUT>, <&cru SCLK_I2SOUT_SRC>, <&cru SCLK_I2S1_8CH>;
++		clock-names = "mclk", "mclk_src", "i2s1_clk";
++		pinctrl-names = "default";
++		pinctrl-0 = <&i2s_8ch_mclk>;
++		#sound-dai-cells = <0>;
++	};
++
+ 	spdif_sound: spdif-sound {
+ 		status = "okay";
+ 		compatible = "simple-audio-card";
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
+old mode 100644
+new mode 100755
+index 92f50db..bfa9251
+--- a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
+@@ -109,7 +109,7 @@
+ 		compatible = "rockchip,rockchip-rt5651-tc358749x-sound";
+ 		rockchip,cpu = <&i2s0>;
+ 		rockchip,codec = <&rt5651 &rt5651 &tc358749x>;
+-		status = "okay";
++		status = "disabled";
+ 	};
+ };
+ 
+@@ -146,7 +146,7 @@
+ };
+ 
+ &rt5651 {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &cdn_dp {
+@@ -210,7 +210,7 @@
+ };
+ 
+ &dp_sound {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ /*
+@@ -225,7 +225,7 @@
+ };
+ 
+ &hdmi_sound {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &isp0 {
+diff --git a/arch/arm64/configs/rockchip_defconfig b/arch/arm64/configs/rockchip_defconfig
+index 5c60086..e37b0d3 100644
+--- a/arch/arm64/configs/rockchip_defconfig
++++ b/arch/arm64/configs/rockchip_defconfig
+@@ -540,6 +540,7 @@ CONFIG_SND_SOC_ROCKCHIP_HDMI_DP=y
+ CONFIG_SND_SOC_ROCKCHIP_RT5651_TC358749=y
+ CONFIG_SND_SOC_ROCKCHIP_CDNDP=y
+ CONFIG_SND_SOC_CX2072X=y
++CONFIG_SND_SOC_DUMMY_CODEC=y
+ CONFIG_SND_SOC_BT_SCO=y
+ CONFIG_SND_SOC_ES8316=y
+ CONFIG_SND_SOC_ES8396=y
+diff --git a/sound/soc/codecs/dummy-codec.c b/sound/soc/codecs/dummy-codec.c
+old mode 100644
+new mode 100755
+index d8c97a2..3d931fa
+--- a/sound/soc/codecs/dummy-codec.c
++++ b/sound/soc/codecs/dummy-codec.c
+@@ -22,6 +22,7 @@
+ #include <sound/soc.h>
+ #include <sound/pcm.h>
+ #include <sound/initval.h>
++#include <linux/clk.h>
+ 
+ struct snd_soc_dai_driver dummy_dai = {
+ 	.name = "dummy_codec",
+@@ -51,6 +52,25 @@ static struct snd_soc_codec_driver soc_dummy_codec;
+ 
+ static int rockchip_dummy_codec_probe(struct platform_device *pdev)
+ {
++	struct clk *i2s1_clk, *mclk_src, *mclk;
++
++	mclk = devm_clk_get(&pdev->dev, "mclk");
++	if (IS_ERR(mclk)) {
++		dev_warn(&pdev->dev, "Unable to get mclk\n");
++	}
++	mclk_src = devm_clk_get(&pdev->dev, "mclk_src");
++	if (IS_ERR(mclk_src)) {
++		dev_warn(&pdev->dev, "Unable to get mclk_src\n");
++	}
++	i2s1_clk =  devm_clk_get(&pdev->dev, "i2s1_clk");
++	if (IS_ERR(i2s1_clk)) {
++		dev_warn(&pdev->dev, "Unable to get i2s1_clk\n");
++	}
++	if ((!IS_ERR(mclk)) && (!IS_ERR(i2s1_clk)) && (!IS_ERR(mclk_src))) {
++		clk_set_parent(mclk_src, i2s1_clk);
++		clk_set_rate(i2s1_clk, 12288000);
++		clk_prepare_enable(mclk);
++	}
+ 	return snd_soc_register_codec(&pdev->dev, &soc_dummy_codec,
+ 				      &dummy_dai, 1);
+ }
+-- 
+1.9.1
+
