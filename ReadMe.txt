@@ -12,6 +12,11 @@
 [RK3399]
     dummy Codec ²¹¶¡
         rk3399/androidn/kernel/0001-for-dummy-codec.patch 
+    RK809Éù¿¨Ê¹ÓÃ
+        0001-arch-arm64-dts-rk3399-enable-rk809-sound-and-remove-.patch
+    Éù¿¨Ë³Ğò
+        0001-prevent-HDMI-card-registering-as-card-0-add-dummy-so.patch
+
 
 
 

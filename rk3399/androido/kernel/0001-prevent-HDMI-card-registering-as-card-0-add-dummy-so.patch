@@ -1,0 +1,93 @@
+From 70fd01bc14e1cda0e4aefca0dcdbfd50975de09a Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Mon, 25 Mar 2019 17:37:27 +0800
+Subject: [PATCH] prevent HDMI card registering as card 0 & add dummy sound
+ card
+
+---
+ .../dts/rockchip/rk3399-excavator-sapphire-brio3.dtsi  | 18 ++++++++++++++++++
+ .../dts/rockchip/rk3399-sapphire-excavator-hdroom.dtsi |  6 ++++++
+ sound/soc/rockchip/rockchip_hdmi_dp.c                  |  7 +++++++
+ 3 files changed, 31 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire-brio3.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire-brio3.dtsi
+index 65e0070..4f421cf 100755
+--- a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire-brio3.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire-brio3.dtsi
+@@ -68,6 +68,7 @@
+ 	};
+ 
+ 	rt5678-sound {
++		status = "disabled";
+ 		compatible = "rockchip,rockchip-audio-rt5679";
+ 		rockchip,model = "realtek,rt5678-codec";
+ 		rockchip,audio-codec = <&rt5678>;
+@@ -94,6 +95,23 @@
+ 		};
+ 	};
+ 
++	dummy_codec: dummy-codec {
++		compatible = "rockchip,dummy-codec";
++		#sound-dai-cells = <0>;
++	};
++
++	dummy_sound: dummy-sound {
++		compatible = "simple-audio-card";
++		simple-audio-card,format = "i2s";
++		simple-audio-card,name = "rockchip,dummy-sound";
++		simple-audio-card,cpu {
++			sound-dai = <&i2s0>;
++		};
++		simple-audio-card,codec {
++			sound-dai = <&dummy_codec>;
++		};
++	};
++
+ 	spdif-sound {
+ 		status = "okay";
+ 		compatible = "simple-audio-card";
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-hdroom.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-hdroom.dtsi
+index cf3d605..52bb2a0 100755
+--- a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-hdroom.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-hdroom.dtsi
+@@ -229,6 +229,7 @@
+ 
+ &hdmi_dp_sound {
+ 	rockchip,codec = <&hdmi>;
++	rockchip,depens = <&dummy_sound>;
+ 	status = "okay";
+ };
+ 
+@@ -240,6 +241,11 @@
+ 	status = "okay";
+ };
+ 
++&i2s0 {
++	status = "okay";
++	#sound-dai-cells = <0>;
++};
++
+ &i2s1 {
+ 	status = "okay";
+ 	rockchip,i2s-broken-burst-len;
+diff --git a/sound/soc/rockchip/rockchip_hdmi_dp.c b/sound/soc/rockchip/rockchip_hdmi_dp.c
+index 4db9fb7..9671576 100644
+--- a/sound/soc/rockchip/rockchip_hdmi_dp.c
++++ b/sound/soc/rockchip/rockchip_hdmi_dp.c
+@@ -110,6 +110,13 @@ static int rk_hdmi_dp_probe(struct platform_device *pdev)
+ 
+ 	card->dev = &pdev->dev;
+ 
++	count = of_count_phandle_with_args(np, "rockchip,depens", NULL);
++	if (count > 0 ) {
++		dev_info(&pdev->dev, "rk_hdmi_dp_probe EPROBE_DEFER\n");
++		if(!snd_cards[0])
++			return -EPROBE_DEFER;
++	}
++
+ 	count = of_count_phandle_with_args(np, "rockchip,codec", NULL);
+ 	if (count < 0 || count > MAX_CODECS)
+ 		return -EINVAL;
+-- 
+1.9.1
+
