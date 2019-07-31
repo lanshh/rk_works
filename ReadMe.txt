@@ -8,6 +8,11 @@
         rk3326/kernel/0002-arm64-rockchip_defconfig-enable-SY602X-config.patch
     修改声卡解析流程代码
      rk3326/androido/hardware/tinyalsa_hal.rar
+    消回声RK_VOICE_V2.4版本
+        rk3326/androido/hardware/rk_audio_hal-20190709.tgz
+
+
+
 [RK3368H]
 [RK3399]
     dummy Codec 补丁
