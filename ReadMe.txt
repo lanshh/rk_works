@@ -21,7 +21,8 @@
         0001-arch-arm64-dts-rk3399-enable-rk809-sound-and-remove-.patch
     Éù¿¨Ë³Ğò
         0001-prevent-HDMI-card-registering-as-card-0-add-dummy-so.patch
-
+    Ìí¼ÓRT5651¶ú»úÇĞ»»Âß¼­
+    rk3399/androidn/kernel/0001-add-spk-switch-for-rt5651.patch
 
 
 

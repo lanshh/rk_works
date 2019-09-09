@@ -1,0 +1,396 @@
+From eee4c0d8ba137b5fca07c3182783c478baca0ecb Mon Sep 17 00:00:00 2001
+From: lanshh <lsh@rock-chips.com>
+Date: Thu, 8 Aug 2019 14:37:39 +0800
+Subject: [PATCH] add spk switch for rt5651
+
+Change-Id: I6440bed40918370a7c587cc7d8c2f364fcff3536
+Signed-off-by: lanshh <lsh@rock-chips.com>
+---
+ .../dts/rockchip/rk3399-excavator-sapphire.dtsi    |   4 +-
+ .../dts/rockchip/rk3399-sapphire-excavator-edp.dts |  40 ++++--
+ drivers/headset_observe/rk_headset_irq_hook_adc.c  |  11 +-
+ sound/soc/codecs/rt5651.c                          | 153 ++++++++++++++++++++-
+ sound/soc/codecs/rt5651.h                          |  10 ++
+ 5 files changed, 205 insertions(+), 13 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
+index 8bdf703..4ecdad4 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3399-excavator-sapphire.dtsi
+@@ -45,7 +45,7 @@
+ / {
+ 	compatible = "rockchip,rk3399-sapphire-excavator", "rockchip,rk3399";
+ 
+-	rt5651-sound {
++	rt5651_sound: rt5651-sound {
+ 		compatible = "simple-audio-card";
+ 		simple-audio-card,format = "i2s";
+ 		simple-audio-card,name = "realtek,rt5651-codec";
+@@ -180,7 +180,7 @@
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&i2s_8ch_mclk>;
+ 		spk-con-gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+-		hp-det-gpio = <&gpio4 28 GPIO_ACTIVE_LOW>;
++		/* hp-det-gpio = <&gpio4 28 GPIO_ACTIVE_LOW>;*/
+ 	};
+ };
+ 
+diff --git a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
+index 92f50db..4fca3be 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3399-sapphire-excavator-edp.dts
+@@ -101,16 +101,24 @@
+ 		status = "okay";
+ 	};
+ 
+-	rt5651-sound {
+-		status = "disabled";
+-	};
+-
+-	hdmiin-sound {
++	hdmiin_sound: hdmiin-sound {
+ 		compatible = "rockchip,rockchip-rt5651-tc358749x-sound";
+ 		rockchip,cpu = <&i2s0>;
+ 		rockchip,codec = <&rt5651 &rt5651 &tc358749x>;
+ 		status = "okay";
+ 	};
++
++	rk_headset {
++		compatible = "rockchip_headset";
++		headset_gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&hp_det>;
++		io-channels = <&saradc 2>;
++		/*
++		 * hook_gpio = ;
++		 * hook_down_type = ; //interrupt hook key down status
++		 */
++	};
+ };
+ 
+ &backlight {
+@@ -213,19 +221,27 @@
+ 	status = "okay";
+ };
+ 
++&hdmiin_sound {
++	status = "disabled";
++};
++
++&rt5651_sound {
++	status = "okay";
++};
++
+ /*
+  * if enable dp_sound, should disable spdif_sound and spdif_out
+  */
+ &spdif_out {
+-        status = "disabled";
++	status = "disabled";
+ };
+ 
+ &spdif_sound {
+-        status = "disabled";
++	status = "disabled";
+ };
+ 
+ &hdmi_sound {
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &isp0 {
+@@ -266,7 +282,15 @@
+ 	status = "okay";
+ };
+ 
++
+ &pinctrl {
++
++	headphone {
++		hp_det: hp-det {
++			rockchip,pins = <4 28 RK_FUNC_GPIO &pcfg_pull_up>;
++		};
++	};
++
+ 	lcd-panel {
+ 		lcd_panel_reset: lcd-panel-reset {
+ 			rockchip,pins = <4 30 RK_FUNC_GPIO &pcfg_pull_up>;
+diff --git a/drivers/headset_observe/rk_headset_irq_hook_adc.c b/drivers/headset_observe/rk_headset_irq_hook_adc.c
+index 08f2bff..0f2a4e5 100644
+--- a/drivers/headset_observe/rk_headset_irq_hook_adc.c
++++ b/drivers/headset_observe/rk_headset_irq_hook_adc.c
+@@ -84,6 +84,9 @@ extern int rt3261_headset_mic_detect(int jack_insert);
+ #if defined(CONFIG_SND_SOC_ES8316)
+ extern int es8316_headset_detect(int jack_insert);
+ #endif
++#if defined(CONFIG_SND_SOC_RT5651)
++extern int rt5651_headset_detect(int jack_insert);
++#endif
+ #if defined(CONFIG_SND_SOC_CX2072X)
+ extern int cx2072x_jack_report(void);
+ #endif
+@@ -173,9 +176,13 @@ static irqreturn_t headset_interrupt(int irq, void *dev_id)
+ 		pdata->headset_insert_type?"high level":"low level",
+ 		headset_info->headset_status?"in":"out");
+ 
+-	#if defined(CONFIG_SND_SOC_ES8316)
++#if defined(CONFIG_SND_SOC_ES8316)
+ 	es8316_headset_detect(headset_info->headset_status);
+-	#endif
++#endif
++
++#if defined(CONFIG_SND_SOC_RT5651)
++	rt5651_headset_detect(headset_info->headset_status);
++#endif
+ 
+ 	if(headset_info->headset_status == HEADSET_IN)
+ 	{
+diff --git a/sound/soc/codecs/rt5651.c b/sound/soc/codecs/rt5651.c
+index d50ee82..76204d5 100644
+--- a/sound/soc/codecs/rt5651.c
++++ b/sound/soc/codecs/rt5651.c
+@@ -25,12 +25,14 @@
+ #include <sound/soc-dapm.h>
+ #include <sound/initval.h>
+ #include <sound/tlv.h>
+-
++#include <linux/of_gpio.h>
++#include <linux/gpio.h>
+ #include <linux/clk.h>
+ #include "rl6231.h"
+ #include "rt5651.h"
+ 
+ #define RT5651_DEVICE_ID_VALUE 0x6281
++static struct snd_soc_codec *rt5651_codec;
+ 
+ #define RT5651_PR_RANGE_BASE (0xff + 1)
+ #define RT5651_PR_SPACING 0x100
+@@ -942,6 +944,39 @@ static int rt5651_bst3_event(struct snd_soc_dapm_widget *w,
+ 	return 0;
+ }
+ 
++#define INVALID_GPIO -1
++
++static void rt5651_enable_spk(struct rt5651_priv *rt5651, bool enable)
++{
++	bool level;
++
++	if ((!rt5651)  && (rt5651->spk_ctl_gpio == INVALID_GPIO)) {
++		return ;
++	}
++
++	level = enable ? rt5651->spk_active_level : !rt5651->spk_active_level;
++	gpio_set_value(rt5651->spk_ctl_gpio, level);
++}
++
++static int rt5651_mute(struct snd_soc_dai *dai, int mute)
++{
++	struct snd_soc_codec *codec = dai->codec;
++	struct rt5651_priv *rt5651 = snd_soc_codec_get_drvdata(codec);
++
++	rt5651->muted = mute;
++	if (mute) {
++		rt5651_enable_spk(rt5651, false);
++		msleep(100);
++		/* snd_soc_write(codec, ES8316_DAC_SET1_REG30, 0x20); */
++	} else if (dai->playback_active) {
++		/* snd_soc_write(codec, ES8316_DAC_SET1_REG30, 0x00); */
++		msleep(130);
++		if (!rt5651->hp_inserted)
++			rt5651_enable_spk(rt5651, true);
++	}
++	return 0;
++}
++
+ static const struct snd_soc_dapm_widget rt5651_dapm_widgets[] = {
+ 	/* ASRC */
+ 	SND_SOC_DAPM_SUPPLY_S("I2S1 ASRC", 1, RT5651_PLL_MODE_2,
+@@ -1664,6 +1699,7 @@ static int rt5651_probe(struct snd_soc_codec *codec)
+ {
+ 	struct rt5651_priv *rt5651 = snd_soc_codec_get_drvdata(codec);
+ 
++	rt5651_codec = codec;
+ 	rt5651->codec = codec;
+ 	rt5651->mclk = devm_clk_get(codec->dev, "mclk");
+ 	if (PTR_ERR(rt5651->mclk) == -EPROBE_DEFER)
+@@ -1717,6 +1753,7 @@ static const struct snd_soc_dai_ops rt5651_aif_dai_ops = {
+ 	.set_fmt = rt5651_set_dai_fmt,
+ 	.set_sysclk = rt5651_set_dai_sysclk,
+ 	.set_pll = rt5651_set_dai_pll,
++	.digital_mute = rt5651_mute,
+ };
+ 
+ static struct snd_soc_dai_driver rt5651_dai[] = {
+@@ -1796,12 +1833,71 @@ static const struct i2c_device_id rt5651_i2c_id[] = {
+ };
+ MODULE_DEVICE_TABLE(i2c, rt5651_i2c_id);
+ 
++static irqreturn_t rt5651_irq_handler(int irq, void *data)
++{
++	struct rt5651_priv *rt5651 = (struct rt5651_priv *)data;
++
++	queue_delayed_work(system_power_efficient_wq, &rt5651->work,
++			   msecs_to_jiffies(rt5651->debounce_time));
++	return IRQ_HANDLED;
++}
++
++/*
++ * Call from rk_headset_irq_hook_adc.c
++ *
++ * Enable micbias for HOOK detection and disable external Amplifier
++ * when jack insertion.
++ */
++int rt5651_headset_detect(int jack_insert)
++{
++	struct rt5651_priv *rt5651;
++
++	if (!rt5651_codec)
++		return -1;
++
++	rt5651 = snd_soc_codec_get_drvdata(rt5651_codec);
++
++	rt5651->hp_inserted = jack_insert;
++
++	/*enable micbias and disable PA*/
++	if (jack_insert) {
++		/* snd_soc_update_bits(rt5651_codec,
++				    ES8316_SYS_PDN_REG0D, 0x3f, 0);*/
++		rt5651_enable_spk(rt5651, false);
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL(rt5651_headset_detect);
++
++static void hp_work(struct work_struct *work)
++{
++	struct rt5651_priv *rt5651;
++	int enable;
++
++	rt5651 = container_of(work, struct rt5651_priv, work.work);
++	enable = gpio_get_value(rt5651->hp_det_gpio);
++	if (rt5651->hp_det_invert)
++		enable = !enable;
++
++	rt5651->hp_inserted = enable ? true : false;
++	if (!rt5651->muted) {
++		if (rt5651->hp_inserted)
++			rt5651_enable_spk(rt5651, false);
++		else
++			rt5651_enable_spk(rt5651, true);
++	}
++}
++
++
+ static int rt5651_i2c_probe(struct i2c_client *i2c,
+ 		    const struct i2c_device_id *id)
+ {
+ 	struct rt5651_platform_data *pdata = dev_get_platdata(&i2c->dev);
+ 	struct rt5651_priv *rt5651;
++	int hp_irq;
+ 	int ret;
++	enum of_gpio_flags flags;
+ 
+ 	rt5651 = devm_kzalloc(&i2c->dev, sizeof(*rt5651),
+ 				GFP_KERNEL);
+@@ -1813,6 +1909,49 @@ static int rt5651_i2c_probe(struct i2c_client *i2c,
+ 	if (pdata)
+ 		rt5651->pdata = *pdata;
+ 
++	rt5651->spk_ctl_gpio = of_get_named_gpio_flags(i2c->dev.of_node, "spk-con-gpio", 0, &flags);
++	if (rt5651->spk_ctl_gpio < 0) {
++		dev_info(&i2c->dev, "Can not read property spk_ctl_gpio\n");
++		rt5651->spk_ctl_gpio = INVALID_GPIO;
++	} else {
++		rt5651->spk_active_level = (flags & OF_GPIO_ACTIVE_LOW) ? 0 : 1;
++		ret = devm_gpio_request_one(&i2c->dev, rt5651->spk_ctl_gpio, GPIOF_DIR_OUT, NULL);
++		if (ret != 0) {
++			dev_err(&i2c->dev, "Failed to request spk_ctl_gpio\n");
++			//return ret;
++		}
++		rt5651_enable_spk(rt5651, false);
++	}
++
++	rt5651->hp_det_gpio = of_get_named_gpio_flags(i2c->dev.of_node,
++						      "hp-det-gpio",
++						      0,
++						      &flags);
++	if (rt5651->hp_det_gpio < 0) {
++		dev_info(&i2c->dev, "Can not read property hp_det_gpio\n");
++		rt5651->hp_det_gpio = INVALID_GPIO;
++	} else {
++		INIT_DELAYED_WORK(&rt5651->work, hp_work);
++		rt5651->hp_det_invert = !!(flags & OF_GPIO_ACTIVE_LOW);
++		ret = devm_gpio_request_one(&i2c->dev, rt5651->hp_det_gpio, GPIOF_IN, "hp det");
++		if (ret < 0)
++			return ret;
++		hp_irq = gpio_to_irq(rt5651->hp_det_gpio);
++		ret = devm_request_threaded_irq(&i2c->dev, hp_irq, NULL,
++						rt5651_irq_handler,
++						IRQF_TRIGGER_FALLING |
++						IRQF_TRIGGER_RISING |
++						IRQF_ONESHOT,
++						"es8316_interrupt", rt5651);
++		if (ret < 0) {
++			dev_err(&i2c->dev, "request_irq failed: %d\n", ret);
++			return ret;
++		}
++
++		schedule_delayed_work(&rt5651->work,
++				      msecs_to_jiffies(rt5651->debounce_time));
++	}
++
+ 	rt5651->regmap = devm_regmap_init_i2c(i2c, &rt5651_regmap);
+ 	if (IS_ERR(rt5651->regmap)) {
+ 		ret = PTR_ERR(rt5651->regmap);
+@@ -1858,6 +1997,17 @@ static int rt5651_i2c_remove(struct i2c_client *i2c)
+ 	return 0;
+ }
+ 
++static void rt5651_i2c_shutdown(struct i2c_client *client)
++{
++	struct rt5651_priv *rt5651 = i2c_get_clientdata(client);
++
++	if (rt5651_codec != NULL) {
++		rt5651_enable_spk(rt5651, false);
++		msleep(20);
++		rt5651_set_bias_level(rt5651_codec, SND_SOC_BIAS_OFF);
++	}
++}
++
+ static const struct of_device_id rt5651_of_match[] = {
+ 	{ .compatible = "realtek,rt5651", },
+ 	{ }
+@@ -1869,6 +2019,7 @@ static struct i2c_driver rt5651_i2c_driver = {
+ 		.of_match_table = rt5651_of_match,
+ 	},
+ 	.probe = rt5651_i2c_probe,
++	.shutdown = rt5651_i2c_shutdown,
+ 	.remove   = rt5651_i2c_remove,
+ 	.id_table = rt5651_i2c_id,
+ };
+diff --git a/sound/soc/codecs/rt5651.h b/sound/soc/codecs/rt5651.h
+index abf4297..441cd4c 100644
+--- a/sound/soc/codecs/rt5651.h
++++ b/sound/soc/codecs/rt5651.h
+@@ -2077,6 +2077,16 @@ struct rt5651_priv {
+ 	int asrc_en;
+ 	bool hp_mute;
+ 	struct clk *mclk;
++
++	int debounce_time;
++	int hp_det_invert;
++	struct delayed_work work;
++
++	int spk_ctl_gpio;
++	int hp_det_gpio;
++	bool muted;
++	bool hp_inserted;
++	bool spk_active_level;
+ };
+ 
+ #endif /* __RT5651_H__ */
+-- 
+1.9.1
+
